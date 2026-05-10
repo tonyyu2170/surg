@@ -21,7 +21,7 @@ pip install -e ".[dev]"
 ## Layout
 
 ```
-data/         # gitignored; reproduce via acquisition scripts
+data/         # PJM data
 docs/         # proposal and supporting writing
 notebooks/    # exploratory analysis
 outputs/      # generated figures and tables (gitignored)

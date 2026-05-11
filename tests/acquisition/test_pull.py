@@ -164,3 +164,36 @@ def test_empty_chunk_still_writes_an_empty_parquet(tmp_path: Path):
     assert len(written) == 1
     df = pd.read_parquet(written[0])
     assert df.empty
+
+
+def test_pull_feed_rejects_missing_filter(tmp_path: Path):
+    """Both pnode_ids=None AND zone=None should raise — would otherwise
+    issue an unfiltered query that returns millions of rows."""
+    client, _ = _mock_client([])
+    with pytest.raises(ValueError, match="exactly one of pnode_ids or zone"):
+        pull_feed(
+            feed="rt_hrl_lmps",
+            start=date(2026, 4, 15),
+            end=date(2026, 4, 15),
+            pnode_ids=None,
+            zone=None,
+            group_label="dom",
+            client=client,
+            data_root=tmp_path,
+        )
+
+
+def test_pull_feed_rejects_both_filters(tmp_path: Path):
+    """Both pnode_ids AND zone is ambiguous — raise."""
+    client, _ = _mock_client([])
+    with pytest.raises(ValueError, match="exactly one of pnode_ids or zone"):
+        pull_feed(
+            feed="rt_hrl_lmps",
+            start=date(2026, 4, 15),
+            end=date(2026, 4, 15),
+            pnode_ids=[35010365],
+            zone="DOM",
+            group_label="dom",
+            client=client,
+            data_root=tmp_path,
+        )

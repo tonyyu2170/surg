@@ -36,13 +36,18 @@ def pull_feed(
     data_root: Path,
     zone: str | None = None,
     force: bool = False,
-    max_days_per_chunk: int = 365,
+    max_days_per_chunk: int = 366,
 ) -> list[Path]:
     """Pull `feed` for [start, end] in calendar-year chunks.
 
     Returns the list of parquet paths written this run (skipped chunks
     are excluded from the return value).
     """
+    if (pnode_ids is None) == (zone is None):
+        raise ValueError(
+            "pull_feed requires exactly one of pnode_ids or zone, not both/neither"
+        )
+
     written: list[Path] = []
 
     for chunk_start, chunk_end in date_chunks(start, end, max_days=max_days_per_chunk):

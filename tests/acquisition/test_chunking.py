@@ -35,7 +35,7 @@ def test_multi_year_splits_per_calendar_year():
 
 
 def test_max_days_subdivides_within_year():
-    # max_days=30: a 100-day window in one calendar year splits into 4
+    # max_days=30: a 101-day inclusive window in one calendar year splits into 4
     chunks = list(date_chunks(date(2024, 1, 1), date(2024, 4, 10), max_days=30))
     # 30 + 30 + 30 + 11 = 101 days
     assert len(chunks) == 4

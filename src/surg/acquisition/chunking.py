@@ -25,6 +25,10 @@ def date_chunks(
 
     Windows never cross a calendar year boundary and never exceed
     `max_days` days inclusive.
+
+    `max_days` defaults to 365 (one day under PJM's 366-day range cap)
+    to leave margin for edge cases. Pass `max_days=366` to use the
+    full cap — required when pulling a full leap year as a single chunk.
     """
     if end < start:
         raise ValueError(f"end ({end}) must be >= start ({start})")
@@ -44,7 +48,13 @@ def pnode_batches(
     pnode_ids: Sequence[int],
     batch_size: int = 50,
 ) -> Iterator[list[int]]:
-    """Yield successive batches of pnode IDs of length up to `batch_size`."""
+    """Yield successive batches of pnode IDs of length up to `batch_size`.
+
+    NOTE: Currently unused by the orchestrator (Task 5 packs all 11 locked
+    pnodes into a single `pnode_id=A;B;C;...` query, which fits comfortably
+    in one URL). Retained for the case where the target set grows past
+    `batch_size` and per-call packing becomes necessary.
+    """
     if batch_size < 1:
         raise ValueError(f"batch_size must be >= 1, got {batch_size}")
     for i in range(0, len(pnode_ids), batch_size):

@@ -8,16 +8,21 @@ Two feed shapes are supported:
 """
 from __future__ import annotations
 
+import argparse
+import os
+import sys
 from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from dotenv import load_dotenv
 
 from surg.acquisition.chunking import date_chunks
 from surg.acquisition.client import PJMClient
 from surg.acquisition.storage import chunk_exists, write_chunk
+from surg.acquisition.targets import all_pnode_ids
 
 # Feeds that follow LMP versioning semantics.
 _LMP_FEEDS = frozenset(
@@ -97,13 +102,6 @@ def _build_params(
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
-import argparse  # noqa: E402
-import os
-import sys
-
-from dotenv import load_dotenv
-
-from surg.acquisition.targets import all_pnode_ids
 
 
 def _parse_iso_date(s: str) -> date:
@@ -136,6 +134,13 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
+
+    if args.feed in _LMP_FEEDS and args.zone is not None:
+        print(f"--zone is not valid for LMP feed '{args.feed}'", file=sys.stderr)
+        return 2
+    if args.feed == "hrl_load_metered" and args.zone is None:
+        print("--zone is required for feed 'hrl_load_metered'", file=sys.stderr)
+        return 2
 
     load_dotenv()
     api_key = os.environ.get("PJM_API_KEY")

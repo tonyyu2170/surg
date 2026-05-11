@@ -21,12 +21,12 @@ def test_splits_at_calendar_year_boundary():
 
 
 def test_full_year_is_one_chunk():
-    chunks = list(date_chunks(date(2024, 1, 1), date(2024, 12, 31)))
+    chunks = list(date_chunks(date(2024, 1, 1), date(2024, 12, 31), max_days=366))
     assert chunks == [(date(2024, 1, 1), date(2024, 12, 31))]
 
 
 def test_multi_year_splits_per_calendar_year():
-    chunks = list(date_chunks(date(2022, 1, 1), date(2024, 12, 31)))
+    chunks = list(date_chunks(date(2022, 1, 1), date(2024, 12, 31), max_days=366))
     assert chunks == [
         (date(2022, 1, 1), date(2022, 12, 31)),
         (date(2023, 1, 1), date(2023, 12, 31)),

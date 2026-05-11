@@ -19,7 +19,7 @@ from datetime import date, timedelta
 def date_chunks(
     start: date,
     end: date,
-    max_days: int = 366,
+    max_days: int = 365,
 ) -> Iterator[tuple[date, date]]:
     """Yield (chunk_start, chunk_end) inclusive windows.
 

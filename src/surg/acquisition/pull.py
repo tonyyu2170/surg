@@ -92,3 +92,79 @@ def _build_params(
     if feed in _LMP_FEEDS:
         params["row_is_current"] = "true"
     return params
+
+
+# ---------------------------------------------------------------------------
+# CLI entry point
+# ---------------------------------------------------------------------------
+import argparse  # noqa: E402
+import os
+import sys
+
+from dotenv import load_dotenv
+
+from surg.acquisition.targets import all_pnode_ids
+
+
+def _parse_iso_date(s: str) -> date:
+    return date.fromisoformat(s)
+
+
+def _build_arg_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="surg-pull",
+        description="Pull a PJM Data Miner 2 feed for a date range to data/raw/.",
+    )
+    p.add_argument("--feed", required=True,
+                   choices=sorted(_LMP_FEEDS | {"hrl_load_metered"}),
+                   help="API feed name.")
+    p.add_argument("--start", required=True, type=_parse_iso_date,
+                   help="Inclusive start date (YYYY-MM-DD).")
+    p.add_argument("--end",   required=True, type=_parse_iso_date,
+                   help="Inclusive end date (YYYY-MM-DD).")
+    p.add_argument("--group-label", default="dom_targets",
+                   help="Slug used in output filenames.")
+    p.add_argument("--data-root", default="data/raw",
+                   help="Root directory under which feed/year subdirs are created.")
+    p.add_argument("--zone", default=None,
+                   help="For zonal feeds (e.g. hrl_load_metered). Mutually "
+                        "exclusive with the implicit pnode set.")
+    p.add_argument("--force", action="store_true",
+                   help="Overwrite existing chunk files.")
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _build_arg_parser().parse_args(argv)
+
+    load_dotenv()
+    api_key = os.environ.get("PJM_API_KEY")
+    if not api_key:
+        print("PJM_API_KEY is not set. Add it to .env or export it.", file=sys.stderr)
+        return 2
+
+    pnode_ids = None if args.zone else all_pnode_ids()
+
+    with PJMClient(api_key=api_key) as client:
+        paths = pull_feed(
+            feed=args.feed,
+            start=args.start,
+            end=args.end,
+            pnode_ids=pnode_ids,
+            zone=args.zone,
+            group_label=args.group_label,
+            client=client,
+            data_root=Path(args.data_root),
+            force=args.force,
+        )
+
+    if not paths:
+        print("No chunks pulled (all already exist; use --force to overwrite).")
+    else:
+        for p in paths:
+            print(f"wrote {p}")
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

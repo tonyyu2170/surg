@@ -18,6 +18,9 @@ dependencies = [
     "ipykernel>=6.0",
 ]
 
+[project.scripts]
+surg-pull = "surg.acquisition.pull:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.4",

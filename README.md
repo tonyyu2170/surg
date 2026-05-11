@@ -18,6 +18,37 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
+## Data acquisition
+
+All raw PJM Data Miner 2 pulls go through `surg-pull`, the CLI registered by
+`src/surg/acquisition/pull.py`. Output goes to
+`data/raw/<feed>/<year>/<group_label>__<start>_to_<end>.parquet` and re-runs
+skip chunks that already exist on disk (`--force` to overwrite).
+
+The 11 target pnodes (LOUDOUN, PLEASANT VIEW, GOOSECRE, BRAMBLET, MOSBY,
+SKFFSCRK, two ASHBURN 35 KV LOAD buses, OX, BRISTERS, DOM zonal) are baked
+in as a module constant; see `docs/decisions.md` for the rationale.
+
+### Examples
+
+```bash
+# Hourly nodal LMP, the 11-pnode target set, one calendar year
+surg-pull --feed rt_hrl_lmps --start 2024-01-01 --end 2024-12-31
+
+# 5-minute nodal LMP within PJM's 186-day Standard window
+surg-pull --feed rt_fivemin_hrl_lmps --start 2025-11-15 --end 2026-05-10
+
+# Day-ahead hourly LMP
+surg-pull --feed da_hrl_lmps --start 2024-01-01 --end 2024-12-31
+
+# DOM-zone hourly load (zonal feed — --zone replaces the pnode set)
+surg-pull --feed hrl_load_metered --zone DOM --start 2024-01-01 --end 2024-12-31 --group-label dom_load
+```
+
+Requires `PJM_API_KEY` in `.env` (see `.env.example`) or the environment.
+The CLI throttles requests to ~6/min to respect PJM's free-tier rate limit;
+expect roughly 11s of wall time per API call.
+
 ## Layout
 
 ```

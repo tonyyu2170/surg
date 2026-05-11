@@ -198,3 +198,34 @@ prior "all matching buses" plan:
 - If we need finer resolution on the data center driver, query
   the `gen` feed for Loudoun-area generator pnodes that may
   reflect data-center-adjacent generation response.
+
+---
+
+## 2026-05-11 — Acquisition module: sync httpx, filesystem-skip, hardcoded pnode constants
+
+**Context.** Spike (`notebooks/01_data_miner_spike.ipynb`) validated the
+end-to-end API shape. Before bulk pulls we needed a reusable, idempotent
+acquisition layer that respects the 6/min rate limit, archive cutoffs,
+366-day range cap, and PJM's quirks (envelope keys, pnode_name truncation).
+
+**Decision.** Three architectural choices, all favoring the simpler option:
+
+1. **Sync httpx (not async).** The 6/min rate limit makes us bound by
+   wall time, not concurrency. A single API key cannot benefit from
+   async multiplexing.
+2. **Filesystem-based skip-if-exists** (not a SQLite ledger). Each
+   chunk's parquet path is deterministic; presence on disk = pulled.
+   `--force` overrides for re-pulls. `write_chunk` is atomic
+   (`.tmp` + `os.replace`) so interrupted writes never pollute the
+   skip-if-exists contract.
+3. **Pnode IDs as a Python module constant** (`surg.acquisition.targets.PNODES`),
+   not config. They are locked in this file (`decisions.md`) and treating
+   them as code-level constants matches their stability.
+
+**Rationale.** Each picks the simpler option in its trade-off, given a
+single-developer research project with locked targets and a hard rate
+ceiling that limits parallelism's value.
+
+**Revisit when.** If we ever obtain a higher-rate API key, async
+becomes worth it. If we add multi-target pulls (different pnode
+sets per call), targets should move to config.

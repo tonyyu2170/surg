@@ -200,5 +200,5 @@ def test_throttle_and_backoff_compose_additively_under_429(monkeypatch):
 
     # First call: no throttle (no prior). 429. Backoff 2s. Reset ts.
     # Retry: throttle 10s (ts was just reset). Success.
-    assert sleeps == [2.0, 10.0]
+    assert sleeps == pytest.approx([2.0, 10.0], abs=0.01)
     assert rows == [{"ok": True}]

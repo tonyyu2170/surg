@@ -1,3 +1,6 @@
+import pytest
+from dataclasses import FrozenInstanceError
+
 from surg.acquisition.targets import (
     Pnode,
     PNODES,
@@ -43,12 +46,12 @@ def test_all_pnode_ids_returns_int_list():
     assert all(isinstance(i, int) for i in ids)
 
 
-def test_pnode_is_hashable_and_frozen():
+def test_pnode_is_immutable():
+    with pytest.raises(FrozenInstanceError):
+        PNODES[0].pnode_id = 999
+
+
+def test_pnode_is_hashable():
     p = PNODES[0]
-    {p}  # hashable
-    try:
-        p.pnode_id = 999
-        raised = False
-    except Exception:
-        raised = True
-    assert raised, "Pnode should be frozen"
+    assert hash(p) == hash(p)
+    assert len({p, p}) == 1

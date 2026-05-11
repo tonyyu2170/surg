@@ -72,3 +72,49 @@ def test_write_chunk_overwrites_existing(tmp_path: Path):
     write_chunk(df=pd.DataFrame({"v": [2]}), **args)
     loaded = pd.read_parquet(chunk_path(**args))
     assert list(loaded["v"]) == [2]
+
+
+def test_write_chunk_leaves_no_temp_file_on_success(tmp_path: Path):
+    """The .tmp staging file must not be left behind after a successful write."""
+    out = write_chunk(
+        data_root=tmp_path,
+        feed="rt_hrl_lmps",
+        group_label="dom",
+        chunk_start=date(2026, 4, 15),
+        chunk_end=date(2026, 4, 15),
+        df=pd.DataFrame({"a": [1]}),
+    )
+    tmp_file = out.with_suffix(out.suffix + ".tmp")
+    assert out.exists()
+    assert not tmp_file.exists()
+
+
+def test_write_chunk_keeps_old_file_when_write_fails(tmp_path: Path, monkeypatch):
+    """If the parquet write raises, the canonical path must keep its prior contents."""
+    args = dict(
+        data_root=tmp_path,
+        feed="rt_hrl_lmps",
+        group_label="dom",
+        chunk_start=date(2026, 4, 15),
+        chunk_end=date(2026, 4, 15),
+    )
+    # Establish a "good" prior state at the canonical path
+    write_chunk(df=pd.DataFrame({"v": ["original"]}), **args)
+
+    # Make the next to_parquet call raise mid-write
+    real_to_parquet = pd.DataFrame.to_parquet
+
+    def boom(self, *a, **kw):
+        # Allow the .tmp write to begin, then fail.
+        raise RuntimeError("simulated kill mid-write")
+
+    monkeypatch.setattr(pd.DataFrame, "to_parquet", boom)
+    try:
+        write_chunk(df=pd.DataFrame({"v": ["new"]}), **args)
+    except RuntimeError:
+        pass
+    monkeypatch.setattr(pd.DataFrame, "to_parquet", real_to_parquet)
+
+    # The canonical file should still contain the original data
+    loaded = pd.read_parquet(chunk_path(**args))
+    assert list(loaded["v"]) == ["original"]

@@ -9,6 +9,7 @@ to override.
 """
 from __future__ import annotations
 
+import os
 from datetime import date
 from pathlib import Path
 
@@ -34,6 +35,7 @@ def chunk_exists(
     chunk_start: date,
     chunk_end: date,
 ) -> bool:
+    """Return True if a chunk parquet already exists at its canonical path."""
     return chunk_path(data_root, feed, group_label, chunk_start, chunk_end).exists()
 
 
@@ -45,8 +47,15 @@ def write_chunk(
     chunk_end: date,
     df: pd.DataFrame,
 ) -> Path:
-    """Write `df` to the chunk's path, creating parent dirs. Overwrites."""
+    """Write `df` to the chunk's path, creating parent dirs.
+
+    Atomic via temp-file + `os.replace` so an interrupted write
+    never leaves a partial parquet at the canonical path.
+    Overwrites any existing file.
+    """
     out = chunk_path(data_root, feed, group_label, chunk_start, chunk_end)
     out.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(out, index=False)
+    tmp = out.with_suffix(out.suffix + ".tmp")
+    df.to_parquet(tmp, index=False)
+    os.replace(tmp, out)
     return out

@@ -197,3 +197,35 @@ def test_pull_feed_rejects_both_filters(tmp_path: Path):
             client=client,
             data_root=tmp_path,
         )
+
+
+def test_pull_feed_rejects_empty_pnode_ids_with_no_zone(tmp_path: Path):
+    """Empty list is treated the same as None — no filter would slip through."""
+    client, _ = _mock_client([])
+    with pytest.raises(ValueError, match="exactly one of pnode_ids or zone"):
+        pull_feed(
+            feed="rt_hrl_lmps",
+            start=date(2026, 4, 15),
+            end=date(2026, 4, 15),
+            pnode_ids=[],
+            zone=None,
+            group_label="dom",
+            client=client,
+            data_root=tmp_path,
+        )
+
+
+def test_pull_feed_rejects_empty_zone_with_no_pnodes(tmp_path: Path):
+    """Empty string zone is treated the same as None."""
+    client, _ = _mock_client([])
+    with pytest.raises(ValueError, match="exactly one of pnode_ids or zone"):
+        pull_feed(
+            feed="hrl_load_metered",
+            start=date(2026, 4, 15),
+            end=date(2026, 4, 15),
+            pnode_ids=None,
+            zone="",
+            group_label="dom",
+            client=client,
+            data_root=tmp_path,
+        )

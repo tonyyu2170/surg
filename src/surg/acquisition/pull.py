@@ -48,7 +48,7 @@ def pull_feed(
     Returns the list of parquet paths written this run (skipped chunks
     are excluded from the return value).
     """
-    if (pnode_ids is None) == (zone is None):
+    if bool(pnode_ids) == bool(zone):
         raise ValueError(
             "pull_feed requires exactly one of pnode_ids or zone, not both/neither"
         )

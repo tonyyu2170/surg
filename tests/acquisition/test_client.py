@@ -145,3 +145,60 @@ def test_context_manager_closes_underlying_client():
         # Confirm we have an httpx.Client; close it via context exit
     # No assertion on closed state needed — httpx.Client.is_closed is the truth
     assert client._client.is_closed
+
+
+def test_empty_batch_mid_pagination_stops_silently():
+    """If the API returns items=[] mid-pagination, the loop terminates.
+
+    PJM's API is well-behaved here, but we lock the behavior: a partial
+    result is what we get. The orchestrator can detect short results by
+    comparing row count to totalRows if needed.
+    """
+    state = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        state["n"] += 1
+        if state["n"] == 1:
+            return httpx.Response(200, json={"items": [{"i": 1}, {"i": 2}], "totalRows": 100})
+        # Subsequent pages return empty even though totalRows=100
+        return httpx.Response(200, json={"items": [], "totalRows": 100})
+
+    client = PJMClient(api_key="k", min_interval_s=0.0,
+                       transport=_mock_transport(handler))
+    rows = list(client.get_feed("pnode", {}, page_size=2))
+
+    assert state["n"] == 2  # makes one more call to discover empty batch
+    assert rows == [{"i": 1}, {"i": 2}]
+
+
+def test_throttle_and_backoff_compose_additively_under_429(monkeypatch):
+    """Verify backoff is ADDITIVE to throttle (not absorbed).
+
+    Under min_interval_s=10.0 and backoff_base_s=2.0:
+      - First request fires immediately (no prior request)
+      - 429 → backoff sleep 2.0s
+      - Next iteration: throttle sleeps full 10.0s on top (since
+        _last_request_ts was reset after the backoff)
+      - Request succeeds
+    Total sleeps: [2.0, 10.0]
+    """
+    sleeps: list[float] = []
+    monkeypatch.setattr(time, "sleep", lambda s: sleeps.append(s))
+
+    state = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        state["n"] += 1
+        if state["n"] == 1:
+            return httpx.Response(429)
+        return httpx.Response(200, json={"items": [{"ok": True}], "totalRows": 1})
+
+    client = PJMClient(api_key="k", min_interval_s=10.0, max_retries=3,
+                       backoff_base_s=2.0,
+                       transport=_mock_transport(handler))
+    rows = list(client.get_feed("pnode", {}))
+
+    # First call: no throttle (no prior). 429. Backoff 2s. Reset ts.
+    # Retry: throttle 10s (ts was just reset). Success.
+    assert sleeps == [2.0, 10.0]
+    assert rows == [{"ok": True}]

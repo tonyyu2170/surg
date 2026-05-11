@@ -8,6 +8,11 @@ exponential backoff on 429.
 pulls < ~50K rows — the JSON envelope is more readable for
 debugging. A future helper can wrap `download=true` if/when we
 ever need it for >50K-row pages.
+
+On 429, backoff is *additive* to the rate-limit throttle: we sleep the
+exponential backoff first, then a full `min_interval_s` on top before the
+retry. This gives the server extra cushion when it's already mad about
+the 6/min budget.
 """
 from __future__ import annotations
 
@@ -106,10 +111,11 @@ class PJMClient:
                 if attempt >= self._max_retries:
                     raise RuntimeError(
                         f"429 from PJM after {attempt} retries: "
-                        f"url={url} headers={dict(r.headers)}"
+                        f"url={url} params={params} headers={dict(r.headers)}"
                     )
                 wait = self._backoff_base_s * (2 ** attempt)
                 time.sleep(wait)
+                self._last_request_ts = time.time()  # additive: throttle starts fresh after backoff
                 attempt += 1
                 continue
             r.raise_for_status()

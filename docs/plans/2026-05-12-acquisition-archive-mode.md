@@ -32,7 +32,7 @@ src/surg/acquisition/
 tests/acquisition/
 ├── test_targets.py        # modify: new tests for subtype helper
 ├── test_pull.py           # modify: new tests for _build_params + pull_feed archive branch
-└── test_pull_cli.py       # modify: new tests for --archive-tier flag
+└── test_cli.py            # modify: new tests for --archive-tier flag
 ```
 
 ---
@@ -622,11 +622,11 @@ git commit -m "feat(acquisition): pull_feed archive-mode with client-side pnode 
 
 **Files:**
 - Modify: `src/surg/acquisition/pull.py`
-- Modify: `tests/acquisition/test_pull_cli.py`
+- Modify: `tests/acquisition/test_cli.py`
 
 - [ ] **Step 1: Write failing tests**
 
-Add to `tests/acquisition/test_pull_cli.py`:
+Add to `tests/acquisition/test_cli.py`:
 
 ```python
 def test_cli_archive_tier_requires_subtype(monkeypatch, capsys):
@@ -677,7 +677,7 @@ def test_cli_archive_tier_rejected_for_5min_lmp(monkeypatch, capsys):
 - [ ] **Step 2: Run test to verify failure**
 
 ```
-.venv/bin/pytest tests/acquisition/test_pull_cli.py -k archive -v
+.venv/bin/pytest tests/acquisition/test_cli.py -k archive -v
 ```
 
 Expected: unknown-argument errors.
@@ -742,7 +742,7 @@ Then in the `with PJMClient(...)` block, dispatch to the archive path or the sta
 - [ ] **Step 4: Run tests**
 
 ```
-.venv/bin/pytest tests/acquisition/test_pull_cli.py -v
+.venv/bin/pytest tests/acquisition/test_cli.py -v
 ```
 
 Expected: 3 new tests passing.
@@ -766,7 +766,7 @@ Expected: `--archive-tier` and `--archive-subtype` show in the help text.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/surg/acquisition/pull.py tests/acquisition/test_pull_cli.py
+git add src/surg/acquisition/pull.py tests/acquisition/test_cli.py
 git commit -m "feat(acquisition): --archive-tier and --archive-subtype CLI flags"
 ```
 
@@ -775,11 +775,11 @@ git commit -m "feat(acquisition): --archive-tier and --archive-subtype CLI flags
 ## Task 6: End-to-end integration test (archive-mode CLI → disk)
 
 **Files:**
-- Modify: `tests/acquisition/test_pull_cli.py`
+- Modify: `tests/acquisition/test_cli.py`
 
 - [ ] **Step 1: Write failing test**
 
-Add to `tests/acquisition/test_pull_cli.py`:
+Add to `tests/acquisition/test_cli.py`:
 
 ```python
 def test_cli_archive_pull_end_to_end(monkeypatch, tmp_path):
@@ -837,7 +837,7 @@ def test_cli_archive_pull_end_to_end(monkeypatch, tmp_path):
 - [ ] **Step 2: Run test to verify failure**
 
 ```
-.venv/bin/pytest tests/acquisition/test_pull_cli.py -k archive_pull_end_to_end -v
+.venv/bin/pytest tests/acquisition/test_cli.py -k archive_pull_end_to_end -v
 ```
 
 If Tasks 1-5 are correct, this should pass directly. If it fails, fix the bug surfaced before continuing.
@@ -853,7 +853,7 @@ Expected: 85 passed (84 + 1 new).
 - [ ] **Step 4: Commit**
 
 ```bash
-git add tests/acquisition/test_pull_cli.py
+git add tests/acquisition/test_cli.py
 git commit -m "test(acquisition): end-to-end archive-mode CLI integration test"
 ```
 

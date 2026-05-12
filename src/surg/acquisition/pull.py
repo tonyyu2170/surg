@@ -274,8 +274,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                         "data older than the archive cutoff).")
     p.add_argument("--archive-subtype",
                    help="pnode_subtype value for archive queries "
-                        "(AGGREGATE / EHV / EXT / GEN / HUB / INTERFACE / "
-                        "LOAD / RESIDUAL_METERED_EDC / TIE / ZONE).")
+                        "(EHV / LOAD / ZONE — values in the locked target set; "
+                        "see src/surg/acquisition/targets.py).")
     return p
 
 
@@ -287,8 +287,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.archive_tier:
         # Validation order matters: subtype-required → feed-level support →
-        # 5-min special-case → geo kwargs → target resolution. The 5-min test
-        # passes no --zone, so it must trip the 5-min branch before any geo check.
+        # 5-min special-case → geo kwargs → target resolution.
+        # Order matters for actionable errors: a 5-min request with --zone should
+        # surface "feed not workable" before the geo-arg rejection.
         if not args.archive_subtype:
             print("--archive-subtype is required when --archive-tier is set",
                   file=sys.stderr)

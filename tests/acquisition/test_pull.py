@@ -555,3 +555,57 @@ def test_pull_feed_archive_mode_rejects_standard_geo_kwargs(tmp_path):
             client=client,
             data_root=tmp_path,
         )
+
+
+def test_pull_feed_archive_mode_requires_target_pnode_ids(tmp_path):
+    """archive_mode=True without target_pnode_ids must raise."""
+    from datetime import date
+    import httpx
+    import pytest
+    from surg.acquisition.client import PJMClient
+    from surg.acquisition.pull import pull_feed
+
+    client = PJMClient(
+        api_key="test", min_interval_s=0.0,
+        transport=httpx.MockTransport(
+            lambda r: httpx.Response(200, json={"totalRows": 0, "items": []})
+        ),
+    )
+    with pytest.raises(ValueError, match="target_pnode_ids"):
+        pull_feed(
+            feed="rt_hrl_lmps",
+            start=date(2023, 6, 15), end=date(2023, 6, 15),
+            archive_mode=True,
+            archive_subtype="EHV",
+            target_pnode_ids=None,
+            group_label="dom_targets_archive_ehv",
+            client=client,
+            data_root=tmp_path,
+        )
+
+
+def test_pull_feed_archive_mode_rejects_non_archive_feed(tmp_path):
+    """archive_mode=True on a feed where supports_archive=False must raise."""
+    from datetime import date
+    import httpx
+    import pytest
+    from surg.acquisition.client import PJMClient
+    from surg.acquisition.pull import pull_feed
+
+    client = PJMClient(
+        api_key="test", min_interval_s=0.0,
+        transport=httpx.MockTransport(
+            lambda r: httpx.Response(200, json={"totalRows": 0, "items": []})
+        ),
+    )
+    with pytest.raises(ValueError, match="does not support archive"):
+        pull_feed(
+            feed="hrl_load_metered",
+            start=date(2023, 6, 15), end=date(2023, 6, 15),
+            archive_mode=True,
+            archive_subtype="LOAD",
+            target_pnode_ids=[34964545],
+            group_label="dom_load_archive",
+            client=client,
+            data_root=tmp_path,
+        )

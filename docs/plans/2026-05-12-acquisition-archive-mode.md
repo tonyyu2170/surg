@@ -31,8 +31,7 @@ src/surg/acquisition/
 
 tests/acquisition/
 ├── test_targets.py        # modify: new tests for subtype helper
-├── test_pull.py           # modify: new tests for _build_params archive branch
-├── test_pull_feed.py      # modify: new test for archive pull_feed end-to-end
+├── test_pull.py           # modify: new tests for _build_params + pull_feed archive branch
 └── test_pull_cli.py       # modify: new tests for --archive-tier flag
 ```
 
@@ -419,11 +418,11 @@ git commit -m "feat(acquisition): _build_params archive-mode branch"
 
 **Files:**
 - Modify: `src/surg/acquisition/pull.py`
-- Modify: `tests/acquisition/test_pull_feed.py`
+- Modify: `tests/acquisition/test_pull.py`
 
 - [ ] **Step 1: Write failing test (mock transport)**
 
-Add to `tests/acquisition/test_pull_feed.py`:
+Add to `tests/acquisition/test_pull.py`:
 
 ```python
 def test_pull_feed_archive_mode_filters_to_target_pnodes(tmp_path):
@@ -507,7 +506,7 @@ def test_pull_feed_archive_mode_rejects_standard_geo_kwargs(tmp_path):
 - [ ] **Step 2: Run test to verify failure**
 
 ```
-.venv/bin/pytest tests/acquisition/test_pull_feed.py -k archive -v
+.venv/bin/pytest tests/acquisition/test_pull.py -k archive -v
 ```
 
 Expected: TypeError on unknown `archive_mode` kwarg.
@@ -597,7 +596,7 @@ Keep the existing standard-mode body intact below the archive branch.
 - [ ] **Step 4: Run tests**
 
 ```
-.venv/bin/pytest tests/acquisition/test_pull_feed.py -v
+.venv/bin/pytest tests/acquisition/test_pull.py -v
 ```
 
 Expected: 2 new tests passing, no regressions.
@@ -613,7 +612,7 @@ Expected: 79 passed (77 + 2 new).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/surg/acquisition/pull.py tests/acquisition/test_pull_feed.py
+git add src/surg/acquisition/pull.py tests/acquisition/test_pull.py
 git commit -m "feat(acquisition): pull_feed archive-mode with client-side pnode filter"
 ```
 
@@ -754,7 +753,7 @@ Expected: 3 new tests passing.
 .venv/bin/pytest tests/ -v
 ```
 
-Expected: 82 passed (79 + 3 new).
+Expected: 84 passed (81 + 3 new).
 
 - [ ] **Step 6: Smoke the CLI**
 
@@ -849,7 +848,7 @@ If Tasks 1-5 are correct, this should pass directly. If it fails, fix the bug su
 .venv/bin/pytest tests/ -v
 ```
 
-Expected: 83 passed (82 + 1 new).
+Expected: 85 passed (84 + 1 new).
 
 - [ ] **Step 4: Commit**
 
@@ -1051,7 +1050,7 @@ git commit -m "docs(catalog): update disk windows after Plan 1.5 backfill"
 .venv/bin/pytest tests/ -v
 ```
 
-Expected: 83 passed.
+Expected: 85 passed.
 
 - [ ] **Step 2: Verify git state**
 
@@ -1076,7 +1075,7 @@ git push origin main
 ## Definition of done
 
 - [ ] All 12 tasks complete.
-- [ ] 83 tests passing (66 baseline + 5 + 2 + 4 + 2 + 3 + 1 = 83).
+- [ ] 85 tests passing (66 baseline + 5 + 2 + 4 + 4 + 3 + 1 = 85).
 - [ ] `--archive-tier` and `--archive-subtype` CLI flags work and are tested.
 - [ ] Bulk pulls done: `rt_hrl_lmps` covers 2022-10-02 → 2026-05-10 for the 9 EHV+ZONE target pnodes; 2024-05-12 → 2026-05-10 for the 2 LOAD pnodes. `sync_reserve_events` and `reserve_market_results` cover 2022-10-02 → 2026-05-10 (MAD).
 - [ ] Smoke parquet duplicates removed from `data/raw/{sync_reserve_events,reserve_market_results}/2026/`.

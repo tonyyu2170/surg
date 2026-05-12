@@ -90,6 +90,14 @@ old data outright):
   `version_nbr` only.
   - `pnode_id` filter is **rejected** on Historic data.
   - `type` filter is **rejected** on Historic 5-min LMP specifically.
+- **The `type` filter on `rt_hrl_lmps` / `da_hrl_lmps` is
+  `pnode_subtype`, not `pnode_type`** (empirically verified
+  2026-05-12). Allowed values come from the pnode_subtype enum:
+  AGGREGATE / EHV / EXT / GEN / HUB / INTERFACE / LOAD /
+  RESIDUAL_METERED_EDC / TIE / ZONE. So `type=BUS` and `type=LOCALE`
+  return zero rows (those are `pnode_type` values, not subtype
+  values). The `type` field in the LMP response row likewise carries
+  the pnode_subtype value (e.g. LOUDOUN returns `type=EHV`).
 - A request that spans the cutoff boundary is rejected outright with
   "Date range in the API request spans over archived and standard
   data".
@@ -102,6 +110,44 @@ substations across multi-year history, we cannot simply filter by
 feed for each calendar year and filter client-side, or (b) restrict
 nodal analysis to the Standard window. See `decisions.md` for the
 chosen approach.
+
+### Empirical Historic-tier volumes (probed 2026-05-12)
+
+Sampling `rt_hrl_lmps` for calendar year 2023 by subtype filter to size
+potential bulk pulls:
+
+| Subtype filter | totalRows/year | ~Pnodes | Useful for |
+|----------------|----------------|---------|------------|
+| `type=AGGREGATE` | 2,412,232 | ~275 | substation aggregates, hubs |
+| `type=EHV` | 1,192,705 | ~136 | 500 kV nodes (Loudoun cluster, OX, BRISTERS) |
+| `type=ZONE` | 201,480 | ~23 | DOM zonal and other zone aggregates |
+| `type=LOAD` | **94,486,035** | **~10,786** | metering points, distribution-side (Ashburn TX1/TX2) |
+
+The LOAD-subtype population dominates the cost of Historic pulls
+targeting LOAD-subtype pnodes. Recovering 2 LOAD pnodes from Historic
+requires downloading all ~10,786 (0.019% retention rate); for the
+1.6-year backfill window this is ~150M rows / ~8.5 hours wall-clock at
+the 6/min rate limit. EHV-subtype historic pulls run in minutes for
+the same proportional sample lift. See `docs/decisions.md` 2026-05-12
+for the coverage choice.
+
+### Reserve-feed retention (probed 2026-05-12)
+
+Feeds not in the archive table above (no rolling cutoff documented) —
+probed via 1-row sort-ascending queries to confirm earliest accessible
+record:
+
+| Feed | Earliest record | totalRows | Filter scope |
+|------|-----------------|-----------|--------------|
+| `sync_reserve_events` | 2012-11-25 11:32 | 65 | `synchronized_sub_zone="MidAtlantic-Dominion (MAD)"` |
+| `reserve_market_results` | 2013-06-14 00:00 | 468,720 | `locale=MAD&service=SR` |
+
+`sync_reserve_events` events are rare even at decade scale — 65 events
+in MAD across 14 years. `reserve_market_results` switched from hourly
+to 5-min granularity on 2022-10-01; pre-cutover rows have different
+shape. Plan accordingly when extending pulls before that date (our
+chosen window starts 2022-10-02, so granularity is uniformly 5-min and
+no loader branching is required).
 
 ## LMP versioning
 
@@ -138,6 +184,8 @@ query LMP by `pnode_id` (Standard data only; see archive constraint).
 
 Same field set as above (DA uses `_da` price suffixes).
 Zone filter *is* available on these (allowed values include DOM).
+**`type` field / filter is `pnode_subtype`**, not `pnode_type` — see
+the Archived data section above for the enum values.
 
 ### `hrl_load_metered`, `hrl_load_estimated` — hourly zonal load
 

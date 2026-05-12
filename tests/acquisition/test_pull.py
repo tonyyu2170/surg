@@ -170,7 +170,7 @@ def test_pull_feed_rejects_missing_filter(tmp_path: Path):
     """Both pnode_ids=None AND zone=None should raise — would otherwise
     issue an unfiltered query that returns millions of rows."""
     client, _ = _mock_client([])
-    with pytest.raises(ValueError, match="exactly one of pnode_ids or zone"):
+    with pytest.raises(ValueError, match="requires a value for pnode_ids"):
         pull_feed(
             feed="rt_hrl_lmps",
             start=date(2026, 4, 15),
@@ -186,7 +186,7 @@ def test_pull_feed_rejects_missing_filter(tmp_path: Path):
 def test_pull_feed_rejects_both_filters(tmp_path: Path):
     """Both pnode_ids AND zone is ambiguous — raise."""
     client, _ = _mock_client([])
-    with pytest.raises(ValueError, match="exactly one of pnode_ids or zone"):
+    with pytest.raises(ValueError, match="uses pnode_ids only"):
         pull_feed(
             feed="rt_hrl_lmps",
             start=date(2026, 4, 15),
@@ -235,7 +235,7 @@ def test_feed_specs_registry_has_all_supported_feeds():
 def test_pull_feed_rejects_empty_pnode_ids_with_no_zone(tmp_path: Path):
     """Empty list is treated the same as None — no filter would slip through."""
     client, _ = _mock_client([])
-    with pytest.raises(ValueError, match="exactly one of pnode_ids or zone"):
+    with pytest.raises(ValueError, match="requires a value for pnode_ids"):
         pull_feed(
             feed="rt_hrl_lmps",
             start=date(2026, 4, 15),
@@ -251,7 +251,7 @@ def test_pull_feed_rejects_empty_pnode_ids_with_no_zone(tmp_path: Path):
 def test_pull_feed_rejects_empty_zone_with_no_pnodes(tmp_path: Path):
     """Empty string zone is treated the same as None."""
     client, _ = _mock_client([])
-    with pytest.raises(ValueError, match="exactly one of pnode_ids or zone"):
+    with pytest.raises(ValueError, match="requires a value for zone"):
         pull_feed(
             feed="hrl_load_metered",
             start=date(2026, 4, 15),
@@ -262,3 +262,63 @@ def test_pull_feed_rejects_empty_zone_with_no_pnodes(tmp_path: Path):
             client=client,
             data_root=tmp_path,
         )
+
+
+def test_sync_reserve_events_uses_event_start_ept_date_field(tmp_path: Path):
+    """sync_reserve_events filters and sorts on event_start_ept, not datetime_beginning_ept."""
+    rows_per_call = [[{"v": 1}]]
+    client, _ = _mock_client(rows_per_call)
+
+    pull_feed(
+        feed="sync_reserve_events",
+        start=date(2026, 4, 15),
+        end=date(2026, 4, 15),
+        pnode_ids=None,
+        zone=None,
+        subzone="MidAtlantic-Dominion (MAD)",
+        group_label="mad",
+        client=client,
+        data_root=tmp_path,
+    )
+
+    args, _ = client.get_feed.call_args
+    params = args[1]
+    # Date filter on event_start_ept, NOT datetime_beginning_ept
+    assert "event_start_ept" in params
+    assert "datetime_beginning_ept" not in params
+    assert "2026-04-15 00:00 to 2026-04-15 23:59" in params["event_start_ept"]
+    # Sort field matches
+    assert params["sort"] == "event_start_ept"
+    assert params["order"] == "Asc"
+    # Geographic filter uses synchronized_sub_zone
+    assert params["synchronized_sub_zone"] == "MidAtlantic-Dominion (MAD)"
+    # Not an LMP feed
+    assert "row_is_current" not in params
+
+
+def test_reserve_market_results_uses_locale_filter(tmp_path: Path):
+    """reserve_market_results uses the `locale` filter (e.g., 'MAD')."""
+    rows_per_call = [[{"v": 1}]]
+    client, _ = _mock_client(rows_per_call)
+
+    pull_feed(
+        feed="reserve_market_results",
+        start=date(2026, 4, 15),
+        end=date(2026, 4, 15),
+        pnode_ids=None,
+        zone=None,
+        locale="MAD",
+        group_label="mad",
+        client=client,
+        data_root=tmp_path,
+    )
+
+    args, _ = client.get_feed.call_args
+    params = args[1]
+    assert "datetime_beginning_ept" in params
+    assert params["locale"] == "MAD"
+    assert "pnode_id" not in params
+    assert "zone" not in params
+    assert "synchronized_sub_zone" not in params
+    assert "row_is_current" not in params
+    assert params["sort"] == "datetime_beginning_ept"

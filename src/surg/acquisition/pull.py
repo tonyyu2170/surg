@@ -1,10 +1,12 @@
 """Orchestrator: pull a feed for a date range, writing per-chunk parquet files.
 
 Composes `client.PJMClient` + `chunking.date_chunks` + `storage.*`.
-Two feed shapes are supported:
+Four feed shapes are supported:
   - Nodal LMP feeds (rt_hrl_lmps, rt_fivemin_hrl_lmps, da_hrl_lmps):
     pass `pnode_ids` (semicolon-packed). `row_is_current=true` is forced.
-  - Zonal feeds (hrl_load_metered): pass `zone="DOM"` instead.
+  - Zonal load feeds (hrl_load_metered): pass `zone="DOM"` instead.
+  - Sub-zone reserve events (sync_reserve_events): pass `subzone="MidAtlantic-Dominion (MAD)"`.
+  - Locale-based reserve results (reserve_market_results): pass `locale="MAD"`.
 """
 from __future__ import annotations
 
@@ -61,31 +63,55 @@ def pull_feed(
     start: date,
     end: date,
     *,
-    pnode_ids: Sequence[int] | None,
+    pnode_ids: Sequence[int] | None = None,
+    zone: str | None = None,
+    subzone: str | None = None,
+    locale: str | None = None,
     group_label: str,
     client: PJMClient,
     data_root: Path,
-    zone: str | None = None,
     force: bool = False,
     max_days_per_chunk: int = 366,
 ) -> list[Path]:
     """Pull `feed` for [start, end] in calendar-year chunks.
 
-    Returns the list of parquet paths written this run (skipped chunks
-    are excluded from the return value).
+    Exactly one of (pnode_ids, zone, subzone, locale) must be truthy,
+    matching the feed's FeedSpec.geo_filter_key.
     """
-    if bool(pnode_ids) == bool(zone):
-        raise ValueError(
-            "pull_feed requires exactly one of pnode_ids or zone, not both/neither"
-        )
+    if feed not in _FEED_SPECS:
+        raise ValueError(f"unknown feed: {feed!r}")
+    spec = _FEED_SPECS[feed]
+
+    # Map kwarg names → values; resolve which one this feed expects.
+    kwarg_by_filter_key = {
+        "pnode_id": pnode_ids,
+        "zone": zone,
+        "synchronized_sub_zone": subzone,
+        "locale": locale,
+    }
+    if spec.geo_filter_key is None:
+        # No feeds currently have geo_filter_key=None; reserved for future.
+        geo_value = None
+    else:
+        geo_value = kwarg_by_filter_key.get(spec.geo_filter_key)
+        if not geo_value:
+            raise ValueError(
+                f"feed {feed!r} requires a value for "
+                f"{_friendly_kwarg_name(spec.geo_filter_key)}"
+            )
+        # Ensure no *other* geographic kwarg is set.
+        for other_key, other_val in kwarg_by_filter_key.items():
+            if other_key != spec.geo_filter_key and other_val:
+                raise ValueError(
+                    f"feed {feed!r} uses {_friendly_kwarg_name(spec.geo_filter_key)} "
+                    f"only; got {_friendly_kwarg_name(other_key)}={other_val!r}"
+                )
 
     written: list[Path] = []
-
     for chunk_start, chunk_end in date_chunks(start, end, max_days=max_days_per_chunk):
         if not force and chunk_exists(data_root, feed, group_label, chunk_start, chunk_end):
             continue
-
-        params = _build_params(feed, chunk_start, chunk_end, pnode_ids, zone)
+        params = _build_params(feed, chunk_start, chunk_end, geo_value)
         rows = list(client.get_feed(feed, params))
         df = pd.DataFrame(rows)
         path = write_chunk(
@@ -97,7 +123,6 @@ def pull_feed(
             df=df,
         )
         written.append(path)
-
     return written
 
 
@@ -105,24 +130,36 @@ def _build_params(
     feed: str,
     chunk_start: date,
     chunk_end: date,
-    pnode_ids: Sequence[int] | None,
-    zone: str | None,
+    geo_value: Sequence[int] | str | None,
 ) -> dict[str, Any]:
+    spec = _FEED_SPECS[feed]
+    date_range = (
+        f"{chunk_start.isoformat()} 00:00 to "
+        f"{chunk_end.isoformat()} 23:59"
+    )
     params: dict[str, Any] = {
-        "datetime_beginning_ept": (
-            f"{chunk_start.isoformat()} 00:00 to "
-            f"{chunk_end.isoformat()} 23:59"
-        ),
-        "sort": "datetime_beginning_ept",
+        spec.date_field: date_range,
+        "sort": spec.date_field,
         "order": "Asc",
     }
-    if pnode_ids:
-        params["pnode_id"] = ";".join(str(p) for p in pnode_ids)
-    if zone:
-        params["zone"] = zone
-    if feed in _LMP_FEEDS:
+    if spec.geo_filter_key is not None and geo_value is not None:
+        if isinstance(geo_value, (list, tuple)):
+            params[spec.geo_filter_key] = ";".join(str(p) for p in geo_value)
+        else:
+            params[spec.geo_filter_key] = geo_value
+    if spec.is_lmp:
         params["row_is_current"] = "true"
     return params
+
+
+def _friendly_kwarg_name(filter_key: str) -> str:
+    """Map API filter param → Python kwarg name for error messages."""
+    return {
+        "pnode_id": "pnode_ids",
+        "zone": "zone",
+        "synchronized_sub_zone": "subzone",
+        "locale": "locale",
+    }.get(filter_key, filter_key)
 
 
 # ---------------------------------------------------------------------------

@@ -411,3 +411,69 @@ def test_unknown_feed_raises(tmp_path: Path):
             client=client,
             data_root=tmp_path,
         )
+
+
+def test_build_params_archive_drops_pnode_id_and_sort():
+    from datetime import date
+    from surg.acquisition.pull import _build_params
+
+    params = _build_params(
+        "rt_hrl_lmps",
+        date(2023, 1, 1), date(2023, 12, 31),
+        geo_value=None,
+        archive_mode=True,
+        archive_subtype="EHV",
+    )
+    assert "pnode_id" not in params
+    assert "sort" not in params
+    assert "order" not in params
+    assert params["type"] == "EHV"
+    assert params["datetime_beginning_ept"].startswith("2023-01-01")
+    assert params["row_is_current"] == "true"
+
+
+def test_build_params_archive_requires_subtype_for_lmp():
+    from datetime import date
+    import pytest
+    from surg.acquisition.pull import _build_params
+
+    with pytest.raises(ValueError, match="archive_subtype is required"):
+        _build_params(
+            "rt_hrl_lmps",
+            date(2023, 1, 1), date(2023, 12, 31),
+            geo_value=None,
+            archive_mode=True,
+            archive_subtype=None,
+        )
+
+
+def test_build_params_archive_rejected_on_non_archive_feed():
+    from datetime import date
+    import pytest
+    from surg.acquisition.pull import _build_params
+
+    with pytest.raises(ValueError, match="does not support archive"):
+        _build_params(
+            "hrl_load_metered",
+            date(2023, 1, 1), date(2023, 12, 31),
+            geo_value="DOM",
+            archive_mode=True,
+            archive_subtype="LOAD",
+        )
+
+
+def test_build_params_standard_unchanged_when_archive_mode_false():
+    """Regression: existing callers (archive_mode default False) get the
+    same params they did before this task."""
+    from datetime import date
+    from surg.acquisition.pull import _build_params
+
+    params = _build_params(
+        "rt_hrl_lmps",
+        date(2025, 6, 1), date(2025, 6, 30),
+        geo_value=[35010365, 35010371],
+    )
+    assert params["pnode_id"] == "35010365;35010371"
+    assert params["sort"] == "datetime_beginning_ept"
+    assert params["order"] == "Asc"
+    assert "type" not in params

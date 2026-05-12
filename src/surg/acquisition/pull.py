@@ -130,13 +130,37 @@ def _build_params(
     chunk_start: date,
     chunk_end: date,
     geo_value: Sequence[int] | str | None,
+    *,
+    archive_mode: bool = False,
+    archive_subtype: str | None = None,
 ) -> dict[str, Any]:
     spec = _FEED_SPECS[feed]
     date_range = (
         f"{chunk_start.isoformat()} 00:00 to "
         f"{chunk_end.isoformat()} 23:59"
     )
-    params: dict[str, Any] = {
+
+    if archive_mode:
+        if not spec.supports_archive:
+            raise ValueError(
+                f"feed {feed!r} does not support archive-tier queries"
+            )
+        if not archive_subtype:
+            raise ValueError(
+                f"archive_subtype is required for archive-mode pulls "
+                f"(feed={feed!r})"
+            )
+        # Historic queries: no pnode_id filter, no sort/order, type filter only.
+        params: dict[str, Any] = {
+            spec.date_field: date_range,
+            "type": archive_subtype,
+        }
+        if spec.is_lmp:
+            params["row_is_current"] = "true"
+        return params
+
+    # Standard-tier path (unchanged from existing implementation).
+    params = {
         spec.date_field: date_range,
         "sort": spec.date_field,
         "order": "Asc",

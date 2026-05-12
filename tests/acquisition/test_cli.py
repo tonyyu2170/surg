@@ -46,7 +46,7 @@ def test_zone_with_lmp_feed_exits_2(monkeypatch, capsys):
         "--zone", "DOM",
     ])
     assert rc == 2
-    assert "not valid for LMP" in capsys.readouterr().err
+    assert "not valid for feed" in capsys.readouterr().err
 
 
 def test_zone_required_for_load_feed_exits_2(monkeypatch, capsys):
@@ -109,3 +109,90 @@ def test_load_feed_dispatches_with_zone(monkeypatch, tmp_path):
     assert rc == 0
     assert captured["pnode_ids"] is None
     assert captured["zone"] == "DOM"
+
+
+def test_sync_reserve_events_dispatches_with_subzone(monkeypatch, tmp_path):
+    """--feed sync_reserve_events --subzone MAD dispatches with subzone kwarg."""
+    monkeypatch.setenv("PJM_API_KEY", "fake")
+    monkeypatch.setattr("surg.acquisition.pull.load_dotenv", lambda *a, **k: False)
+
+    captured = {}
+
+    def fake_pull_feed(**kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr("surg.acquisition.pull.pull_feed", fake_pull_feed)
+    rc = main([
+        "--feed", "sync_reserve_events",
+        "--start", "2026-04-15",
+        "--end", "2026-04-15",
+        "--subzone", "MidAtlantic-Dominion (MAD)",
+        "--data-root", str(tmp_path),
+    ])
+    assert rc == 0
+    assert captured["subzone"] == "MidAtlantic-Dominion (MAD)"
+    assert captured.get("pnode_ids") is None
+    assert captured.get("zone") is None
+    assert captured.get("locale") is None
+
+
+def test_reserve_market_results_dispatches_with_locale(monkeypatch, tmp_path):
+    monkeypatch.setenv("PJM_API_KEY", "fake")
+    monkeypatch.setattr("surg.acquisition.pull.load_dotenv", lambda *a, **k: False)
+
+    captured = {}
+
+    def fake_pull_feed(**kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr("surg.acquisition.pull.pull_feed", fake_pull_feed)
+    rc = main([
+        "--feed", "reserve_market_results",
+        "--start", "2026-04-15",
+        "--end", "2026-04-15",
+        "--locale", "MAD",
+        "--data-root", str(tmp_path),
+    ])
+    assert rc == 0
+    assert captured["locale"] == "MAD"
+    assert captured.get("pnode_ids") is None
+
+
+def test_sync_reserve_events_without_subzone_exits_2(monkeypatch, capsys):
+    monkeypatch.setenv("PJM_API_KEY", "fake")
+    monkeypatch.setattr("surg.acquisition.pull.load_dotenv", lambda *a, **k: False)
+    rc = main([
+        "--feed", "sync_reserve_events",
+        "--start", "2026-04-15",
+        "--end", "2026-04-15",
+    ])
+    assert rc == 2
+    assert "--subzone is required" in capsys.readouterr().err
+
+
+def test_reserve_market_results_without_locale_exits_2(monkeypatch, capsys):
+    monkeypatch.setenv("PJM_API_KEY", "fake")
+    monkeypatch.setattr("surg.acquisition.pull.load_dotenv", lambda *a, **k: False)
+    rc = main([
+        "--feed", "reserve_market_results",
+        "--start", "2026-04-15",
+        "--end", "2026-04-15",
+    ])
+    assert rc == 2
+    assert "--locale is required" in capsys.readouterr().err
+
+
+def test_subzone_with_lmp_feed_exits_2(monkeypatch, capsys):
+    """--subzone is not valid for LMP feeds (which use pnode_id)."""
+    monkeypatch.setenv("PJM_API_KEY", "fake")
+    monkeypatch.setattr("surg.acquisition.pull.load_dotenv", lambda *a, **k: False)
+    rc = main([
+        "--feed", "rt_hrl_lmps",
+        "--start", "2026-04-15",
+        "--end", "2026-04-15",
+        "--subzone", "MAD",
+    ])
+    assert rc == 2
+    assert "--subzone is not valid" in capsys.readouterr().err

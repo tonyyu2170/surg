@@ -177,7 +177,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         description="Pull a PJM Data Miner 2 feed for a date range to data/raw/.",
     )
     p.add_argument("--feed", required=True,
-                   choices=sorted(_LMP_FEEDS | {"hrl_load_metered"}),
+                   choices=sorted(_FEED_SPECS.keys()),
                    help="API feed name.")
     p.add_argument("--start", required=True, type=_parse_iso_date,
                    help="Inclusive start date (YYYY-MM-DD).")
@@ -188,8 +188,13 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--data-root", default="data/raw",
                    help="Root directory under which feed/year subdirs are created.")
     p.add_argument("--zone", default=None,
-                   help="For zonal feeds (e.g. hrl_load_metered). Mutually "
-                        "exclusive with the implicit pnode set.")
+                   help="For zonal feeds (e.g. hrl_load_metered).")
+    p.add_argument("--subzone", default=None,
+                   help="For sub-zone feeds (e.g. sync_reserve_events). "
+                        "Allowed values include 'MidAtlantic-Dominion (MAD)'.")
+    p.add_argument("--locale", default=None,
+                   help="For locale-filtered feeds (e.g. reserve_market_results). "
+                        "Allowed values include 'MAD', 'PJM_RTO'.")
     p.add_argument("--force", action="store_true",
                    help="Overwrite existing chunk files.")
     return p
@@ -197,13 +202,28 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
+    spec = _FEED_SPECS[args.feed]
+    expected_kwarg = _friendly_kwarg_name(spec.geo_filter_key)
 
-    if args.feed in _LMP_FEEDS and args.zone is not None:
-        print(f"--zone is not valid for LMP feed '{args.feed}'", file=sys.stderr)
-        return 2
-    if args.feed == "hrl_load_metered" and args.zone is None:
-        print("--zone is required for feed 'hrl_load_metered'", file=sys.stderr)
-        return 2
+    # Per-feed CLI-arg validation. Each feed expects exactly one geographic arg.
+    provided = {
+        "zone": args.zone,
+        "subzone": args.subzone,
+        "locale": args.locale,
+    }
+    for arg_name, value in provided.items():
+        if arg_name == expected_kwarg:
+            if value is None:
+                print(f"--{arg_name} is required for feed '{args.feed}'", file=sys.stderr)
+                return 2
+        elif value is not None:
+            print(f"--{arg_name} is not valid for feed '{args.feed}' "
+                  f"(it uses --{expected_kwarg} or implicit pnode set)",
+                  file=sys.stderr)
+            return 2
+    # For LMP feeds (geo_filter_key='pnode_id'), expected_kwarg='pnode_ids' which
+    # is not a CLI arg — we use all_pnode_ids() automatically. Validation above
+    # would have ensured zone/subzone/locale are all None.
 
     load_dotenv()
     api_key = os.environ.get("PJM_API_KEY")
@@ -211,7 +231,8 @@ def main(argv: list[str] | None = None) -> int:
         print("PJM_API_KEY is not set. Add it to .env or export it.", file=sys.stderr)
         return 2
 
-    pnode_ids = None if args.zone else all_pnode_ids()
+    # Resolve geographic kwargs to pass to pull_feed
+    pnode_ids = all_pnode_ids() if spec.geo_filter_key == "pnode_id" else None
 
     with PJMClient(api_key=api_key) as client:
         paths = pull_feed(
@@ -220,6 +241,8 @@ def main(argv: list[str] | None = None) -> int:
             end=args.end,
             pnode_ids=pnode_ids,
             zone=args.zone,
+            subzone=args.subzone,
+            locale=args.locale,
             group_label=args.group_label,
             client=client,
             data_root=Path(args.data_root),

@@ -22,16 +22,16 @@ see decisions.md "2026-05-12 — Window extension to 3.6y post-cap").
 
 | Feed | Disk window | Planned window | Grain | Scope | Role |
 |------|-------------|----------------|-------|-------|------|
-| `rt_hrl_lmps` | 2024-05-26 → 2026-05-10 | 2022-10-02 → 2026-05-10 (9 pnodes via Plan 1.5; 2 LOAD pnodes stay 2y) | hourly | 11 target pnodes | Primary TAR response; controls; mechanism test |
+| `rt_hrl_lmps` | 2022-10-02 → 2026-05-10 (9 EHV+ZONE pnodes); 2024-05-11 → 2026-05-10 (2 LOAD pnodes) | — (Plan 1.5 complete) | hourly | 11 target pnodes | Primary TAR response; controls; mechanism test |
 | `da_hrl_lmps` | 2024-05-26 → 2026-05-10 | — (deferred DA-RT spread analysis) | hourly | 11 target pnodes | Deferred |
 | `rt_fivemin_hrl_lmps` | 2025-11-12 → 2026-05-10 | — (Historic intractable, no `type` filter) | 5-min | 11 target pnodes | High-resolution volatility within post-2025-11 portion |
 | `hrl_load_metered` | 2021-01-01 → 2026-05-07 | already covers | hourly | DOM zone | TAR threshold variable (load gradient); growth-projection baseline |
-| `sync_reserve_events` | 2024-05-26 → 2026-03-05 | 2022-10-02 → 2026-05-10 | event timestamps | MAD sub-zone | ORDC validation; Granger causality (load → event); rare-event corroboration |
-| `reserve_market_results` | 2024-05-26 → 2026-05-10 | 2022-10-02 → 2026-05-10 | 5-min → aggregated hourly | MAD locale, services SR + PR | Severity quantification of reserve scarcity; high-clearing-price threshold for stressed regime |
+| `sync_reserve_events` | 2022-10-02 → 2026-03-05 | — (Plan 1.5 complete) | event timestamps | MAD sub-zone | ORDC validation; Granger causality (load → event); rare-event corroboration |
+| `reserve_market_results` | 2022-10-02 → 2026-05-10 | — (Plan 1.5 complete) | 5-min → aggregated hourly | MAD locale, services SR + PR | Severity quantification of reserve scarcity; high-clearing-price threshold for stressed regime |
 | `dom_pnodes_all` | snapshot | n/a | one row per pnode | DOM zone (2,328 pnodes) | Reference / pnode resolution |
 
 Symbols:
-- "Planned window" reflects the post-Plan-1.5 state (`docs/plans/2026-05-11-acquisition-archive-mode.md`, to be written).
+- "— (Plan 1.5 complete)" means the disk window now matches the post-Plan-1.5 target — no more backfill scheduled for this feed. See `docs/plans/2026-05-12-acquisition-archive-mode.md`.
 - "— (deferred)" means no backfill planned; the existing window stays.
 
 ---
@@ -61,14 +61,24 @@ pjm-api-constraints.md § "LMP versioning").
 by the analysis panel.
 
 **Disk:** `data/raw/rt_hrl_lmps/<YYYY>/<group>__<YYYY-MM-DD>_to_<YYYY-MM-DD>.parquet`.
-Currently: 188,760 rows (11 pnodes × 17,160 hours, 2024-05-26 →
-2026-05-10).
+Post-Plan-1.5: ~319,500 rows across multiple group-labeled chunks:
+- `dom_targets__*` (existing Standard, 11 pnodes, 2024-05-26 → 2026-05-10)
+- `dom_targets_gap_fill__*` (Standard, 11 pnodes, 2024-05-12 → 2024-05-25)
+- `dom_targets_boundary_day__*` (Standard, 11 pnodes, 2024-05-11 single day)
+- `dom_targets_archive_ehv__*` (Historic, 8 EHV pnodes, 2022-10-02 → 2024-05-10)
+- `dom_targets_archive_zone__*` (Historic, DOM zonal, 2022-10-02 → 2024-05-10)
+
+Per-pnode hour counts: 9 EHV+ZONE pnodes get ~31,608 hours each (full 3.6y);
+2 LOAD pnodes get ~17,520 hours each (2y plus the 15-day boundary+gap fill).
 
 **Pull:** `surg-pull --feed rt_hrl_lmps --target-group dom_targets …`
-(Standard tier, pnode_id filter). For 2022-10-02 → 2024-05-11 backfill
-(Historic tier), Plan 1.5 will add archive-mode support using
-`type=<subtype>` filters (EHV / ZONE; LOAD intentionally skipped — see
-"Asymmetric LOAD coverage" below).
+(Standard tier, pnode_id filter) for current data. For 2022-10-02 →
+2024-05-10 backfill (Historic tier), use the archive-mode flags added in
+Plan 1.5: `--archive-tier --archive-subtype <EHV|ZONE>` (LOAD
+intentionally skipped — see "Asymmetric LOAD coverage" below). The
+empirical Historic/Standard boundary at the 731-day cutoff slides one
+day per day; Plan 1.5 added a `dom_targets_boundary_day__*` Standard
+pull for whichever day straddles the boundary at execution time.
 
 **Analysis role:**
 - **Primary TAR fit** — `congestion_price_rt` averaged across the
@@ -179,10 +189,13 @@ the Mid-Atlantic / Dominion (MAD) sub-zone. Field set: `event_start_ept`,
 
 **Our filter scope:** `synchronized_sub_zone="MidAtlantic-Dominion (MAD)"`.
 
-**Disk:** `data/raw/sync_reserve_events/`. 36 events, 2025-01-21 →
-2026-03-05 (0 in 2024-05-26 → 2025-01-20, 28 in 2025, 8 in 2026-partial).
+**Disk:** `data/raw/sync_reserve_events/`. Post-Plan-1.5: 38 events
+spanning 2023-01-26 → 2026-03-05 (2 in the 2022-10 → 2024-05 backfill
+window, 36 in the existing 2024-05-26 → 2026-03-05 window). MAD sync
+reserve activations are rare even at multi-year scale.
+
 Smoke duplicate (`mad_smoke__2026-04-01_to_2026-04-30.parquet`) is
-slated for removal before Plan 2's bulk preprocessing.
+slated for removal before Plan 2's bulk preprocessing (Plan 2 pre-flight).
 
 **Pull:** `surg-pull --feed sync_reserve_events --subzone "MidAtlantic-Dominion (MAD)" …`.
 
@@ -200,8 +213,10 @@ slated for removal before Plan 2's bulk preprocessing.
 **Constraints:** earliest record back to 2012-11-25 per metadata probe
 (2026-05-12). No archive cutoff observed. Total event count across the
 entire MAD history is only 65 — events are rare even at multi-year
-scale. The 1.6y backfill window (2022-10-02 → 2024-05-25) is expected to
-yield ~10-15 events.
+scale. The 1.6y backfill window (2022-10-02 → 2024-05-25) yielded only
+**2 events** (one in Jan 2023, one in Feb 2024) — substantially below
+the initial estimate of ~10-15. Event rate appears to have accelerated
+sharply post-2025: 28 events in 2025 alone vs 2 in the prior 1.6y.
 
 ---
 
@@ -221,11 +236,12 @@ panel columns:
 - `sync_reserve_clearing_price_rt` (SR hourly mean)
 - `primary_reserve_clearing_price_rt` (PR hourly mean)
 
-**Disk:** `data/raw/reserve_market_results/`. 411,840 rows, 2024-05-26 →
-2026-05-10 (288 5-min intervals/day × 715 days × 2 services). Smoke
-duplicate (`mad_smoke__2026-04-15_to_2026-04-15.parquet`) is slated for
-removal — its rows are subsets of the bulk files but groupby+mean in
-the loader self-heals against duplicates (unlike `sync_reserve_events`).
+**Disk:** `data/raw/reserve_market_results/`. Post-Plan-1.5: 758,016
+rows, 2022-10-02 → 2026-05-10 (288 5-min intervals/day × ~1,318 days ×
+2 services). Smoke duplicate (`mad_smoke__2026-04-15_to_2026-04-15.parquet`)
+is slated for removal — its rows are subsets of the bulk files but
+groupby+mean in the loader self-heals against duplicates (unlike
+`sync_reserve_events`).
 
 **Pull:** `surg-pull --feed reserve_market_results --locale MAD …`.
 
@@ -256,7 +272,7 @@ Locked in 2026-05-10 (`docs/decisions.md` § "2026-05-10 — Lock the
 coverage on `rt_hrl_lmps`, `da_hrl_lmps`, `rt_fivemin_hrl_lmps`
 (post-2025-11 only).
 
-| pnode_id | Name | Subtype | Voltage | Tier | Role | Planned window |
+| pnode_id | Name | Subtype | Voltage | Tier | Role | Disk coverage |
 |----------|------|---------|---------|------|------|----------------|
 | 35010365 | LOUDOUN | EHV | 500 kV | Loudoun cluster | Primary TAR | 3.6y |
 | 35010371 | PLEASANT VIEW | EHV | 500 kV | Loudoun cluster | Primary TAR | 3.6y |
@@ -267,8 +283,8 @@ coverage on `rt_hrl_lmps`, `da_hrl_lmps`, `rt_fivemin_hrl_lmps`
 | 35010369 | OX | EHV | 500 kV | Control | Negative control | 3.6y |
 | 62871513 | BRISTERS | EHV | 500 kV | Control | Negative control | 3.6y |
 | 34964545 | DOM | ZONE | — | Zonal | Zonal-level reference / negative control | 3.6y |
-| 34886139 | ASHBURN TX1 | LOAD | 35 kV | Distribution | Distribution-side TAR (separate fit) | **2y only** (LOAD subtype intractable in Historic — see "Asymmetric LOAD coverage") |
-| 34886141 | ASHBURN TX2 | LOAD | 35 kV | Distribution | Distribution-side TAR (separate fit) | **2y only** |
+| 34886139 | ASHBURN TX1 | LOAD | 35 kV | Distribution | Distribution-side TAR (separate fit) | **~2y** (2024-05-11 → 2026-05-10; LOAD subtype intractable in Historic — see "Asymmetric LOAD coverage") |
+| 34886141 | ASHBURN TX2 | LOAD | 35 kV | Distribution | Distribution-side TAR (separate fit) | **~2y** (2024-05-11 → 2026-05-10) |
 
 Subtype/voltage source: `data/raw/rt_hrl_lmps/` (`type` column in
 returned rows) and `data/raw/dom_pnodes_all.parquet` (registry).

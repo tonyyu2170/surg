@@ -66,6 +66,9 @@ def pull_feed(
     zone: str | None = None,
     subzone: str | None = None,
     locale: str | None = None,
+    archive_mode: bool = False,
+    archive_subtype: str | None = None,
+    target_pnode_ids: Sequence[int] | None = None,
     group_label: str,
     client: PJMClient,
     data_root: Path,
@@ -74,12 +77,57 @@ def pull_feed(
 ) -> list[Path]:
     """Pull `feed` for [start, end] in calendar-year chunks.
 
-    Exactly one of (pnode_ids, zone, subzone, locale) must be truthy,
-    matching the feed's FeedSpec.geo_filter_key.
+    Standard mode (archive_mode=False, default): exactly one of
+    (pnode_ids, zone, subzone, locale) must be truthy, matching the
+    feed's FeedSpec.geo_filter_key.
+
+    Archive mode (archive_mode=True, LMP feeds only): drops the
+    pnode_id filter and adds type=<archive_subtype>. After fetch,
+    filters rows client-side to `target_pnode_ids` to keep only the
+    locked target pnodes (Historic returns all pnodes of that subtype).
     """
     if feed not in _FEED_SPECS:
         raise ValueError(f"unknown feed: {feed!r}")
     spec = _FEED_SPECS[feed]
+
+    if archive_mode:
+        # Order: reject standard geo kwargs → require target_pnode_ids → check feed support.
+        for name, val in [("pnode_ids", pnode_ids), ("zone", zone),
+                          ("subzone", subzone), ("locale", locale)]:
+            if val:
+                raise ValueError(
+                    f"archive_mode=True is incompatible with {name}=...; "
+                    f"use target_pnode_ids for client-side filtering"
+                )
+        if not target_pnode_ids:
+            raise ValueError(
+                "archive_mode=True requires target_pnode_ids "
+                "(client-side filter for the locked target set)"
+            )
+        if not spec.supports_archive:
+            raise ValueError(
+                f"feed {feed!r} does not support archive-tier queries"
+            )
+        target_set = set(target_pnode_ids)
+
+        written: list[Path] = []
+        for chunk_start, chunk_end in date_chunks(start, end, max_days=max_days_per_chunk):
+            if not force and chunk_exists(data_root, feed, group_label, chunk_start, chunk_end):
+                continue
+            params = _build_params(
+                feed, chunk_start, chunk_end, geo_value=None,
+                archive_mode=True, archive_subtype=archive_subtype,
+            )
+            rows = list(client.get_feed(feed, params))
+            df = pd.DataFrame(rows)
+            if not df.empty and "pnode_id" in df.columns:
+                df = df[df["pnode_id"].isin(target_set)].reset_index(drop=True)
+            path = write_chunk(
+                data_root=data_root, feed=feed, group_label=group_label,
+                chunk_start=chunk_start, chunk_end=chunk_end, df=df,
+            )
+            written.append(path)
+        return written
 
     # Map kwarg names → values; resolve which one this feed expects.
     kwarg_by_filter_key = {
@@ -160,7 +208,7 @@ def _build_params(
         return params
 
     # Standard-tier path (unchanged from existing implementation).
-    params = {
+    params: dict[str, Any] = {
         spec.date_field: date_range,
         "sort": spec.date_field,
         "order": "Asc",

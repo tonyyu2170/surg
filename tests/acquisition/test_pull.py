@@ -477,3 +477,81 @@ def test_build_params_standard_unchanged_when_archive_mode_false():
     assert params["sort"] == "datetime_beginning_ept"
     assert params["order"] == "Asc"
     assert "type" not in params
+
+
+def test_pull_feed_archive_mode_filters_to_target_pnodes(tmp_path):
+    """Archive-mode pull keeps only rows matching the locked target IDs."""
+    from datetime import date
+    import httpx
+    from surg.acquisition.client import PJMClient
+    from surg.acquisition.pull import pull_feed
+
+    # Mock returns 4 rows: 2 target EHV pnodes + 2 unrelated EHV pnodes.
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "pnode_id" not in request.url.params  # archive: no pnode filter
+        assert request.url.params["type"] == "EHV"
+        return httpx.Response(200, json={
+            "totalRows": 4,
+            "items": [
+                {"pnode_id": 35010365, "pnode_name": "LOUDOUN",
+                 "datetime_beginning_ept": "2023-06-15T03:00:00",
+                 "congestion_price_rt": 10.0, "total_lmp_rt": 50.0},
+                {"pnode_id": 35010371, "pnode_name": "PLEASANT VIEW",
+                 "datetime_beginning_ept": "2023-06-15T03:00:00",
+                 "congestion_price_rt": 12.0, "total_lmp_rt": 52.0},
+                {"pnode_id": 99999999, "pnode_name": "RANDOM",
+                 "datetime_beginning_ept": "2023-06-15T03:00:00",
+                 "congestion_price_rt": 1.0, "total_lmp_rt": 41.0},
+                {"pnode_id": 88888888, "pnode_name": "OTHER",
+                 "datetime_beginning_ept": "2023-06-15T03:00:00",
+                 "congestion_price_rt": 2.0, "total_lmp_rt": 42.0},
+            ],
+        })
+
+    client = PJMClient(
+        api_key="test", min_interval_s=0.0,
+        transport=httpx.MockTransport(handler),
+    )
+    paths = pull_feed(
+        feed="rt_hrl_lmps",
+        start=date(2023, 6, 15), end=date(2023, 6, 15),
+        archive_mode=True,
+        archive_subtype="EHV",
+        target_pnode_ids=[35010365, 35010371],  # filter to these
+        group_label="dom_targets_archive_ehv",
+        client=client,
+        data_root=tmp_path,
+    )
+    assert len(paths) == 1
+    import pandas as pd
+    df = pd.read_parquet(paths[0])
+    assert len(df) == 2
+    assert set(df["pnode_id"]) == {35010365, 35010371}
+
+
+def test_pull_feed_archive_mode_rejects_standard_geo_kwargs(tmp_path):
+    """If archive_mode is set, callers should not pass pnode_ids/zone/etc."""
+    from datetime import date
+    import httpx
+    import pytest
+    from surg.acquisition.client import PJMClient
+    from surg.acquisition.pull import pull_feed
+
+    client = PJMClient(
+        api_key="test", min_interval_s=0.0,
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, json={
+            "totalRows": 0, "items": []
+        })),
+    )
+    with pytest.raises(ValueError, match="pnode_ids|zone|subzone|locale"):
+        pull_feed(
+            feed="rt_hrl_lmps",
+            start=date(2023, 6, 15), end=date(2023, 6, 15),
+            archive_mode=True,
+            archive_subtype="EHV",
+            target_pnode_ids=[35010365],
+            pnode_ids=[35010365],  # should error: not allowed with archive
+            group_label="dom_targets_archive_ehv",
+            client=client,
+            data_root=tmp_path,
+        )

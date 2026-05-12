@@ -322,3 +322,79 @@ def test_reserve_market_results_uses_locale_filter(tmp_path: Path):
     assert "synchronized_sub_zone" not in params
     assert "row_is_current" not in params
     assert params["sort"] == "datetime_beginning_ept"
+
+
+def test_sync_reserve_events_requires_subzone(tmp_path: Path):
+    client, _ = _mock_client([])
+    with pytest.raises(ValueError, match="requires a value for subzone"):
+        pull_feed(
+            feed="sync_reserve_events",
+            start=date(2026, 4, 15),
+            end=date(2026, 4, 15),
+            pnode_ids=None,
+            zone=None,
+            subzone=None,
+            group_label="mad",
+            client=client,
+            data_root=tmp_path,
+        )
+
+
+def test_sync_reserve_events_rejects_pnode_ids(tmp_path: Path):
+    client, _ = _mock_client([])
+    with pytest.raises(ValueError, match="uses subzone only; got pnode_ids"):
+        pull_feed(
+            feed="sync_reserve_events",
+            start=date(2026, 4, 15),
+            end=date(2026, 4, 15),
+            pnode_ids=[35010365],
+            subzone="MidAtlantic-Dominion (MAD)",
+            group_label="mad",
+            client=client,
+            data_root=tmp_path,
+        )
+
+
+def test_reserve_market_results_requires_locale(tmp_path: Path):
+    client, _ = _mock_client([])
+    with pytest.raises(ValueError, match="requires a value for locale"):
+        pull_feed(
+            feed="reserve_market_results",
+            start=date(2026, 4, 15),
+            end=date(2026, 4, 15),
+            pnode_ids=None,
+            zone=None,
+            locale=None,
+            group_label="mad",
+            client=client,
+            data_root=tmp_path,
+        )
+
+
+def test_reserve_market_results_rejects_zone(tmp_path: Path):
+    client, _ = _mock_client([])
+    with pytest.raises(ValueError, match="uses locale only; got zone"):
+        pull_feed(
+            feed="reserve_market_results",
+            start=date(2026, 4, 15),
+            end=date(2026, 4, 15),
+            zone="DOM",
+            locale="MAD",
+            group_label="mad",
+            client=client,
+            data_root=tmp_path,
+        )
+
+
+def test_unknown_feed_raises(tmp_path: Path):
+    client, _ = _mock_client([])
+    with pytest.raises(ValueError, match="unknown feed: 'not_a_real_feed'"):
+        pull_feed(
+            feed="not_a_real_feed",
+            start=date(2026, 4, 15),
+            end=date(2026, 4, 15),
+            pnode_ids=[35010365],
+            group_label="mad",
+            client=client,
+            data_root=tmp_path,
+        )

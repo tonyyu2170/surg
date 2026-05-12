@@ -301,7 +301,7 @@ mechanism. Four sub-decisions:
 | Time window | Joint LMP+load overlap: 2024-05-26 → 2026-05-10, ~715 days | Hourly grain. |
 | Signal isolation | Shoulder season (Mar–May, Sep–Nov) + 2-5 AM window, outage-log cross-check | Per proposal Phase 2. Applied at preprocessing stage. |
 
-**Open follow-up.** Extend acquisition module to pull three additional
+**Open follow-up.** Extend acquisition module to pull two additional
 PJM Data Miner 2 feeds:
 
 - `sync_reserve_events` — event log with `event_start_ept`,
@@ -312,12 +312,22 @@ PJM Data Miner 2 feeds:
   first-step penalty. This is the cleanest validation signal for the
   load-volatility → reserves → ORDC → LMP causal chain — better than
   literal outage logs because it captures the *manifestation* of
-  reserve stress regardless of cause.
+  reserve stress regardless of cause. Indefinite retention back to
+  2002-12-02.
 - `reserve_market_results` — RT reserve clearing prices; nonzero
   clearing prices corroborate ORDC trigger and quantify severity.
-- `operational_reserves` — reserve quantity time series
-  (zone/sub-zone aggregates) for descriptive context on reserve
-  margin trajectory.
+  Available from 2013-06-14; switched from hourly to 5-min granularity
+  on 2022-10-01 (our analysis window is entirely post-change, so
+  uniformly 5-min — preprocessing aggregates to hourly).
+
+A third feed (`operational_reserves`) was considered for descriptive
+context on reserve margin trajectory, but live-metadata investigation on
+2026-05-11 revealed a **15-day retention** policy (the feed posts every
+15 seconds for real-time monitoring, not historical analysis).
+Retrospective access to the 2024-2026 window is therefore impossible.
+The feed is dropped from scope; see `pjm-api-constraints.md` for the
+constraint. The core analysis remains intact — the two retained feeds
+are sufficient for mechanism validation.
 
 The acquisition module may need minor extension to handle
 zone/sub-zone aggregates (vs the nodal feeds it currently supports

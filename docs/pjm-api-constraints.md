@@ -74,6 +74,14 @@ heavy restrictions.
 | `rt_hrl_lmps`         | **731 days** (~2 years)  | Hourly RT LMP |
 | `da_hrl_lmps`         | **731 days** (~2 years)  | Hourly DA LMP |
 
+**Real-time-monitoring feeds with hard retention caps** (separate
+constraint from the archive/Standard split above — these feeds delete
+old data outright):
+
+| Feed | Retention | Posting frequency | Notes |
+|------|-----------|-------------------|-------|
+| `operational_reserves` | **15 days** | every 15 seconds | Designed for live monitoring, not historical analysis. Cannot retrospectively pull windows > 15 days old. Discovered 2026-05-11 via live metadata API. |
+
 **Restrictions on Historic queries:**
 - Date range must be **within a single calendar year** (UTC).
 - **No custom sort/order** — results are always sorted by

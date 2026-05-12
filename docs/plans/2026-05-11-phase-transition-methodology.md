@@ -72,20 +72,31 @@ LMP spike`.
                                                               - forecast year (downstream)
 ```
 
-**Stage 1 — Acquisition extension.** Add three feeds to
+**Stage 1 — Acquisition extension.** Add two feeds to
 `src/surg/acquisition/`:
 
 - `sync_reserve_events` — event log with `event_start_ept`,
   `event_end_ept`, `duration`, `synchronized_sub_zone` (filter to
   `MidAtlantic-Dominion (MAD)`). The directly-observable manifestation of
-  the ORDC trigger.
+  the ORDC trigger. Indefinite retention back to 2002-12-02.
 - `reserve_market_results` — RT reserve clearing prices; corroborates the
-  shortage events and quantifies severity.
-- `operational_reserves` — reserve quantity time series for descriptive
-  context on reserve margin trajectory.
+  shortage events and quantifies severity. Available from 2013-06-14;
+  switched from hourly to 5-min granularity on 2022-10-01 (our window is
+  entirely post-change, so all 5-min — preprocessing aggregates to
+  hourly).
 
-The orchestrator may need minor extension to handle zone/sub-zone
-aggregates (vs the nodal feeds it currently supports).
+Originally the spec listed `operational_reserves` as a third feed for
+descriptive context, but the live metadata API revealed a **15-day
+retention** (feed is designed for real-time monitoring at 15-second
+granularity, not historical analysis). Cannot retrospectively cover the
+2024-2026 window. Dropped from scope; see `pjm-api-constraints.md` for
+the constraint.
+
+The orchestrator needs extension to handle feed-specific date fields
+(`sync_reserve_events` uses `event_start_ept`, not `datetime_beginning_ept`)
+and feed-specific geographic filters (`synchronized_sub_zone` for
+sync_reserve_events, `locale` for reserve_market_results, vs pnode_id /
+zone today).
 
 **Stage 2 — Preprocessing.** New module `src/surg/preprocessing/`. Single
 responsibility: produce `data/interim/analysis_panel.parquet` — a clean
@@ -148,7 +159,8 @@ Per-pnode (separate fits + controls):
   event hours
 - `hours_to_next_sync_event`, `hours_since_last_sync_event` — lead-lag
 - `sync_reserve_clearing_price_rt`, `primary_reserve_clearing_price_rt`
-  — from `reserve_market_results`, aggregated to hourly mean
+  — from `reserve_market_results`, aggregated 5-min → hourly mean
+  (`service=SR` and `service=PR` rows respectively, `locale=MAD`)
 
 **Time alignment**
 

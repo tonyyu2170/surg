@@ -12,6 +12,7 @@ import argparse
 import os
 import sys
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,31 @@ from surg.acquisition.chunking import date_chunks
 from surg.acquisition.client import PJMClient
 from surg.acquisition.storage import chunk_exists, write_chunk
 from surg.acquisition.targets import all_pnode_ids
+
+
+@dataclass(frozen=True, slots=True)
+class FeedSpec:
+    """Per-feed metadata for API parameter construction.
+
+    - date_field: column name used for range filter and sort
+    - geo_filter_key: name of the geographic filter param (None means
+      the feed has no geographic dimension; we don't currently support
+      such feeds, but the field is here for future-proofing)
+    - is_lmp: True for LMP feeds (adds row_is_current=true to params)
+    """
+    date_field: str
+    geo_filter_key: str | None
+    is_lmp: bool
+
+
+_FEED_SPECS: dict[str, FeedSpec] = {
+    "rt_hrl_lmps":            FeedSpec("datetime_beginning_ept", "pnode_id", True),
+    "da_hrl_lmps":            FeedSpec("datetime_beginning_ept", "pnode_id", True),
+    "rt_fivemin_hrl_lmps":    FeedSpec("datetime_beginning_ept", "pnode_id", True),
+    "hrl_load_metered":       FeedSpec("datetime_beginning_ept", "zone", False),
+    "sync_reserve_events":    FeedSpec("event_start_ept", "synchronized_sub_zone", False),
+    "reserve_market_results": FeedSpec("datetime_beginning_ept", "locale", False),
+}
 
 # Feeds that follow LMP versioning semantics.
 _LMP_FEEDS = frozenset(

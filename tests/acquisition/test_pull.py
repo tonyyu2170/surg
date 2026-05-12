@@ -199,6 +199,39 @@ def test_pull_feed_rejects_both_filters(tmp_path: Path):
         )
 
 
+def test_feed_specs_registry_has_all_supported_feeds():
+    from surg.acquisition.pull import _FEED_SPECS, FeedSpec
+
+    expected_feeds = {
+        "rt_hrl_lmps", "da_hrl_lmps", "rt_fivemin_hrl_lmps",
+        "hrl_load_metered",
+        "sync_reserve_events", "reserve_market_results",
+    }
+    assert set(_FEED_SPECS.keys()) == expected_feeds
+
+    # LMP feeds get row_is_current=true added
+    for f in ["rt_hrl_lmps", "da_hrl_lmps", "rt_fivemin_hrl_lmps"]:
+        assert _FEED_SPECS[f].is_lmp is True
+        assert _FEED_SPECS[f].date_field == "datetime_beginning_ept"
+        assert _FEED_SPECS[f].geo_filter_key == "pnode_id"
+
+    # Load feed uses zone filter
+    assert _FEED_SPECS["hrl_load_metered"].geo_filter_key == "zone"
+    assert _FEED_SPECS["hrl_load_metered"].is_lmp is False
+
+    # New: sync_reserve_events uses event_start_ept and synchronized_sub_zone
+    sre = _FEED_SPECS["sync_reserve_events"]
+    assert sre.date_field == "event_start_ept"
+    assert sre.geo_filter_key == "synchronized_sub_zone"
+    assert sre.is_lmp is False
+
+    # New: reserve_market_results uses datetime_beginning_ept and locale
+    rmr = _FEED_SPECS["reserve_market_results"]
+    assert rmr.date_field == "datetime_beginning_ept"
+    assert rmr.geo_filter_key == "locale"
+    assert rmr.is_lmp is False
+
+
 def test_pull_feed_rejects_empty_pnode_ids_with_no_zone(tmp_path: Path):
     """Empty list is treated the same as None — no filter would slip through."""
     client, _ = _mock_client([])

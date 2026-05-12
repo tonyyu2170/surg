@@ -55,3 +55,35 @@ def test_pnode_is_hashable():
     p = PNODES[0]
     assert hash(p) == hash(p)
     assert len({p, p}) == 1
+
+
+def test_pnode_has_subtype_field():
+    from surg.acquisition.targets import PNODES
+    # Every Pnode now carries a subtype matching the LMP feed's `type` column.
+    for p in PNODES:
+        assert hasattr(p, "subtype")
+        assert p.subtype in {"EHV", "LOAD", "ZONE"}
+
+
+def test_pnode_ids_by_subtype_ehv():
+    from surg.acquisition.targets import pnode_ids_by_subtype
+    ids = pnode_ids_by_subtype("EHV")
+    assert set(ids) == {
+        35010365, 35010371, 1356178195, 1356178171, 1356178181, 1356178201,
+        35010369, 62871513,
+    }
+
+
+def test_pnode_ids_by_subtype_load():
+    from surg.acquisition.targets import pnode_ids_by_subtype
+    assert set(pnode_ids_by_subtype("LOAD")) == {34886139, 34886141}
+
+
+def test_pnode_ids_by_subtype_zone():
+    from surg.acquisition.targets import pnode_ids_by_subtype
+    assert pnode_ids_by_subtype("ZONE") == [34964545]
+
+
+def test_pnode_ids_by_subtype_unknown_returns_empty():
+    from surg.acquisition.targets import pnode_ids_by_subtype
+    assert pnode_ids_by_subtype("AGGREGATE") == []

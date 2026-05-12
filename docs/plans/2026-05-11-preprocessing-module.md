@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Amendment 2026-05-12.** Joint analysis window changed from 2024-05-26 → 2026-05-10 (~2y) to **2022-10-02 → 2026-05-10** (~3.6y, ~31,632 hourly rows). See `docs/decisions.md` § "2026-05-12 — Window extension to 3.6y post-cap". This adds: Task 10 build.py defines `ANALYSIS_WINDOW_START`/`_END` constants and clips the panel before returning (new test in test_build.py). Task 12 expected row count is ~31,632 (was ~17,160); `passes_proposal_filter` expected count is ~1,977 hours (was ~1,053). Pre-flight: remove `data/raw/{sync_reserve_events,reserve_market_results}/2026/mad_smoke__*.parquet` before running the panel build (smoke files duplicate bulk events and would corrupt `event_id` reindexing in `load_sync_reserve_events`).
+
 **Goal:** Build `src/surg/preprocessing/` producing one durable artifact: `data/interim/analysis_panel.parquet`, the hourly analysis-ready panel consumed by all downstream analysis. TDD throughout.
 
 **Architecture:** Four-file module split by responsibility — `schema.py` (versioned column list), `loaders.py` (parquet-to-DataFrame for each raw feed), `features.py` (derive volatility, cluster aggregation, event-active flag), `build.py` (orchestrator + CLI). All times in EPT. Atomic parquet write via tmp-file + `os.replace`. Schema is versioned; downstream loaders refuse stale schemas.
@@ -10,6 +12,7 @@
 
 **Prerequisites:**
 - Plan 1 ("acquisition reserve feeds extension") complete — `sync_reserve_events` and `reserve_market_results` data exist under `data/raw/`.
+- Plan 1.5 ("acquisition archive-mode") complete — historic-tier backfill of `rt_hrl_lmps` 9 pnodes + reserves down to 2022-10-02, so the analysis_panel reaches the expected ~31,632 rows. If Plan 1.5 has not run, the panel will be ~17,160 rows of the original 2y window and Task 12's row-count assertion will fail.
 - All four raw feed directories populated: `data/raw/{rt_hrl_lmps,hrl_load_metered,sync_reserve_events,reserve_market_results}/`.
 
 **Prerequisite reading:** `docs/plans/2026-05-11-phase-transition-methodology.md` § 3 ("Preprocessing layer — analysis_panel.parquet schema") is authoritative for the column list.
@@ -1444,6 +1447,28 @@ def test_build_analysis_panel_writes_atomic_parquet(tmp_path: Path):
     # Round-trip
     loaded = pd.read_parquet(out)
     assert len(loaded) == len(panel)
+
+
+def test_build_analysis_panel_clips_to_analysis_window(tmp_path: Path):
+    """Panel excludes hours outside [ANALYSIS_WINDOW_START, ANALYSIS_WINDOW_END)."""
+    from surg.preprocessing.build import (
+        build_analysis_panel, ANALYSIS_WINDOW_START, ANALYSIS_WINDOW_END,
+    )
+
+    _seed_minimal_raw(tmp_path)
+    # Append a 2021 load row (before the window starts 2022-10-02)
+    load_dir = tmp_path / "hrl_load_metered" / "2021"
+    load_dir.mkdir(parents=True)
+    pd.DataFrame([
+        {"datetime_beginning_ept": "2021-06-15T03:00:00", "zone": "DOM",
+         "load_area": "DOM", "mw": 11_000.0, "is_verified": True},
+    ]).to_parquet(load_dir / "dom__2021-06-15.parquet")
+
+    panel = build_analysis_panel(data_root=tmp_path)
+    assert (panel["datetime_beginning_ept"] >= ANALYSIS_WINDOW_START).all()
+    assert (panel["datetime_beginning_ept"] < ANALYSIS_WINDOW_END).all()
+    # The 2021 row is not in the panel
+    assert not (panel["datetime_beginning_ept"] == pd.Timestamp("2021-06-15T03:00:00")).any()
 ```
 
 - [ ] **Step 2: Run test to verify failure**
@@ -1495,6 +1520,12 @@ ASHBURN_TX1, ASHBURN_TX2 = 34886139, 34886141
 CONTROL_OX, CONTROL_BRISTERS = 35010369, 62871513
 DOM_ZONAL = 34964545
 
+# Analysis window (3.6y post-cap). See docs/decisions.md
+# "2026-05-12 — Window extension to 3.6y post-cap". Inclusive start,
+# exclusive end → the final included hour is 2026-05-10 23:00 EPT.
+ANALYSIS_WINDOW_START = pd.Timestamp("2022-10-02 00:00:00")
+ANALYSIS_WINDOW_END = pd.Timestamp("2026-05-11 00:00:00")
+
 
 def build_analysis_panel(data_root: Path) -> pd.DataFrame:
     """Build the hourly analysis panel from raw feeds under `data_root`.
@@ -1535,6 +1566,12 @@ def build_analysis_panel(data_root: Path) -> pd.DataFrame:
 
     # Filter / metadata columns
     panel = add_filter_columns(panel)
+
+    # Clip to analysis window [ANALYSIS_WINDOW_START, ANALYSIS_WINDOW_END).
+    panel = panel[
+        (panel["datetime_beginning_ept"] >= ANALYSIS_WINDOW_START)
+        & (panel["datetime_beginning_ept"] < ANALYSIS_WINDOW_END)
+    ].reset_index(drop=True)
 
     return panel
 
@@ -1591,7 +1628,7 @@ if __name__ == "__main__":  # pragma: no cover
 .venv/bin/pytest tests/preprocessing/test_build.py -v
 ```
 
-Expected: 2 passed.
+Expected: 3 passed.
 
 - [ ] **Step 5: Run full suite**
 
@@ -1599,7 +1636,7 @@ Expected: 2 passed.
 .venv/bin/pytest tests/ -v
 ```
 
-Expected: 89 passed.
+Expected: 90 passed.
 
 - [ ] **Step 6: Commit**
 
@@ -1720,7 +1757,7 @@ Expected: usage line that starts with `usage: surg-prep`.
 .venv/bin/pytest tests/ -v
 ```
 
-Expected: 93 passed.
+Expected: 94 passed.
 
 - [ ] **Step 7: Commit**
 
@@ -1752,7 +1789,7 @@ Expected: each feed has 2-6 chunks. If any feed has 0 chunks, complete Plan 1 fi
 .venv/bin/surg-prep
 ```
 
-Expected: `wrote data/interim/analysis_panel.parquet (N rows)` where N is between 17,000 and 18,000 (2 years of hourly load data).
+Expected: `wrote data/interim/analysis_panel.parquet (N rows)` where N is between 31,500 and 31,700 (3.6 years of hourly load data).
 
 - [ ] **Step 3: Inspect the panel**
 
@@ -1771,8 +1808,8 @@ print(f'NaN rates: dom_load_mw={nan_pct.iloc[0]:.2f}%, congestion_cluster={nan_p
 ```
 
 Expected:
-- ~17,160 rows (~715 days × 24 hours)
-- `passes_proposal_filter` count ~ 1,053 hours (per spec §4)
+- ~31,632 rows (~1,318 days × 24 hours)
+- `passes_proposal_filter` count ~ 1,977 hours (per spec §4, scaled to 3.6y)
 - `sync_reserve_event_active` count > 0 (if events exist in the analysis window)
 - NaN rates < 1% (per spec §3)
 
@@ -1792,7 +1829,7 @@ If NaN rates exceed 1%, investigate before proceeding to Plan 3:
 .venv/bin/pytest tests/ -v
 ```
 
-Expected: 93 passed.
+Expected: 94 passed.
 
 - [ ] **Step 2: Verify git state**
 
@@ -1817,9 +1854,9 @@ git push origin main
 ## Definition of done
 
 - [ ] All 13 tasks complete.
-- [ ] 93 tests passing.
-- [ ] `data/interim/analysis_panel.parquet` exists with ~17,160 rows, 23 columns, schema_version=1.
-- [ ] `passes_proposal_filter` count is ~1,053 hours (validates Plan 3 sample-size assumption).
+- [ ] 94 tests passing.
+- [ ] `data/interim/analysis_panel.parquet` exists with ~31,632 rows, 23 columns, schema_version=1.
+- [ ] `passes_proposal_filter` count is ~1,977 hours (validates Plan 3 sample-size assumption, scaled to 3.6y window).
 - [ ] No regressions in acquisition module (66 acquisition tests still passing).
 
 ## Out of scope (deferred)

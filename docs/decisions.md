@@ -364,3 +364,70 @@ ORDC mechanism rather than on a proxy upstream of it.
   shift to reserve margin (closer to the mechanism). The proposal's
   MW/min framing then becomes the *derived* number, not the *fit*
   number.
+
+---
+
+## 2026-05-12 — Window extension to 3.6y post-cap (2022-10-02 → 2026-05-10)
+
+**Context.** The 2026-05-11 decision anchored the joint analysis window
+at 2024-05-26 → 2026-05-10 (~2y, 715 days) — bounded by the
+`rt_hrl_lmps` 731-day archive cutoff *and* the methodological
+requirement to stay entirely post-cap on the 2022-10-01 ORDC rule
+change. The window was a soft pick within that post-cap era; older
+data exists but we hadn't tested the access path.
+
+Research 2026-05-12 confirmed Historic-tier API access works for
+hourly LMP feeds with documented restrictions (`pjm-api-constraints.md`
+§ "Archived data" — single calendar year per request, no `pnode_id`
+filter, `type=<pnode_subtype>` workaround). Reserves and load feeds
+have no archive cutoff and reach back to 2012-2013 (empirical probes).
+Pre-2022-10 LMP is in a different rule regime (iterative-cap logic,
+no $3,700/MWh cap) and crossing that break would confound the TAR
+fit.
+
+**Decision.** Extend the joint analysis window to **2022-10-02 →
+2026-05-10** (~3.6y, 1,318 days, ~31,632 hourly observations). This is
+the maximal window staying entirely post-cap; the start date is
+chosen as one day after the rule change to maximize sample without
+straddling the break.
+
+**Rationale.** ~1.8× sample-size lift for the TAR primary fit at zero
+methodological cost — all data is in the same ORDC regime. The
+longer load baseline also strengthens the proposal's projection
+question ("when does projected growth push the grid past the
+threshold?"). The structural-break worry that motivated the 2y
+anchor doesn't apply here.
+
+**Coverage choice (1a) — asymmetric LOAD-subtype coverage.** Of the
+11 nodal targets, 9 receive 3.6y coverage via Plan 1.5 Historic-tier
+pulls (8 EHV-subtype: Loudoun cluster + OX + BRISTERS; 1 ZONE-subtype:
+DOM zonal). The 2 LOAD-subtype pnodes (ASHBURN TX1/TX2) stay at the
+existing 2y coverage. Driver: PJM Historic stores ~10,786
+LOAD-subtype pnodes (vs ~136 EHV, ~23 ZONE); recovering 2 of them
+requires downloading the entire LOAD-subtype feed (~150M rows, ~8.5h
+wall-clock at the 6/min rate limit). The Ashburn-distribution TAR is
+a separate, complementary fit per the 2026-05-10 lock-in ("35 KV vs
+500 KV — different physics"), so asymmetric window for that single
+fit is acceptable. Plan 1.5's archive-mode code supports `type=LOAD`
+so the overnight backfill is one config change away if reviewer
+pushback requires symmetry.
+
+**Cost summary** (1.6y historic backfill acquisition wall-clock):
+
+| Feed / scope | New coverage | API time |
+|---|---|---|
+| `rt_hrl_lmps` 9 pnodes (EHV + ZONE) | full 1.6y backfill | ~7 min |
+| `sync_reserve_events` MAD | ~10-15 events expected | <1 min |
+| `reserve_market_results` MAD SR + PR | ~170K rows | ~2 min |
+| `hrl_load_metered` DOM | already on disk back to 2021-01-01 | 0 |
+| `da_hrl_lmps` 9 pnodes | deferred (DA-RT spread off the critical path) | 0 |
+| `rt_fivemin_hrl_lmps` | not feasible (Historic 5-min rejects `type` filter; full-feed pull ~10B rows/yr) | 0 |
+
+**Revisit when.**
+- Reviewer (Prof Wei / Lihui) pushes back on the asymmetric Ashburn
+  window — schedule the ~8.5-hour LOAD backfill as an overnight job.
+- TAR fit under the 3.6y window indicates insufficient power in the
+  high-volatility regime — widen the 2-5 AM filter, or revisit the
+  pre-2022-10 portion with a regime-break dummy.
+- A new PJM market rule change is announced inside the 2022-10 →
+  2026-05 window — re-check the post-cap assumption.

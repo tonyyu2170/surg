@@ -52,10 +52,6 @@ _FEED_SPECS: dict[str, FeedSpec] = {
     "reserve_market_results": FeedSpec("datetime_beginning_ept", "locale", False),
 }
 
-# Feeds that follow LMP versioning semantics.
-_LMP_FEEDS = frozenset(
-    {"rt_hrl_lmps", "rt_fivemin_hrl_lmps", "da_hrl_lmps"}
-)
 
 
 def pull_feed(
@@ -217,8 +213,12 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"--{arg_name} is required for feed '{args.feed}'", file=sys.stderr)
                 return 2
         elif value is not None:
-            print(f"--{arg_name} is not valid for feed '{args.feed}' "
-                  f"(it uses --{expected_kwarg} or implicit pnode set)",
+            cli_args = {"zone", "subzone", "locale"}
+            if expected_kwarg in cli_args:
+                hint = f"(this feed uses --{expected_kwarg})"
+            else:
+                hint = "(this feed selects pnode targets automatically; no geographic arg is accepted)"
+            print(f"--{arg_name} is not valid for feed '{args.feed}' {hint}",
                   file=sys.stderr)
             return 2
     # For LMP feeds (geo_filter_key='pnode_id'), expected_kwarg='pnode_ids' which

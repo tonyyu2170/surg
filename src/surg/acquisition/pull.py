@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 from surg.acquisition.chunking import date_chunks
 from surg.acquisition.client import PJMClient
 from surg.acquisition.storage import chunk_exists, write_chunk
-from surg.acquisition.targets import all_pnode_ids
+from surg.acquisition.targets import all_pnode_ids, pnode_ids_by_subtype
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,7 +49,7 @@ class FeedSpec:
 _FEED_SPECS: dict[str, FeedSpec] = {
     "rt_hrl_lmps":            FeedSpec("datetime_beginning_ept", "pnode_id", True, supports_archive=True),
     "da_hrl_lmps":            FeedSpec("datetime_beginning_ept", "pnode_id", True, supports_archive=True),
-    "rt_fivemin_hrl_lmps":    FeedSpec("datetime_beginning_ept", "pnode_id", True, supports_archive=True),
+    "rt_fivemin_hrl_lmps":    FeedSpec("datetime_beginning_ept", "pnode_id", True, supports_archive=True),  # CLI rejects archive mode for this feed (type filter rejected on Historic); see pjm-api-constraints.md
     "hrl_load_metered":       FeedSpec("datetime_beginning_ept", "zone", False),
     "sync_reserve_events":    FeedSpec("event_start_ept", "synchronized_sub_zone", False),
     "reserve_market_results": FeedSpec("datetime_beginning_ept", "locale", False),
@@ -268,37 +268,79 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                         "Allowed values include 'MAD', 'PJM_RTO'.")
     p.add_argument("--force", action="store_true",
                    help="Overwrite existing chunk files.")
+    p.add_argument("--archive-tier", action="store_true",
+                   help="Use Historic-tier query semantics (drops pnode_id, "
+                        "adds type=<archive-subtype>; for LMP feeds with "
+                        "data older than the archive cutoff).")
+    p.add_argument("--archive-subtype",
+                   help="pnode_subtype value for archive queries "
+                        "(AGGREGATE / EHV / EXT / GEN / HUB / INTERFACE / "
+                        "LOAD / RESIDUAL_METERED_EDC / TIE / ZONE).")
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
     spec = _FEED_SPECS[args.feed]
-    expected_kwarg = _friendly_kwarg_name(spec.geo_filter_key)
 
-    # Per-feed CLI-arg validation. Each feed expects exactly one geographic arg.
-    provided = {
-        "zone": args.zone,
-        "subzone": args.subzone,
-        "locale": args.locale,
-    }
-    for arg_name, value in provided.items():
-        if arg_name == expected_kwarg:
-            if value is None:
-                print(f"--{arg_name} is required for feed '{args.feed}'", file=sys.stderr)
-                return 2
-        elif value is not None:
-            cli_args = {"zone", "subzone", "locale"}
-            if expected_kwarg in cli_args:
-                hint = f"(this feed uses --{expected_kwarg})"
-            else:
-                hint = "(this feed selects pnode targets automatically; no geographic arg is accepted)"
-            print(f"--{arg_name} is not valid for feed '{args.feed}' {hint}",
+    target_pnode_ids: list[int] | None = None
+
+    if args.archive_tier:
+        # Validation order matters: subtype-required → feed-level support →
+        # 5-min special-case → geo kwargs → target resolution. The 5-min test
+        # passes no --zone, so it must trip the 5-min branch before any geo check.
+        if not args.archive_subtype:
+            print("--archive-subtype is required when --archive-tier is set",
                   file=sys.stderr)
             return 2
-    # For LMP feeds (geo_filter_key='pnode_id'), expected_kwarg='pnode_ids' which
-    # is not a CLI arg — we use all_pnode_ids() automatically. Validation above
-    # would have ensured zone/subzone/locale are all None.
+        if not spec.supports_archive:
+            print(f"feed '{args.feed}' does not support archive-tier queries",
+                  file=sys.stderr)
+            return 2
+        if args.feed == "rt_fivemin_hrl_lmps":
+            print("rt_fivemin_hrl_lmps Historic tier rejects the type filter "
+                  "(see docs/pjm-api-constraints.md); archive-tier pull is "
+                  "not workable for this feed.", file=sys.stderr)
+            return 2
+        # Standard geo kwargs should be unset.
+        for name, val in [("zone", args.zone), ("subzone", args.subzone),
+                          ("locale", args.locale)]:
+            if val:
+                print(f"--{name} is not valid with --archive-tier "
+                      f"(archive uses --archive-subtype + client-side "
+                      f"filter to locked target set)", file=sys.stderr)
+                return 2
+        target_pnode_ids = pnode_ids_by_subtype(args.archive_subtype)
+        if not target_pnode_ids:
+            print(f"No target pnodes have subtype={args.archive_subtype!r}; "
+                  f"check src/surg/acquisition/targets.py", file=sys.stderr)
+            return 2
+    else:
+        expected_kwarg = _friendly_kwarg_name(spec.geo_filter_key)
+
+        # Per-feed CLI-arg validation. Each feed expects exactly one geographic arg.
+        provided = {
+            "zone": args.zone,
+            "subzone": args.subzone,
+            "locale": args.locale,
+        }
+        for arg_name, value in provided.items():
+            if arg_name == expected_kwarg:
+                if value is None:
+                    print(f"--{arg_name} is required for feed '{args.feed}'", file=sys.stderr)
+                    return 2
+            elif value is not None:
+                cli_args = {"zone", "subzone", "locale"}
+                if expected_kwarg in cli_args:
+                    hint = f"(this feed uses --{expected_kwarg})"
+                else:
+                    hint = "(this feed selects pnode targets automatically; no geographic arg is accepted)"
+                print(f"--{arg_name} is not valid for feed '{args.feed}' {hint}",
+                      file=sys.stderr)
+                return 2
+        # For LMP feeds (geo_filter_key='pnode_id'), expected_kwarg='pnode_ids' which
+        # is not a CLI arg — we use all_pnode_ids() automatically. Validation above
+        # would have ensured zone/subzone/locale are all None.
 
     load_dotenv()
     api_key = os.environ.get("PJM_API_KEY")
@@ -306,23 +348,36 @@ def main(argv: list[str] | None = None) -> int:
         print("PJM_API_KEY is not set. Add it to .env or export it.", file=sys.stderr)
         return 2
 
-    # Resolve geographic kwargs to pass to pull_feed
-    pnode_ids = all_pnode_ids() if spec.geo_filter_key == "pnode_id" else None
-
     with PJMClient(api_key=api_key) as client:
-        paths = pull_feed(
-            feed=args.feed,
-            start=args.start,
-            end=args.end,
-            pnode_ids=pnode_ids,
-            zone=args.zone,
-            subzone=args.subzone,
-            locale=args.locale,
-            group_label=args.group_label,
-            client=client,
-            data_root=Path(args.data_root),
-            force=args.force,
-        )
+        if args.archive_tier:
+            paths = pull_feed(
+                feed=args.feed,
+                start=args.start,
+                end=args.end,
+                archive_mode=True,
+                archive_subtype=args.archive_subtype,
+                target_pnode_ids=target_pnode_ids,
+                group_label=args.group_label,
+                client=client,
+                data_root=Path(args.data_root),
+                force=args.force,
+            )
+        else:
+            # Resolve geographic kwargs to pass to pull_feed.
+            pnode_ids = all_pnode_ids() if spec.geo_filter_key == "pnode_id" else None
+            paths = pull_feed(
+                feed=args.feed,
+                start=args.start,
+                end=args.end,
+                pnode_ids=pnode_ids,
+                zone=args.zone,
+                subzone=args.subzone,
+                locale=args.locale,
+                group_label=args.group_label,
+                client=client,
+                data_root=Path(args.data_root),
+                force=args.force,
+            )
 
     if not paths:
         print("No chunks pulled (all already exist; use --force to overwrite).")

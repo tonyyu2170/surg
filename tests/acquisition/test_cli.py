@@ -196,3 +196,48 @@ def test_subzone_with_lmp_feed_exits_2(monkeypatch, capsys):
     ])
     assert rc == 2
     assert "--subzone is not valid" in capsys.readouterr().err
+
+
+def test_cli_archive_tier_requires_subtype(monkeypatch, capsys):
+    from surg.acquisition.pull import main
+    monkeypatch.setenv("PJM_API_KEY", "test")
+    rc = main([
+        "--feed", "rt_hrl_lmps",
+        "--start", "2023-01-01", "--end", "2023-12-31",
+        "--archive-tier",
+        # missing --archive-subtype
+        "--group-label", "dom_targets_archive_ehv",
+    ])
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "--archive-subtype" in err
+
+
+def test_cli_archive_tier_rejected_for_non_lmp_feed(monkeypatch, capsys):
+    from surg.acquisition.pull import main
+    monkeypatch.setenv("PJM_API_KEY", "test")
+    rc = main([
+        "--feed", "hrl_load_metered",
+        "--start", "2023-01-01", "--end", "2023-12-31",
+        "--archive-tier", "--archive-subtype", "LOAD",
+        "--zone", "DOM",
+        "--group-label", "dom",
+    ])
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "archive" in err.lower()
+
+
+def test_cli_archive_tier_rejected_for_5min_lmp(monkeypatch, capsys):
+    """5-min LMP rejects the `type` filter on Historic — not workable."""
+    from surg.acquisition.pull import main
+    monkeypatch.setenv("PJM_API_KEY", "test")
+    rc = main([
+        "--feed", "rt_fivemin_hrl_lmps",
+        "--start", "2023-01-01", "--end", "2023-12-31",
+        "--archive-tier", "--archive-subtype", "EHV",
+        "--group-label", "dom_targets_archive_ehv",
+    ])
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "5-min" in err.lower() or "fivemin" in err.lower()

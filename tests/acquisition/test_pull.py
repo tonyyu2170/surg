@@ -232,6 +232,19 @@ def test_feed_specs_registry_has_all_supported_feeds():
     assert rmr.is_lmp is False
 
 
+def test_feed_specs_mark_archive_support_correctly():
+    from surg.acquisition.pull import _FEED_SPECS
+    # Only the three LMP feeds support archive-tier queries.
+    archive_feeds = {f for f, s in _FEED_SPECS.items() if s.supports_archive}
+    assert archive_feeds == {"rt_hrl_lmps", "da_hrl_lmps", "rt_fivemin_hrl_lmps"}
+
+
+def test_feedspec_default_supports_archive_is_false():
+    from surg.acquisition.pull import FeedSpec
+    spec = FeedSpec("datetime_beginning_ept", "zone", False)
+    assert spec.supports_archive is False
+
+
 def test_pull_feed_rejects_empty_pnode_ids_with_no_zone(tmp_path: Path):
     """Empty list is treated the same as None — no filter would slip through."""
     client, _ = _mock_client([])

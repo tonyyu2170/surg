@@ -37,16 +37,19 @@ class FeedSpec:
       the feed has no geographic dimension; we don't currently support
       such feeds, but the field is here for future-proofing)
     - is_lmp: True for LMP feeds (adds row_is_current=true to params)
+    - supports_archive: True if the feed has a documented archive cutoff
+      and Historic-tier queries with `type=<pnode_subtype>` work
     """
     date_field: str
     geo_filter_key: str | None
     is_lmp: bool
+    supports_archive: bool = False
 
 
 _FEED_SPECS: dict[str, FeedSpec] = {
-    "rt_hrl_lmps":            FeedSpec("datetime_beginning_ept", "pnode_id", True),
-    "da_hrl_lmps":            FeedSpec("datetime_beginning_ept", "pnode_id", True),
-    "rt_fivemin_hrl_lmps":    FeedSpec("datetime_beginning_ept", "pnode_id", True),
+    "rt_hrl_lmps":            FeedSpec("datetime_beginning_ept", "pnode_id", True, supports_archive=True),
+    "da_hrl_lmps":            FeedSpec("datetime_beginning_ept", "pnode_id", True, supports_archive=True),
+    "rt_fivemin_hrl_lmps":    FeedSpec("datetime_beginning_ept", "pnode_id", True, supports_archive=True),
     "hrl_load_metered":       FeedSpec("datetime_beginning_ept", "zone", False),
     "sync_reserve_events":    FeedSpec("event_start_ept", "synchronized_sub_zone", False),
     "reserve_market_results": FeedSpec("datetime_beginning_ept", "locale", False),

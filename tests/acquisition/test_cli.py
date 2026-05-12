@@ -241,3 +241,55 @@ def test_cli_archive_tier_rejected_for_5min_lmp(monkeypatch, capsys):
     assert rc == 2
     err = capsys.readouterr().err
     assert "5-min" in err.lower() or "fivemin" in err.lower()
+
+
+def test_cli_archive_pull_end_to_end(monkeypatch, tmp_path):
+    """Mock-transport end-to-end: archive CLI pull → parquet on disk filtered to targets."""
+    import httpx
+    import pandas as pd
+
+    # Mock returns 3 rows: 1 target EHV, 2 unrelated.
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={
+            "totalRows": 3,
+            "items": [
+                {"pnode_id": 35010365, "pnode_name": "LOUDOUN",
+                 "datetime_beginning_ept": "2023-06-15T03:00:00", "type": "EHV",
+                 "congestion_price_rt": 10.0, "total_lmp_rt": 50.0},
+                {"pnode_id": 999, "pnode_name": "X",
+                 "datetime_beginning_ept": "2023-06-15T03:00:00", "type": "EHV",
+                 "congestion_price_rt": 1.0, "total_lmp_rt": 41.0},
+                {"pnode_id": 888, "pnode_name": "Y",
+                 "datetime_beginning_ept": "2023-06-15T03:00:00", "type": "EHV",
+                 "congestion_price_rt": 2.0, "total_lmp_rt": 42.0},
+            ],
+        })
+
+    monkeypatch.setenv("PJM_API_KEY", "test")
+    monkeypatch.setattr("surg.acquisition.pull.load_dotenv", lambda *a, **k: False)
+
+    # Patch PJMClient construction to inject mock transport
+    from surg.acquisition import pull as pull_mod
+    from surg.acquisition.client import PJMClient
+
+    def factory(*a, **kw):
+        return PJMClient(*a, **{**kw, "min_interval_s": 0.0,
+                                 "transport": httpx.MockTransport(handler)})
+    monkeypatch.setattr(pull_mod, "PJMClient", factory)
+
+    rc = main([
+        "--feed", "rt_hrl_lmps",
+        "--start", "2023-06-15", "--end", "2023-06-15",
+        "--archive-tier", "--archive-subtype", "EHV",
+        "--group-label", "test_archive_ehv",
+        "--data-root", str(tmp_path),
+    ])
+    assert rc == 0
+
+    # Confirm output exists and is filtered.
+    paths = list((tmp_path / "rt_hrl_lmps").rglob("test_archive_ehv__*.parquet"))
+    assert len(paths) == 1
+    df = pd.read_parquet(paths[0])
+    # Filtered: only the LOUDOUN target row should remain.
+    assert len(df) == 1
+    assert df["pnode_id"].iloc[0] == 35010365

@@ -67,3 +67,35 @@ def add_loudoun_cluster_columns(
     out["congestion_price_rt_cluster_max"] = out[cong_cols].max(axis=1)
     out["total_lmp_rt_cluster_mean"] = out[total_cols].mean(axis=1)
     return out
+
+
+def add_sync_event_columns(
+    panel: pd.DataFrame,
+    events: pd.DataFrame,
+) -> pd.DataFrame:
+    """Add sync_reserve_event_active (bool) and sync_reserve_event_id (int|NaN).
+
+    A panel timestamp `t` (hourly) is "active" if any event overlaps the
+    hour bucket [t, t+1h): event_start < t+1h AND event_end > t.
+    If active, event_id is set to the earliest such event's id.
+    """
+    out = panel.copy()
+    out["sync_reserve_event_active"] = False
+    out["sync_reserve_event_id"] = pd.NA
+
+    if events.empty:
+        return out
+
+    one_hour = pd.Timedelta(hours=1)
+    # Naive O(n*m) loop; acceptable since events are rare (~10s per year).
+    for _, ev in events.iterrows():
+        start = ev["event_start_ept"]
+        end = ev["event_end_ept"]
+        mask = (out["datetime_beginning_ept"] + one_hour > start) & \
+               (out["datetime_beginning_ept"] < end)
+        # Only set event_id where it hasn't been set yet (first event wins)
+        first_set = mask & out["sync_reserve_event_id"].isna()
+        out.loc[mask, "sync_reserve_event_active"] = True
+        out.loc[first_set, "sync_reserve_event_id"] = ev["event_id"]
+
+    return out

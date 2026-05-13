@@ -108,3 +108,46 @@ def test_add_loudoun_cluster_columns_computes_mean_and_max():
     assert out["congestion_price_rt_cluster_max"].iloc[0] == expected_max
     # total_lmp_rt cluster mean is also added
     assert "total_lmp_rt_cluster_mean" in out.columns
+
+
+def test_add_sync_event_columns_marks_active_hours():
+    from surg.preprocessing.features import add_sync_event_columns
+
+    timestamps = pd.to_datetime([
+        "2024-07-15T17:00:00",  # before event
+        "2024-07-15T18:00:00",  # event covers 18:30-19:15 → 18:00 hour overlaps event
+        "2024-07-15T19:00:00",  # 19:00 hour: event ends 19:15, so still active
+        "2024-07-15T20:00:00",  # after event
+    ])
+    panel = pd.DataFrame({"datetime_beginning_ept": timestamps})
+    events = pd.DataFrame({
+        "event_start_ept": [pd.Timestamp("2024-07-15T18:30:00")],
+        "event_end_ept":   [pd.Timestamp("2024-07-15T19:15:00")],
+        "event_id":        [0],
+    })
+
+    out = add_sync_event_columns(panel, events)
+    active = list(out["sync_reserve_event_active"])
+    # An event covers timestamp t if event_start <= t+1h AND event_end > t
+    # (any overlap with the [t, t+1h) hour bucket).
+    assert active == [False, True, True, False]
+    # event_id is NaN when inactive, 0 when this event is active
+    assert pd.isna(out["sync_reserve_event_id"].iloc[0])
+    assert out["sync_reserve_event_id"].iloc[1] == 0
+    assert out["sync_reserve_event_id"].iloc[2] == 0
+    assert pd.isna(out["sync_reserve_event_id"].iloc[3])
+
+
+def test_add_sync_event_columns_handles_empty_events():
+    from surg.preprocessing.features import add_sync_event_columns
+    panel = pd.DataFrame({
+        "datetime_beginning_ept": pd.to_datetime(["2024-07-15T18:00:00"])
+    })
+    events = pd.DataFrame({"event_start_ept": pd.Series(dtype="datetime64[ns]"),
+                           "event_end_ept": pd.Series(dtype="datetime64[ns]"),
+                           "event_id": pd.Series(dtype="int64")})
+
+    out = add_sync_event_columns(panel, events)
+    assert out["sync_reserve_event_active"].iloc[0] is False or \
+           bool(out["sync_reserve_event_active"].iloc[0]) is False
+    assert pd.isna(out["sync_reserve_event_id"].iloc[0])

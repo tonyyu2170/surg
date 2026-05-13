@@ -81,18 +81,19 @@ def fit_power_law(durations: np.ndarray) -> dict:
 
     Uses the `powerlaw` package (Clauset/Shalizi/Newman 2009 method):
     estimate x_min via KS minimization, then fit α via MLE on tail.
-    Returns alpha, x_min, KS p-value (goodness-of-fit).
+    Returns alpha, x_min, KS distance (goodness-of-fit), n, and n_tail.
     """
     durations = np.asarray(durations, dtype=float)
     n = int(len(durations))
     if n < 10:
-        return {"alpha": None, "x_min": None, "ks_p_value": None, "n": n}
+        return {"alpha": None, "x_min": None, "ks_distance": None, "n": n, "n_tail": 0}
 
     import powerlaw
     fit = powerlaw.Fit(durations, verbose=False)
     return {
         "alpha": float(fit.alpha),
         "x_min": float(fit.xmin),
-        "ks_p_value": float(getattr(fit, "D", float("nan"))),  # KS distance (lower=better fit)
+        "ks_distance": float(fit.D),  # KS distance D (lower = better fit; not a p-value)
         "n": n,
+        "n_tail": int(fit.n_tail),  # observations above x_min, used in the MLE
     }

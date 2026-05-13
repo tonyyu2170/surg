@@ -87,7 +87,10 @@ def test_power_law_fit_recovers_alpha():
     result = fit_power_law(durations)
     assert abs(result["alpha"] - alpha_true) < 0.3
     assert result["x_min"] > 0
-    assert "ks_p_value" in result
+    assert "ks_distance" in result
+    assert 0 <= result["ks_distance"] <= 1  # D is a distance bounded to [0, 1]
+    assert "n_tail" in result
+    assert 0 < result["n_tail"] <= 2000
 
 
 def test_power_law_handles_empty_input():

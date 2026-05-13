@@ -13,7 +13,9 @@ function `hansen_bootstrap_test` (Task 4).
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
+from pathlib import Path
 
 import numpy as np
 
@@ -139,3 +141,69 @@ def hansen_bootstrap_test(
         T_boot[b] = ssr_full_b - boot_result.ssr_joint
 
     return (1 + int(np.sum(T_boot >= T_obs))) / (1 + n_boot)
+
+
+def run_tar(
+    panel,
+    out_path: Path,
+    *,
+    response_col: str = "congestion_price_rt_cluster_mean",
+    threshold_col: str = "dom_load_gradient_abs_mw_per_min",
+    trim: float = 0.15,
+    n_grid: int = 300,
+    n_boot: int = 1000,
+    seed: int = 42,
+) -> TARResult:
+    """End-to-end TAR fit on the panel, writing JSON output.
+
+    Selects rows where passes_proposal_filter is True; constructs Y_lag
+    from the full (unfiltered) time series so the AR(1) structure is
+    natural.
+    """
+    import pandas as pd
+
+    # Order by datetime to ensure lag alignment
+    panel = panel.sort_values("datetime_beginning_ept").reset_index(drop=True)
+    # Y_{t-1} on the FULL time series (per design spec §4)
+    panel["_Y_lag"] = panel[response_col].shift(1)
+    # Then subset to the proposal filter
+    subset = panel[panel["passes_proposal_filter"].fillna(False).astype(bool)].copy()
+    subset = subset.dropna(subset=[response_col, "_Y_lag", threshold_col])
+
+    Y = subset[response_col].to_numpy()
+    Y_lag = subset["_Y_lag"].to_numpy()
+    Z = subset[threshold_col].to_numpy()
+
+    point = fit_tar(Y, Y_lag, Z, trim=trim, n_grid=n_grid)
+    p_value = hansen_bootstrap_test(
+        Y, Y_lag, Z, point,
+        n_boot=n_boot, trim=trim, n_grid=n_grid, seed=seed,
+    )
+
+    # Bootstrap CI for c_hat: resample (Y, Y_lag, Z) tuples and re-fit
+    rng = np.random.default_rng(seed + 1)
+    c_boot = np.empty(min(500, n_boot))
+    n = len(Y)
+    for i in range(len(c_boot)):
+        idx = rng.integers(0, n, size=n)
+        b = fit_tar(Y[idx], Y_lag[idx], Z[idx], trim=trim, n_grid=n_grid // 3)
+        c_boot[i] = b.c_hat
+    ci_lo, ci_hi = float(np.quantile(c_boot, 0.025)), float(np.quantile(c_boot, 0.975))
+
+    payload = {
+        "c_hat": point.c_hat,
+        "c_hat_ci_95": [ci_lo, ci_hi],
+        "alpha": point.alpha.tolist(),
+        "beta": point.beta.tolist(),
+        "regime_counts": {"low": point.n_low, "high": point.n_high},
+        "ssr_low": point.ssr_low,
+        "ssr_high": point.ssr_high,
+        "ssr_joint": point.ssr_joint,
+        "hansen_p_value": p_value,
+        "n_boot": n_boot,
+        "trim": trim,
+        "n_grid": n_grid,
+    }
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(payload, indent=2))
+    return point

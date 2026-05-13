@@ -112,3 +112,39 @@ def test_hansen_bootstrap_does_not_reject_when_no_threshold():
     # so the test isolates "TAR didn't falsely claim significance" from
     # any particular alpha-level convention.
     assert p > 1 / (1 + 200)
+
+
+def test_run_tar_writes_json(tmp_path):
+    from surg.analysis.tar import run_tar
+    from surg.preprocessing.schema import EXPECTED_COLUMNS
+
+    # Synthetic panel that passes schema validation
+    df = pd.DataFrame({col: [None] * 2000 for col in EXPECTED_COLUMNS})
+    # Plant TAR signal in the two columns we use.
+    # n=2001 because _make_synthetic_tar drops the first row (NaN Y_lag),
+    # yielding exactly 2000 rows to match the panel.
+    synth = _make_synthetic_tar(n=2001, c_true=2.0)
+    df["dom_load_gradient_abs_mw_per_min"] = synth["Z"].values
+    df["congestion_price_rt_cluster_mean"] = synth["Y"].values
+    df["passes_proposal_filter"] = True  # use all rows
+    df["datetime_beginning_ept"] = pd.date_range(
+        "2024-01-01", periods=2000, freq="h"
+    )
+
+    out_path = tmp_path / "tar_fit.json"
+    result = run_tar(
+        panel=df,
+        out_path=out_path,
+        n_boot=50,  # fast for test
+        seed=42,
+    )
+    assert out_path.exists()
+    import json
+    payload = json.loads(out_path.read_text())
+    assert "c_hat" in payload
+    assert "c_hat_ci_95" in payload
+    assert "alpha" in payload
+    assert "beta" in payload
+    assert "hansen_p_value" in payload
+    assert "regime_counts" in payload
+    assert abs(payload["c_hat"] - 2.0) < 0.5

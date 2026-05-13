@@ -12,7 +12,10 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
+from surg.preprocessing.schema import SCHEMA_VERSION
 from surg.preprocessing.loaders import (
     load_rt_hrl_lmps, load_dom_load,
     load_sync_reserve_events, load_reserve_market_results,
@@ -91,10 +94,14 @@ def build_analysis_panel(data_root: Path) -> pd.DataFrame:
 
 
 def write_panel(panel: pd.DataFrame, out_path: Path) -> None:
-    """Atomic write via tmp file + os.replace."""
+    """Atomic write via tmp file + os.replace. Stamps SCHEMA_VERSION in parquet custom_metadata."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = out_path.with_suffix(out_path.suffix + ".tmp")
-    panel.to_parquet(tmp, index=False)
+    table = pa.Table.from_pandas(panel, preserve_index=False)
+    existing_meta = table.schema.metadata or {}
+    new_meta = {**existing_meta, b"schema_version": str(SCHEMA_VERSION).encode()}
+    table = table.replace_schema_metadata(new_meta)
+    pq.write_table(table, tmp)
     os.replace(tmp, out_path)
 
 

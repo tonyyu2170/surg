@@ -104,3 +104,60 @@ def load_sync_reserve_events(data_root: Path) -> pd.DataFrame:
 
     keep = [c for c in out_cols if c in df.columns]
     return df[keep]
+
+
+def load_reserve_market_results(data_root: Path) -> pd.DataFrame:
+    """Load reserve_market_results for locale=MAD, services SR + PR.
+
+    Aggregates 5-min granularity to hourly mean per service. Returns:
+    DataFrame with columns datetime_beginning_ept (datetime64, hourly),
+    sync_reserve_clearing_price_rt (float, NaN if no SR rows that hour),
+    primary_reserve_clearing_price_rt (float, NaN if no PR rows that hour).
+    """
+    feed_dir = data_root / "reserve_market_results"
+    out_cols = [
+        "datetime_beginning_ept",
+        "sync_reserve_clearing_price_rt",
+        "primary_reserve_clearing_price_rt",
+    ]
+    if not feed_dir.exists():
+        return pd.DataFrame({c: pd.Series(dtype=object) for c in out_cols})
+
+    chunks = sorted(feed_dir.rglob("*.parquet"))
+    if not chunks:
+        return pd.DataFrame({c: pd.Series(dtype=object) for c in out_cols})
+
+    dfs = [pd.read_parquet(p) for p in chunks]
+    df = pd.concat(dfs, ignore_index=True)
+
+    df["datetime_beginning_ept"] = pd.to_datetime(
+        df["datetime_beginning_ept"], errors="raise"
+    )
+
+    # Filter to MAD locale and SR/PR services
+    df = df[(df["locale"] == "MAD") & (df["service"].isin(["SR", "PR"]))]
+
+    # Floor the 5-min timestamps to the hour
+    df = df.assign(_hour=df["datetime_beginning_ept"].dt.floor("h"))
+
+    # Mean mcp per (hour, service); then pivot to two columns
+    agg = (
+        df.groupby(["_hour", "service"], as_index=False)["mcp"]
+        .mean()
+        .pivot(index="_hour", columns="service", values="mcp")
+        .reset_index()
+        .rename(columns={
+            "_hour": "datetime_beginning_ept",
+            "SR": "sync_reserve_clearing_price_rt",
+            "PR": "primary_reserve_clearing_price_rt",
+        })
+    )
+    agg.columns.name = None
+
+    # Ensure both columns exist even if one service had no data
+    for col in ("sync_reserve_clearing_price_rt",
+                "primary_reserve_clearing_price_rt"):
+        if col not in agg.columns:
+            agg[col] = pd.NA
+
+    return agg[out_cols].sort_values("datetime_beginning_ept").reset_index(drop=True)

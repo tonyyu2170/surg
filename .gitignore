@@ -62,5 +62,7 @@ data/processed/*
 # Generated outputs
 outputs/figures/*
 outputs/tables/*
+outputs/*.json
+outputs/robustness/
 !outputs/figures/.gitkeep
 !outputs/tables/.gitkeep

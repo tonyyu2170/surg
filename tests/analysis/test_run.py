@@ -50,6 +50,8 @@ def test_run_all_writes_all_outputs(tmp_path: Path):
         n_subsample_reps=10,
     )
     assert (out_root / "tar_fit_primary.json").exists()
+    # Secondary fit (total LMP, Loudoun cluster) — per plan §15
+    assert (out_root / "tar_fit_total_lmp.json").exists()
     # At least one control fit emitted
     control_outputs = list(out_root.glob("tar_fit_ashburn*.json")) + \
                       list(out_root.glob("tar_fit_ox.json")) + \

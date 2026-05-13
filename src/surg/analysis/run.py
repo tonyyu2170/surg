@@ -61,6 +61,8 @@ def run_all(
     )
 
     for col in _SECONDARY_RESPONSE_COLS:
+        if panel[col].dropna().empty:
+            continue
         slug = col.replace("_rt_cluster_mean", "").replace("_rt_", "_")
         run_tar(
             panel=panel,
@@ -97,6 +99,11 @@ def run_all(
         out_path=out_root / "robustness" / "subsample_bootstrap.parquet",
         n_reps=n_subsample_reps,
     )
+
+    # Note: leave_one_season_out (robustness.py) is intentionally NOT called
+    # from run_all per the plan's "Out of scope" section — the panel does not
+    # yet carry an explicit _season_id column. The function remains importable
+    # for ad-hoc use once preprocessing adds that column.
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:

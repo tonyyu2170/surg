@@ -22,6 +22,15 @@ def subsample_bootstrap(
     """Refit TAR on `n_reps` random subsamples (each of `sample_frac` rows).
     Write the resulting c_hat distribution to a parquet file."""
     panel = panel.sort_values("datetime_beginning_ept").reset_index(drop=True)
+    # Same gap guard as run_tar — shift(1) walks rows not time; misaligned
+    # lags would silently corrupt every c_hat in the bootstrap distribution.
+    deltas = panel["datetime_beginning_ept"].diff().dropna()
+    if not (deltas == pd.Timedelta(hours=1)).all():
+        n_gaps = int((deltas != pd.Timedelta(hours=1)).sum())
+        raise ValueError(
+            f"panel has {n_gaps} non-hourly gap(s); _Y_lag would be misaligned. "
+            f"Rebuild via surg-prep, or pre-fill gaps."
+        )
     panel["_Y_lag"] = panel[response_col].shift(1)
     subset = panel[panel["passes_proposal_filter"].fillna(False).astype(bool)].copy()
     subset = subset.dropna(subset=[response_col, "_Y_lag", threshold_col])

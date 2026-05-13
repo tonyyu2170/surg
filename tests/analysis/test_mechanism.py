@@ -172,6 +172,25 @@ def test_run_mechanism_produces_both_regime_blocks(tmp_path):
             assert set(block["crosstab"]["table"][outer].keys()) == {"active", "inactive"}
 
 
+def test_conditional_regime_test_handles_empty_active():
+    """When no rows are active, frac_when_active and effect_size should
+    be None (not NaN) so the JSON output is RFC-compliant."""
+    from surg.analysis.mechanism import conditional_regime_test
+
+    Z = np.array([1.0, 2.0, 3.0, 4.0])
+    active = np.array([False, False, False, False])
+    result = conditional_regime_test(Z=Z, threshold=2.5, event_active=active)
+    assert result["frac_above_threshold_when_active"] is None
+    assert result["frac_above_threshold_when_inactive"] == 0.5  # 2/4
+    assert result["effect_size"] is None
+    assert result["n_active"] == 0
+    assert result["n_inactive"] == 4
+
+    # Must be json.dumps(allow_nan=False)-clean
+    import json
+    json.dumps(result, allow_nan=False)
+
+
 def test_power_law_handles_degenerate_fit():
     """When powerlaw can't fit (e.g., all identical durations), the result
     fields should be None — not NaN — so the JSON output is RFC-compliant."""

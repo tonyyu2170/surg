@@ -41,13 +41,18 @@ def conditional_regime_test(
     n_active = int(active.sum())
     n_inactive = int((~active).sum())
 
-    frac_active = float(above[active].mean()) if n_active > 0 else float("nan")
-    frac_inactive = float(above[~active].mean()) if n_inactive > 0 else float("nan")
+    frac_active = float(above[active].mean()) if n_active > 0 else None
+    frac_inactive = float(above[~active].mean()) if n_inactive > 0 else None
+
+    if frac_active is not None and frac_inactive is not None:
+        effect_size: float | None = frac_active - frac_inactive
+    else:
+        effect_size = None
 
     return {
         "frac_above_threshold_when_active": frac_active,
         "frac_above_threshold_when_inactive": frac_inactive,
-        "effect_size": frac_active - frac_inactive,
+        "effect_size": effect_size,
         "n_active": n_active,
         "n_inactive": n_inactive,
     }

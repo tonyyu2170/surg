@@ -6,6 +6,7 @@ See design spec §6 for the three tests + tertiary robustness check.
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import numpy as np
@@ -84,7 +85,12 @@ def fit_power_law(durations: np.ndarray) -> dict:
 
     Uses the `powerlaw` package (Clauset/Shalizi/Newman 2009 method):
     estimate x_min via KS minimization, then fit α via MLE on tail.
-    Returns alpha, x_min, KS distance (goodness-of-fit), n, and n_tail.
+    Returns alpha, x_min, KS distance, n, n_tail.
+
+    Returns None for any field that would be NaN — either because there
+    are too few observations (n < 10) or because the powerlaw library
+    failed to converge (e.g., too few unique duration values). Keeps the
+    output RFC-8259 JSON compliant.
     """
     durations = np.asarray(durations, dtype=float)
     n = int(len(durations))
@@ -94,12 +100,17 @@ def fit_power_law(durations: np.ndarray) -> dict:
     import powerlaw
     fit = powerlaw.Fit(durations, verbose=False)
     return {
-        "alpha": float(fit.alpha),
-        "x_min": float(fit.xmin),
-        "ks_distance": float(fit.D),  # KS distance D (lower = better fit; not a p-value)
+        "alpha": _nan_to_none(fit.alpha),
+        "x_min": _nan_to_none(fit.xmin),
+        "ks_distance": _nan_to_none(fit.D),
         "n": n,
-        "n_tail": int(fit.n_tail),  # observations above x_min, used in the MLE
+        "n_tail": int(fit.n_tail),
     }
+
+
+def _nan_to_none(x: float | None) -> float | None:
+    """Convert NaN floats to None for JSON safety; pass other floats through."""
+    return None if (x is None or math.isnan(x)) else float(x)
 
 
 # Reserve-shortage pricing step (ORDC first-step penalty level). See

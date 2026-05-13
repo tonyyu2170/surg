@@ -170,3 +170,20 @@ def test_run_mechanism_produces_both_regime_blocks(tmp_path):
         assert set(block["crosstab"]["table"].keys()) == {"above", "below"}
         for outer in ["above", "below"]:
             assert set(block["crosstab"]["table"][outer].keys()) == {"active", "inactive"}
+
+
+def test_power_law_handles_degenerate_fit():
+    """When powerlaw can't fit (e.g., all identical durations), the result
+    fields should be None — not NaN — so the JSON output is RFC-compliant."""
+    from surg.analysis.mechanism import fit_power_law
+    # 20 identical durations: powerlaw will fit but alpha/xmin can land on NaN
+    durations = np.ones(20)
+    result = fit_power_law(durations)
+    import json
+    # If any value is NaN, json.dumps will emit "NaN" (invalid JSON).
+    # Round-trip through a strict-mode dumps and loads.
+    serialized = json.dumps(result, allow_nan=False)
+    reloaded = json.loads(serialized)
+    assert reloaded["n"] == 20
+    # alpha may be None or a finite float — never NaN
+    assert reloaded["alpha"] is None or isinstance(reloaded["alpha"], (int, float))

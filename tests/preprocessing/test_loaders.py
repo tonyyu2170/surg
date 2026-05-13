@@ -91,3 +91,43 @@ def test_load_dom_load_rejects_rows_not_in_dom_zone(tmp_path: Path):
     df = load_dom_load(tmp_path)
     assert len(df) == 1
     assert df["dom_load_mw"].iloc[0] == 12000.0
+
+
+def _write_event_chunk(data_root: Path, year: int, fname: str, rows: list[dict]) -> Path:
+    chunk_dir = data_root / "sync_reserve_events" / str(year)
+    chunk_dir.mkdir(parents=True, exist_ok=True)
+    out = chunk_dir / fname
+    pd.DataFrame(rows).to_parquet(out, index=False)
+    return out
+
+
+def test_load_sync_reserve_events_parses_timestamps(tmp_path: Path):
+    from surg.preprocessing.loaders import load_sync_reserve_events
+
+    _write_event_chunk(tmp_path, 2024, "mad__2024-05-26_to_2024-12-31.parquet", [
+        {"event_start_ept": "2024-07-15T18:30:00",
+         "event_end_ept":   "2024-07-15T19:15:00",
+         "duration": "45 mins", "synchronized_reserve_zone": "MAD",
+         "synchronized_sub_zone": "MidAtlantic-Dominion (MAD)"},
+        {"event_start_ept": "2024-08-22T16:00:00",
+         "event_end_ept":   "2024-08-22T16:30:00",
+         "duration": "30 mins", "synchronized_reserve_zone": "MAD",
+         "synchronized_sub_zone": "MidAtlantic-Dominion (MAD)"},
+    ])
+
+    df = load_sync_reserve_events(tmp_path)
+    assert len(df) == 2
+    assert pd.api.types.is_datetime64_any_dtype(df["event_start_ept"])
+    assert pd.api.types.is_datetime64_any_dtype(df["event_end_ept"])
+    assert df["event_start_ept"].is_monotonic_increasing
+    # event_id is added: zero-indexed sort order
+    assert list(df["event_id"]) == [0, 1]
+
+
+def test_load_sync_reserve_events_empty_returns_typed_empty(tmp_path: Path):
+    from surg.preprocessing.loaders import load_sync_reserve_events
+    df = load_sync_reserve_events(tmp_path)
+    assert df.empty
+    assert "event_start_ept" in df.columns
+    assert "event_end_ept" in df.columns
+    assert "event_id" in df.columns

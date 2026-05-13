@@ -75,3 +75,32 @@ def load_dom_load(data_root: Path) -> pd.DataFrame:
     df = df.rename(columns={"mw": "dom_load_mw"})
 
     return df[out_cols].sort_values("datetime_beginning_ept").reset_index(drop=True)
+
+
+def load_sync_reserve_events(data_root: Path) -> pd.DataFrame:
+    """Load sync_reserve_events for the MAD sub-zone.
+
+    Returns: DataFrame with columns event_start_ept, event_end_ept
+    (both datetime64), duration (str), synchronized_sub_zone (str),
+    event_id (int, zero-indexed by sort order). Sorted by event_start_ept.
+    """
+    feed_dir = data_root / "sync_reserve_events"
+    out_cols = ["event_start_ept", "event_end_ept", "duration",
+                "synchronized_sub_zone", "event_id"]
+    if not feed_dir.exists():
+        return pd.DataFrame({c: pd.Series(dtype=object) for c in out_cols})
+
+    chunks = sorted(feed_dir.rglob("*.parquet"))
+    if not chunks:
+        return pd.DataFrame({c: pd.Series(dtype=object) for c in out_cols})
+
+    dfs = [pd.read_parquet(p) for p in chunks]
+    df = pd.concat(dfs, ignore_index=True)
+
+    df["event_start_ept"] = pd.to_datetime(df["event_start_ept"], errors="raise")
+    df["event_end_ept"] = pd.to_datetime(df["event_end_ept"], errors="raise")
+    df = df.sort_values("event_start_ept").reset_index(drop=True)
+    df["event_id"] = df.index.astype("int64")
+
+    keep = [c for c in out_cols if c in df.columns]
+    return df[keep]

@@ -66,3 +66,7 @@ outputs/*.json
 outputs/robustness/
 !outputs/figures/.gitkeep
 !outputs/tables/.gitkeep
+
+# Exploratory / alternative-window analysis outputs (regeneratable from
+# the panel + analysis module with different filter parameters)
+outputs_*/

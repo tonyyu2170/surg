@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 
 def _make_synthetic_qr(n: int = 2000, c_true: float = 2.0, seed: int = 7):
@@ -33,3 +34,33 @@ def test_qr_threshold_dummy_detects_kink():
     )
     assert result.kink_coef > 0
     assert result.kink_p_value < 0.05
+
+
+def test_qr_linear_rejects_unequal_lengths():
+    from surg.analysis.qr import fit_qr_linear
+    with pytest.raises(ValueError, match="equal length"):
+        fit_qr_linear(Y=np.array([1.0, 2.0]), Z=np.array([0.5, 1.5, 2.5]))
+
+
+def test_qr_threshold_dummy_rejects_c_outside_z_range():
+    from surg.analysis.qr import fit_qr_threshold_dummy
+    rng = np.random.default_rng(0)
+    Y = rng.normal(0, 1, 200)
+    Z = rng.lognormal(0, 0.5, 200)
+    # Z.max() will be well below 100; c=100 is outside the range
+    with pytest.raises(ValueError, match="outside Z range"):
+        fit_qr_threshold_dummy(Y=Y, Z=Z, c=100.0, tau=0.99)
+
+
+def test_qr_threshold_dummy_exposes_slope_p_value():
+    """New field added in fix commit; verify it's populated and reasonable."""
+    from surg.analysis.qr import fit_qr_threshold_dummy
+    df = _make_synthetic_qr(n=2000, c_true=2.0)
+    result = fit_qr_threshold_dummy(
+        Y=df["Y"].to_numpy(), Z=df["Z"].to_numpy(), c=2.0, tau=0.99,
+    )
+    # slope_p_value should be a finite float; not asserting significance
+    # because below-threshold slope is structurally near zero in this DGP.
+    assert isinstance(result.slope_p_value, float)
+    assert not np.isnan(result.slope_p_value)
+    assert 0.0 <= result.slope_p_value <= 1.0

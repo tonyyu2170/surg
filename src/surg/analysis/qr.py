@@ -28,6 +28,7 @@ class QRLinearResult:
 class QRThresholdDummyResult:
     intercept: float
     slope: float
+    slope_p_value: float   # p-value on the within-regime slope (delta_1)
     kink_coef: float       # the δ₂ coefficient on (Z-c)·I(Z>c)
     kink_p_value: float
     c: float
@@ -37,6 +38,9 @@ class QRThresholdDummyResult:
 
 def fit_qr_linear(Y: np.ndarray, Z: np.ndarray, *, tau: float = 0.99) -> QRLinearResult:
     """Linear quantile regression: Q_τ(Y|Z) = γ₀ + γ₁·Z."""
+    Y, Z = np.asarray(Y), np.asarray(Z)
+    if len(Y) != len(Z):
+        raise ValueError(f"Y and Z must have equal length, got {len(Y)} vs {len(Z)}")
     X = sm.add_constant(Z)
     model = sm.QuantReg(Y, X).fit(q=tau)
     return QRLinearResult(
@@ -52,12 +56,21 @@ def fit_qr_threshold_dummy(
     Y: np.ndarray, Z: np.ndarray, *, c: float, tau: float = 0.99,
 ) -> QRThresholdDummyResult:
     """Quantile regression with explicit threshold dummy at c."""
+    Y, Z = np.asarray(Y), np.asarray(Z)
+    if len(Y) != len(Z):
+        raise ValueError(f"Y and Z must have equal length, got {len(Y)} vs {len(Z)}")
+    if not (Z.min() <= c <= Z.max()):
+        raise ValueError(
+            f"c={c} is outside Z range [{Z.min():.4g}, {Z.max():.4g}]; "
+            f"kink basis would be degenerate"
+        )
     kink = np.where(Z > c, Z - c, 0.0)
     X = np.column_stack([np.ones(len(Z)), Z, kink])
     model = sm.QuantReg(Y, X).fit(q=tau)
     return QRThresholdDummyResult(
         intercept=float(model.params[0]),
         slope=float(model.params[1]),
+        slope_p_value=float(model.pvalues[1]),
         kink_coef=float(model.params[2]),
         kink_p_value=float(model.pvalues[2]),
         c=c,

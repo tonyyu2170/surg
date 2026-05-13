@@ -675,3 +675,295 @@ a meaningful single-number boundary.
 - If Rule 1's widening (1–6 AM) itself produces boundary-degenerate
   results, escalate to the next §8 option (trim tightening, then
   `Z` rescaling).
+
+---
+
+## 2026-05-13 — Application of pre-reg + diagnosis of threshold non-localizability (follow-up)
+
+**Context.** The same-date pre-registration entry locked five
+interpretation rules before any new bootstrap output was visible.
+This entry records (a) mechanical application of those rules to
+the pre-reg-mandated runs, and (b) the substantive diagnosis that
+emerged from follow-up exploratory probes spanning multiple filter
+widths, time resolutions, and threshold-variable choices. The
+diagnosis reshapes the project's analytical strategy and
+supersedes the simpler "find threshold c" framing the proposal
+and the methodology spec committed to. The pivot recommendation
+below is the analyst's read pending advisor (Prof Wei / Lihui)
+sign-off, not a fait accompli.
+
+Pre-reg-mandated runs:
+
+- `outputs/` — original 2-5 AM filter, `n_boot=1000`.
+- `outputs_n300/` — original filter, `n_boot=300` (sanity check;
+  identical verdicts to `n=1000` on this data).
+- `outputs_widened/` — Rule 1 widening to 1-6 AM, `n_boot=1000`.
+
+Post-pre-reg exploratory probes (outside original pre-reg scope):
+
+- `outputs_widened_12_7am/` — symmetric 7-hour widening.
+- `outputs_sweep_*/` — four additional hourly filter widths
+  (1-5 AM, 2-6 AM, 11pm-6am [methodology spec §8 default], 11pm-7am)
+  at `n_boot=300`.
+- 5-min approach (a) — regional load gradient `Z` from
+  `inst_load` (PJM SOUTHERN REGION), one-off in-memory analysis;
+  raw data at `data/raw/inst_load/2025_2026_southern_region.parquet`.
+- 5-min approach (c) — `Z` = SR clearing price from native 5-min
+  `reserve_market_results` (MAD, service=SR), one-off in-memory
+  analysis on the existing on-disk parquets.
+
+### Pre-registered rule application — headline numbers
+
+`sd(Z)` differs between filters because each filter samples a
+different load-gradient distribution; quantiles of `ĉ` in `Z` are
+computed against the filter's own `Z`.
+
+|  | Original (2-5 AM, n=2027) | Widened (1-6 AM, n=3385) |
+|---|---|---|
+| `Z` mean / sd / 80th pct | 2.79 / 2.15 / 4.39 | 4.25 / 3.44 / 7.10 |
+| **primary** — Loudoun cluster congestion `ĉ` (q) | **4.39** (q=0.80) | **4.42** (q=0.62) |
+| **total_lmp** — Loudoun cluster total LMP `ĉ` (q) | **1.45** (q=0.31) | **4.93** (q=0.66) |
+| OX (control) `ĉ` | 4.39 | **7.83** |
+| BRISTERS (control) `ĉ` | 4.39 | **7.83** |
+| DOM zonal (control) `ĉ` | 3.74 | 4.42 |
+| Ashburn TX1 / TX2 (complementary) `ĉ` | 4.18 | 6.30 |
+| QR spline kink | 1.68 | 12.37 |
+| QR threshold-dummy kink coef @ TAR's `ĉ` (p) | −3.62 (p=0.049) | **+3.55 (p=0.032)** |
+| Granger lag-1 / lag-2 / lag-3 p | 0.54 / 0.82 / 0.94 | 0.59 / 0.13 / 0.25 |
+| Subsample bootstrap median `ĉ` (95% CI) | 4.40 ([3.20, 4.60]) | 5.89 ([4.36, 7.85]) |
+
+All Hansen p-values at or one tick off the n=1000 bootstrap floor
+(0.0010 to 0.0020). The test statistic exceeds essentially every
+bootstrap null on every fit.
+
+### Rule-by-rule verdicts
+
+| Rule | Verdict | Action per pre-reg |
+|---|---|---|
+| 1 — Boundary degeneracy | Original q=0.80 (degenerate); widened q=0.62 (clean) | Use widened-filter result |
+| 2 — Primary vs controls | `p_loudoun ≤ 0.01` AND `p_min(controls) ≤ 0.01` | **DOM-wide** classification |
+| 3 — Congestion vs total_lmp | `Δĉ/sd(Z) = 0.15 < 0.5` on widened (both pass at `p < 0.01`) | **Congestion stays primary** (reversal from original-filter verdict; the 1.45 total_lmp basin was a 2-5 AM artifact) |
+| 4 — SR-clearing sweep | At `$300`: 1 hour inside either filter | **Drop dual-regime amendment** |
+| 5 — Granger | `p > 0.10` even after widening (best lag-2 p=0.13) | **Null result with power discussion** |
+
+The rules were honored mechanically. But the rule-2 verdict
+collapsed to "all p-values at the bootstrap floor" — methodologically
+true, interpretively thin. The richer dimensions of the data are
+treated in the subsequent sections.
+
+### Post-pre-reg exploration 1 — 12-7 AM widening
+
+User-initiated curiosity about whether wider-still windows further
+clarified the picture. Result: ĉ jumped from 4.42 (1-6 AM) to
+**10.92** (12-7 AM) for the primary fit, with q=0.85 — back to the
+boundary. Five of the seven fits pinned to the identical ĉ=10.92.
+Granger lag-2 worsened to 0.97 (from 0.13 in 1-6 AM). The 1-6 AM
+result does not generalize to wider windows.
+
+### Post-pre-reg exploration 2 — 7-window hourly sweep
+
+Asymmetric and symmetric widenings around the 1-6 AM point.
+Cluster/control ratio (Loudoun ĉ / OX ĉ) across windows — the
+quantity that the original follow-up draft treated as a substantive
+"Loudoun stresses first" finding:
+
+| Window | width | Loudoun ĉ | OX ĉ | L/OX |
+|---|---|---|---|---|
+| 2-5 AM (orig) | 3 hrs | 4.39 | 4.39 | **1.00** |
+| 1-5 AM | 4 hrs | 4.41 | 4.41 | **1.00** |
+| 2-6 AM | 4 hrs | 7.81 | 6.29 | **1.24** (reversed) |
+| 1-6 AM (rule1) | 5 hrs | 4.42 | 7.83 | **0.56** |
+| 11pm-6am (§8) | 7 hrs | 7.83 | 7.83 | **1.00** |
+| 11pm-7am | 8 hrs | 8.62 | 11.39 | **0.76** |
+| 12-7 AM | 7 hrs | 10.92 | 10.92 | **1.00** |
+
+**The 1-6 AM L/OX = 0.56 result is a singularity** in the filter
+family, not a robust empirical phenomenon. Small perturbations
+(adding hour 5 instead of hour 1, using the methodology spec's
+recommended §8 widening 11pm-6am, etc.) reset L/OX to 1.0 or flip
+it to > 1.0.
+
+### Post-pre-reg exploration 3 — 5-min approach (a): regional load gradient `Z`
+
+A 27-day joint window of 5-min PJM SOUTHERN REGION load and 5-min
+nodal LMP (2026-04-13 → 2026-05-10) — `inst_load` has ~27-day
+rolling retention (see `pjm-api-constraints.md` update for this
+constraint).
+
+Headline finding: ĉ is **more** unstable across filters at 5-min
+than at hourly. Primary congestion ĉ varies 1.89 → 6.82 → 12.83
+across 1-6 AM / 2-5 AM / 11pm-7am. Hansen p separates from the
+bootstrap floor — primary cong at 2-5 AM gives p = 0.053
+(borderline non-significant); total_lmp at 2-5 AM and 1-6 AM
+gives p = 0.103 (not significant at α = 0.05). The 5-min evidence
+for a threshold is actually weaker than hourly suggested. L/OX
+ratio is 3.56 on 2-5 AM at 5-min — Loudoun ĉ *higher* than OX,
+the opposite direction from the 1-6 AM hourly singularity.
+
+### Post-pre-reg exploration 4 — 5-min approach (c): SR clearing as `Z`
+
+Joint window 2025-11-12 → 2026-05-10 (~6 months, 51,541 5-min
+intervals). Z distribution wildly skewed: median = $0.010, 95th
+pct = $21.40, 99th pct = $141.67, max = $4156.
+
+| Cutoff | Joint window | Full 3.6y panel |
+|---|---|---|
+| ≥ $300 | 117 intervals (0.23%) | 550 (0.15%) |
+| **≥ $850 (ORDC 1st step)** | **26 (0.050%)** | **289 (0.076%)** |
+| ≥ $1000 | 19 | 213 |
+| ≥ $3000 | 2 | 58 |
+
+At `trim=0.15`, ĉ lands in [0.00, 0.12] — essentially "above
+median noise level," not at any mechanistically meaningful value.
+At `trim=0.05`, ĉ jumps to ~13-21 (the new 95th-percentile
+boundary). All five pnode fits give the same ĉ in each filter —
+no spatial differentiation when `Z` is a system-level variable
+(SR clearing is one number for all of MAD), as mechanistically
+expected.
+
+**The pre-known $850 ORDC threshold is invisible to TAR.** Only
+26 of 51,541 intervals in the 6-month joint window have SR
+clearing ≥ $850 (0.050%). To make $850 a candidate threshold,
+trim would need to be ≤ 0.0005, which violates the algorithm's
+regime-occupancy assumption.
+
+### Diagnosis: why TAR is filter-sensitive on this data
+
+The proposal hypothesizes a "phase transition" at a critical load
+volatility level. The methodology spec (citing PJM's *Formation of
+LMP Under Reserve Shortage Events*, 2023) identifies the mechanism
+as a chain:
+
+```
+DC load  →  load volatility  →  reserve scarcity
+         →  SR clearing  →  ORDC step  →  LMP spike
+```
+
+The proposal's threshold question targets the **first** link
+(load volatility → downstream). The explicit step function lives
+at the **last** link (SR clearing → ORDC at $850). The link from
+load volatility to reserve scarcity is **probabilistic, not
+deterministic**: high load volatility makes scarcity events more
+likely but does not guarantee them.
+
+The composite function (LMP as a function of load volatility) is
+therefore the convolution of:
+
+- **P(reserves scarce | load volatility)** — smooth probabilistic
+  curve, no hard threshold.
+- **LMP boost | reserves scarce** — sharp step at $850
+  (guaranteed by PJM market rule).
+
+A smooth probabilistic curve convolved with a sharp step yields
+**another smooth curve**, not a sharp threshold. TAR's piecewise-
+constant model is approximating this smooth curve with a jump,
+and the approximation point drifts with whatever data subset is
+fed in. This is the mechanism behind every filter-, resolution-,
+and Z-variable-sensitivity we observed today.
+
+This diagnosis is consistent with every probe result:
+
+| Observation | Explanation under the smooth-curve diagnosis |
+|---|---|
+| `ĉ` shifts with filter widening | Different filter → different `Z` distribution → different "where the smooth curve looks most jump-like" |
+| `ĉ` shifts with time resolution | Same — finer resolution samples the smooth curve differently |
+| `ĉ` shifts with `Z` variable | Each `Z` has its own smooth response curve; `ĉ` lands at the steepest local slope |
+| QR spline kink also unstable | Same — there isn't a kink, there's a smooth curve |
+| Hansen always rejects null | True — the response really is non-constant; just not piecewise |
+| QR threshold-dummy slope sign positive | True — the smooth curve is monotonically increasing in `Z` |
+| Negative controls reject too | True — the smooth curve exists for all pnodes; ORDC is system-mediated |
+| $850 threshold invisible to TAR | The mechanistic step is so rare that it falls outside the trim domain |
+
+### Robust signals across all probes
+
+- **A regime change exists.** Hansen rejects "no threshold" in
+  every fit across hourly, 5-min approach (a), and 5-min approach
+  (c), spanning multiple `Z` choices and filter widths.
+- **Response direction is correct.** QR threshold-dummy slope
+  positive in 6 of 7 hourly windows and most 5-min fits — slope
+  increases with `Z`, as the proposal predicted.
+- **The ORDC mechanism is real and rare.** SR-clearing ≥ $850
+  events occur in our window (289 5-min intervals over 3.6 years,
+  ~24 hours total).
+
+### Not-robust signals (caveats)
+
+- A specific MW/min or $/MWh value for the threshold.
+- Spatial differentiation between Loudoun cluster and outside-
+  cluster controls (L/OX ratio collapses to 1.0 outside the
+  singular 1-6 AM window).
+- QR spline kink location (1.57 to 15.54 across hourly windows).
+- The "Loudoun stresses first" reading at 1-6 AM.
+
+### Implications for the research question
+
+The proposal's first sub-question — "what is the critical MW/min
+threshold of data-center load variance" — is **not the right
+question for this data.** There is no single threshold value; there
+is a smooth probabilistic relationship between load volatility and
+LMP response. The proposal's second sub-question — "when does this
+become the chronic operating state" — is still answerable, but
+requires reframing as a question about the *shifting distribution*
+of load volatility under projected DC growth, not about crossing a
+fixed point.
+
+### Strategy C — recommended analytical pivot (pending advisor sign-off)
+
+1. **Switch the primary analytical tool** from TAR-as-headline to
+   **QR-on-full-panel + GPD on LMP tails.** Both methods naturally
+   model the smooth probabilistic relationship; both are
+   filter-robust because they don't search for a single jump point.
+2. **Reframe the deliverable** from "the critical threshold is
+   X MW/min" to "the upper quantiles of LMP shift meaningfully as
+   load volatility crosses the Yth percentile of its historical
+   distribution; the response curve has slope Z near that crossing."
+3. **Answer the projection question via JLARC growth forecasts
+   applied to the load-volatility distribution.** When does the
+   historical 95th percentile of `Z` become the new 50th percentile?
+   When do ORDC-triggering load excursions become routine instead
+   of rare? These questions do not require a threshold point
+   estimate.
+4. **Keep TAR and the filter-sweep results as descriptive evidence,
+   not primary headline.** The sweep itself is a methodological
+   contribution: it documents that the response is smooth, not
+   piecewise.
+
+### Open questions for advisor meeting (Prof Wei / Lihui)
+
+1. **Validate the smooth-curve diagnosis.** This is the central
+   methodological claim of this session. Prof Wei is well-equipped
+   to evaluate whether the convolution-of-smooth-and-step framing
+   is sound and whether Strategy C is the right pivot.
+2. **Specific QR / GPD specifications.** For QR: which quantiles
+   (τ=0.95, 0.99, both)? Which covariates (time-of-day, season,
+   load level)? For GPD: what tail cutoff (90th, 95th, 99th
+   percentile of LMP)? Peaks-over-threshold or block maxima?
+3. **Mechanism-validation framing.** Without discrete-event Granger
+   and without the dual-regime amendment, the ORDC mechanism is
+   supported theoretically (proposal §10 citing the PJM 2023 paper)
+   but not empirically validated in our window. Is the theoretical
+   citation adequate?
+4. **Multiple-testing correction.** Flagged as open in pre-reg.
+   Less load-bearing now that we're pivoting away from TAR-as-
+   primary, but still relevant for the descriptive sensitivity
+   sweep.
+5. **Filter primacy.** With QR on full panel as primary, the
+   shoulder × 2-5 AM filter becomes a robustness check, not a
+   primary analytical decision. Keep it as such or drop?
+6. **Handling the proposal's MW/min deliverable.** The proposal
+   commits to "determine the specific load variance value." If we
+   cannot deliver that as a point estimate, the paper needs either
+   a reframed deliverable or a quantified-uncertainty version
+   ("between the 80th and 95th percentile of historical load
+   volatility, with response slope Y").
+
+### Revisit when
+
+- After advisor meeting produces guidance on the diagnosis, the
+  pivot, and the open questions above.
+- If a substantially new data source becomes available — 5-min
+  DOM-specific load (not currently exposed by PJM), longer 5-min
+  LMP history (currently capped at ~6 months by archive
+  constraint), etc. None expected within the SURG project timeline.
+- If we discover the smooth-curve diagnosis is wrong (e.g., a
+  threshold appears via a method we have not yet tried).

@@ -19,6 +19,7 @@ def load_panel(path: Path) -> pd.DataFrame:
 
 def _check_schema_version(path: Path) -> None:
     """Raise ValueError if the parquet file's schema_version doesn't match SCHEMA_VERSION."""
+    # pyarrow schema metadata keys and values are bytes, not str.
     meta = pq.read_schema(path).metadata or {}
     raw = meta.get(b"schema_version")
     if raw is None:
@@ -30,7 +31,7 @@ def _check_schema_version(path: Path) -> None:
     if file_version != str(SCHEMA_VERSION):
         raise ValueError(
             f"schema_version mismatch in {path}: file has {file_version!r}, "
-            f"code expects {SCHEMA_VERSION}. Rebuild the panel with surg-prep."
+            f"code expects {str(SCHEMA_VERSION)!r}. Rebuild the panel with surg-prep."
         )
 
 

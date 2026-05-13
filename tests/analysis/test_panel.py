@@ -44,6 +44,8 @@ def test_load_panel_rejects_mismatched_schema_version(tmp_path: Path):
         ["2024-07-15T03:00:00", "2024-07-15T04:00:00"]
     )
     table = pa.Table.from_pandas(df, preserve_index=False)
+    # Wholesale replace drops the pandas key intentionally — the file fails the
+    # version check before pd.read_parquet runs, so pandas metadata is irrelevant.
     table = table.replace_schema_metadata({b"schema_version": b"99"})
     out = tmp_path / "wrong_version.parquet"
     pq.write_table(table, out)

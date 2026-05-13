@@ -66,16 +66,23 @@ def test_qr_threshold_dummy_exposes_slope_p_value():
     assert 0.0 <= result.slope_p_value <= 1.0
 
 
-def test_qr_bspline_kink_location_near_truth():
-    """The estimated kink location from the spline should be near c_true."""
+def test_qr_bspline_kink_location_robust_across_seeds():
+    """Across 5 seeds the kink localization should be near c_true=2.0.
+
+    Median absolute error across seeds is the stable metric; individual
+    seed runs can drift due to QR solver noise and basis allocation.
+    """
     from surg.analysis.qr import fit_qr_bspline
 
-    df = _make_synthetic_qr(n=3000, c_true=2.0, seed=11)
-    result = fit_qr_bspline(
-        Y=df["Y"].to_numpy(), Z=df["Z"].to_numpy(),
-        tau=0.99, n_knots=5,
-    )
-    # Kink location should be in the same ballpark as truth
-    assert abs(result.kink_location - 2.0) < 1.0
-    assert len(result.curve_z) == 200  # default grid size
-    assert len(result.curve_q) == 200
+    errors = []
+    for seed in [7, 11, 17, 23, 29]:
+        df = _make_synthetic_qr(n=3000, c_true=2.0, seed=seed)
+        result = fit_qr_bspline(
+            Y=df["Y"].to_numpy(), Z=df["Z"].to_numpy(),
+            tau=0.99, n_knots=5,
+        )
+        errors.append(abs(result.kink_location - 2.0))
+        assert len(result.curve_z) == 200
+        assert len(result.curve_q) == 200
+    median_err = float(np.median(errors))
+    assert median_err < 0.7, f"median |kink - 2.0| = {median_err:.3f} across 5 seeds"

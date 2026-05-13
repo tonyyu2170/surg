@@ -92,6 +92,7 @@ class QRSplineResult:
 def fit_qr_bspline(
     Y: np.ndarray, Z: np.ndarray, *, tau: float = 0.99,
     n_knots: int = 5, n_grid: int = 200,
+    smoothing: float | None = None,
 ) -> QRSplineResult:
     """Non-parametric quantile regression via B-spline basis on Z.
 
@@ -121,9 +122,27 @@ def fit_qr_bspline(
     X_grid = np.column_stack(basis_grid_cols)
     q_grid = X_grid @ model.params
 
-    # Kink location: argmax of |second derivative| of the curve
-    second_deriv = np.gradient(np.gradient(q_grid, z_grid), z_grid)
-    kink_idx = int(np.argmax(np.abs(second_deriv)))
+    # Smooth q_grid via a C^4 quartic spline so the second derivative is
+    # continuous, then take its argmax. The piecewise-linear q_grid has
+    # Dirac-delta second derivatives at the basis knots; a naive finite-
+    # difference d2 would always snap kink_location to one of the basis
+    # knots. The smoothing parameter s diffuses those corners into finite-
+    # width bumps that can be located continuously.
+    #
+    # s is scaled to the magnitude of q_grid: smoothing absorbs ~1% of
+    # total squared variation. Override via the `smoothing` arg if you
+    # need finer control on adversarial DGPs.
+    if smoothing is None:
+        smoothing = 0.01 * float(np.var(q_grid)) * len(q_grid)
+    spline = UnivariateSpline(z_grid, q_grid, k=4, s=smoothing)
+    second_deriv = spline.derivative(n=2)(z_grid)
+    # Restrict argmax to the interior 80% of the grid: quartic splines have
+    # unconstrained boundary behaviour, so the |d2| peak near the grid edges
+    # is a numerical artifact, not a true kink. The interior window is
+    # wide enough to capture any reasonable kink location.
+    trim = n_grid // 10
+    interior_abs_d2 = np.abs(second_deriv[trim:-trim])
+    kink_idx = trim + int(np.argmax(interior_abs_d2))
     kink_location = float(z_grid[kink_idx])
 
     return QRSplineResult(

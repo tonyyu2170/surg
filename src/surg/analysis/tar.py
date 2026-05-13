@@ -158,12 +158,33 @@ def run_tar(
 
     Selects rows where passes_proposal_filter is True; constructs Y_lag
     from the full (unfiltered) time series so the AR(1) structure is
-    natural.
+    natural at any retained row.
+
+    Methodology caveats (see docs/decisions.md):
+    - The c_hat_ci_95 here is a pair bootstrap (iid resampling of
+      (Y, Y_lag, Z) rows). It ignores AR serial correlation in the
+      subset and tends to be tighter than the true sampling
+      distribution. T13's subsample bootstrap is the canonical CI.
+    - After filter (shoulder + 2-5 AM), consecutive subset rows are
+      not adjacent in real time (~21 hours apart). The Hansen
+      bootstrap's recursive Y* generation treats the subset as one
+      AR(1) path, which is an interpretive approximation. We accept
+      this as a feature of the proposal's signal-isolation design.
     """
     import pandas as pd
 
     # Order by datetime to ensure lag alignment
     panel = panel.sort_values("datetime_beginning_ept").reset_index(drop=True)
+    # Guard against silently-misaligned lags if the panel has hourly gaps.
+    # shift(1) walks rows, not real time; with a gap, _Y_lag at row t would
+    # be the value many hours earlier rather than one hour earlier.
+    deltas = panel["datetime_beginning_ept"].diff().dropna()
+    if not (deltas == pd.Timedelta(hours=1)).all():
+        n_gaps = int((deltas != pd.Timedelta(hours=1)).sum())
+        raise ValueError(
+            f"panel has {n_gaps} non-hourly gap(s); _Y_lag would be "
+            f"misaligned. Rebuild the panel with surg-prep, or pre-fill gaps."
+        )
     # Y_{t-1} on the FULL time series (per design spec §4)
     panel["_Y_lag"] = panel[response_col].shift(1)
     # Then subset to the proposal filter

@@ -489,3 +489,24 @@ changes to TAR (T3-T5) or QR (T6-T8). No changes to the panel schema
 - The two definitions diverge meaningfully (>20% of regime-active
   hours in one but not the other) — sensitivity sweep on the $850
   cutoff becomes load-bearing for the paper's narrative.
+
+---
+
+## 2026-05-12 — Methodology caveats noted on `run_tar` (Plan 3 Task 5)
+
+`run_tar` writes a `c_hat_ci_95` block computed via pair bootstrap
+(iid resampling of (Y, Y_lag, Z) rows). This is a simplification that
+ignores AR serial correlation and is expected to be tighter than the
+true sampling distribution. T13's subsample bootstrap is the canonical
+CI for write-up purposes.
+
+Separately, after the proposal's signal-isolation filter (shoulder
+months + 2-5 AM), consecutive subset rows are ~21 hours apart in real
+time. The Hansen bootstrap's recursive Y* generation treats the
+filtered subset as a single AR(1) path; we accept this as an
+approximation rather than redesigning the bootstrap to respect the
+non-contiguous structure. The alternative — bootstrapping at the
+night-block level — would shrink the sample further and is not
+warranted given the threshold question's locality.
+
+Both points should appear in the methodology section of the writeup.

@@ -141,10 +141,15 @@ def test_run_tar_writes_json(tmp_path):
     assert out_path.exists()
     import json
     payload = json.loads(out_path.read_text())
-    assert "c_hat" in payload
-    assert "c_hat_ci_95" in payload
-    assert "alpha" in payload
-    assert "beta" in payload
-    assert "hansen_p_value" in payload
-    assert "regime_counts" in payload
+    expected_keys = {
+        "c_hat", "c_hat_ci_95", "alpha", "beta", "regime_counts",
+        "ssr_low", "ssr_high", "ssr_joint",
+        "hansen_p_value", "n_boot", "trim", "n_grid",
+    }
+    assert set(payload.keys()) == expected_keys
+    assert abs(payload["c_hat"] - 2.0) < 0.5
+    # CI brackets the point estimate (not mathematically guaranteed for a
+    # pair bootstrap; assert behaviour the consumer expects to see).
+    lo, hi = payload["c_hat_ci_95"]
+    assert lo <= payload["c_hat"] <= hi
     assert abs(payload["c_hat"] - 2.0) < 0.5

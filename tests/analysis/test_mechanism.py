@@ -72,3 +72,26 @@ def test_crosstab_chi2_detects_strong_dependence():
     assert result["table"][True][False] == 5
     assert result["table"][False][True] == 10
     assert result["table"][False][False] == 65
+
+
+def test_power_law_fit_recovers_alpha():
+    """Synthetic Pareto-distributed durations should give back the planted α."""
+    from surg.analysis.mechanism import fit_power_law
+
+    rng = np.random.default_rng(42)
+    # Pareto with shape α-1=1.5 (so α=2.5), scale=1
+    alpha_true = 2.5
+    n = 2000
+    durations = rng.pareto(alpha_true - 1, size=n) + 1.0
+
+    result = fit_power_law(durations)
+    assert abs(result["alpha"] - alpha_true) < 0.3
+    assert result["x_min"] > 0
+    assert "ks_p_value" in result
+
+
+def test_power_law_handles_empty_input():
+    from surg.analysis.mechanism import fit_power_law
+    result = fit_power_law(np.array([]))
+    assert result["alpha"] is None
+    assert result["n"] == 0

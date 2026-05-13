@@ -74,3 +74,25 @@ def crosstab_chi2(
         "chi2_stat": float(chi2),
         "chi2_p_value": float(p),
     }
+
+
+def fit_power_law(durations: np.ndarray) -> dict:
+    """Fit a power-law distribution to event durations.
+
+    Uses the `powerlaw` package (Clauset/Shalizi/Newman 2009 method):
+    estimate x_min via KS minimization, then fit α via MLE on tail.
+    Returns alpha, x_min, KS p-value (goodness-of-fit).
+    """
+    durations = np.asarray(durations, dtype=float)
+    n = int(len(durations))
+    if n < 10:
+        return {"alpha": None, "x_min": None, "ks_p_value": None, "n": n}
+
+    import powerlaw
+    fit = powerlaw.Fit(durations, verbose=False)
+    return {
+        "alpha": float(fit.alpha),
+        "x_min": float(fit.xmin),
+        "ks_p_value": float(getattr(fit, "D", float("nan"))),  # KS distance (lower=better fit)
+        "n": n,
+    }

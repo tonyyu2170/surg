@@ -98,3 +98,75 @@ def test_power_law_handles_empty_input():
     result = fit_power_law(np.array([]))
     assert result["alpha"] is None
     assert result["n"] == 0
+
+
+def test_run_mechanism_writes_json(tmp_path):
+    from surg.analysis.mechanism import run_mechanism
+    from surg.preprocessing.schema import EXPECTED_COLUMNS
+
+    n = 500
+    df = pd.DataFrame({col: [None]*n for col in EXPECTED_COLUMNS})
+    rng = np.random.default_rng(0)
+    df["dom_load_gradient_abs_mw_per_min"] = rng.lognormal(0, 0.7, n)
+    df["sync_reserve_event_active"] = rng.random(n) > 0.9
+    # Mix of values both above AND below the $850 ORDC step (required so
+    # by_regime["high_sr_clearing"] is not degenerate).
+    df["sync_reserve_clearing_price_rt"] = rng.uniform(0, 1500, n)
+    df["passes_proposal_filter"] = True
+    df["datetime_beginning_ept"] = pd.date_range("2024-01-01", periods=n, freq="h")
+
+    events_df = pd.DataFrame({
+        "event_start_ept": pd.to_datetime(["2024-01-15T03:00:00"] * 15),
+        "event_end_ept":   pd.to_datetime(["2024-01-15T04:00:00"] * 15),
+        "duration": ["1 hour"] * 15,
+    })
+
+    out_path = tmp_path / "mechanism_validation.json"
+    run_mechanism(
+        panel=df, events=events_df,
+        threshold=1.0,
+        out_path=out_path,
+    )
+    assert out_path.exists()
+    import json
+    payload = json.loads(out_path.read_text())
+    assert "granger" in payload
+    assert "by_regime" in payload
+    assert "power_law" in payload
+    assert payload["threshold_used"] == 1.0
+
+
+def test_run_mechanism_produces_both_regime_blocks(tmp_path):
+    """Amendment 2026-05-12: by_regime must contain both sync_event_active
+    and high_sr_clearing, each with conditional_regime + crosstab sub-blocks."""
+    from surg.analysis.mechanism import run_mechanism
+    from surg.preprocessing.schema import EXPECTED_COLUMNS
+
+    n = 500
+    df = pd.DataFrame({col: [None]*n for col in EXPECTED_COLUMNS})
+    rng = np.random.default_rng(1)
+    df["dom_load_gradient_abs_mw_per_min"] = rng.lognormal(0, 0.7, n)
+    df["sync_reserve_event_active"] = rng.random(n) > 0.85
+    df["sync_reserve_clearing_price_rt"] = rng.uniform(0, 1500, n)
+    df["passes_proposal_filter"] = True
+    df["datetime_beginning_ept"] = pd.date_range("2024-01-01", periods=n, freq="h")
+    events_df = pd.DataFrame({
+        "event_start_ept": pd.to_datetime(["2024-01-15T03:00:00"] * 10),
+        "event_end_ept":   pd.to_datetime(["2024-01-15T04:00:00"] * 10),
+        "duration": ["1 hour"] * 10,
+    })
+
+    out_path = tmp_path / "mechanism_validation.json"
+    run_mechanism(panel=df, events=events_df, threshold=1.0, out_path=out_path)
+
+    import json
+    payload = json.loads(out_path.read_text())
+    assert set(payload["by_regime"].keys()) == {"sync_event_active", "high_sr_clearing"}
+    for regime_key in ["sync_event_active", "high_sr_clearing"]:
+        block = payload["by_regime"][regime_key]
+        assert "conditional_regime" in block
+        assert "crosstab" in block
+        # Crosstab table uses semantically named string keys (not bool→"true"/"false")
+        assert set(block["crosstab"]["table"].keys()) == {"above", "below"}
+        for outer in ["above", "below"]:
+            assert set(block["crosstab"]["table"][outer].keys()) == {"active", "inactive"}

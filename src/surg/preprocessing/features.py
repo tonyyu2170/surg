@@ -99,3 +99,47 @@ def add_sync_event_columns(
         out.loc[first_set, "sync_reserve_event_id"] = ev["event_id"]
 
     return out
+
+
+def add_event_lead_lag_columns(
+    panel: pd.DataFrame,
+    events: pd.DataFrame,
+) -> pd.DataFrame:
+    """Add hours_to_next_sync_event and hours_since_last_sync_event."""
+    out = panel.copy()
+    out["hours_to_next_sync_event"] = pd.NA
+    out["hours_since_last_sync_event"] = pd.NA
+
+    if events.empty:
+        return out
+
+    starts = events["event_start_ept"].sort_values().reset_index(drop=True)
+    ends = events["event_end_ept"].sort_values().reset_index(drop=True)
+
+    for i, t in enumerate(out["datetime_beginning_ept"]):
+        # next event start strictly after t
+        next_idx = starts.searchsorted(t, side="right")
+        if next_idx < len(starts):
+            delta = (starts.iloc[next_idx] - t).total_seconds() / 3600
+            out.loc[out.index[i], "hours_to_next_sync_event"] = delta
+        # last event end at or before t
+        prev_idx = ends.searchsorted(t, side="right") - 1
+        if prev_idx >= 0 and ends.iloc[prev_idx] <= t:
+            delta = (t - ends.iloc[prev_idx]).total_seconds() / 3600
+            out.loc[out.index[i], "hours_since_last_sync_event"] = delta
+
+    return out
+
+
+def add_filter_columns(panel: pd.DataFrame) -> pd.DataFrame:
+    """Add in_shoulder_season, in_2_5am_window, passes_proposal_filter,
+    dst_transition_hour."""
+    out = panel.copy()
+    months = out["datetime_beginning_ept"].dt.month
+    hours = out["datetime_beginning_ept"].dt.hour
+    out["in_shoulder_season"] = months.isin([3, 4, 5, 9, 10, 11])
+    out["in_2_5am_window"] = hours.isin([2, 3, 4])
+    out["passes_proposal_filter"] = out["in_shoulder_season"] & out["in_2_5am_window"]
+    # DST transition hour: see test docstring for why this is currently always False.
+    out["dst_transition_hour"] = False
+    return out

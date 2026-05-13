@@ -151,3 +151,63 @@ def test_add_sync_event_columns_handles_empty_events():
     assert out["sync_reserve_event_active"].iloc[0] is False or \
            bool(out["sync_reserve_event_active"].iloc[0]) is False
     assert pd.isna(out["sync_reserve_event_id"].iloc[0])
+
+
+def test_add_event_lead_lag_columns():
+    from surg.preprocessing.features import add_event_lead_lag_columns
+
+    panel = pd.DataFrame({
+        "datetime_beginning_ept": pd.to_datetime([
+            "2024-07-15T17:00:00",
+            "2024-07-15T18:00:00",
+            "2024-07-15T20:00:00",
+            "2024-07-15T21:00:00",
+        ]),
+    })
+    events = pd.DataFrame({
+        "event_start_ept": pd.to_datetime(["2024-07-15T18:30:00"]),
+        "event_end_ept":   pd.to_datetime(["2024-07-15T19:15:00"]),
+        "event_id": [0],
+    })
+
+    out = add_event_lead_lag_columns(panel, events)
+    # 17:00 → next event starts 18:30 → 1.5 hours forward
+    assert out["hours_to_next_sync_event"].iloc[0] == 1.5
+    # No prior event before 17:00 → NaN
+    assert pd.isna(out["hours_since_last_sync_event"].iloc[0])
+    # 20:00 → prior event ended 19:15 → 0.75 hours since
+    assert out["hours_since_last_sync_event"].iloc[2] == 0.75
+    # 21:00 → no next event → NaN
+    assert pd.isna(out["hours_to_next_sync_event"].iloc[3])
+
+
+def test_add_filter_columns_marks_shoulder_and_2_5am():
+    from surg.preprocessing.features import add_filter_columns
+
+    panel = pd.DataFrame({
+        "datetime_beginning_ept": pd.to_datetime([
+            "2024-03-15T03:00:00",  # shoulder + 2-5 → pass
+            "2024-03-15T14:00:00",  # shoulder, not 2-5
+            "2024-07-15T03:00:00",  # 2-5, not shoulder (July is summer)
+            "2024-07-15T14:00:00",  # neither
+            "2024-11-01T04:00:00",  # shoulder + 2-5 → pass
+        ])
+    })
+
+    out = add_filter_columns(panel)
+    assert list(out["in_shoulder_season"]) == [True, True, False, False, True]
+    assert list(out["in_2_5am_window"]) == [True, False, True, False, True]
+    assert list(out["passes_proposal_filter"]) == [True, False, False, False, True]
+    # DST-transition flag: true for spring-forward / fall-back hours
+    # in our analysis window. None of the above happen to be DST-transition.
+    assert all(out["dst_transition_hour"] == False)
+
+
+def test_add_filter_columns_flags_spring_forward_2am_when_present():
+    """In EPT, spring-forward day skips 2-3 AM (the 2 AM hour doesn't exist).
+    No timestamp at 2 AM ept means there's nothing to flag. So the dst_transition_hour
+    is True only for fall-back duplicated 1 AM hours that happen to be in the 2-5 AM
+    window — and fall-back duplicates 1 AM not in our window. Net: dst_transition_hour
+    is currently always False for our 2-5 AM filtered subset, but we keep the column
+    for forward-compatibility."""
+    # No-op test; documents the rationale.

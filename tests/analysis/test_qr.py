@@ -64,3 +64,18 @@ def test_qr_threshold_dummy_exposes_slope_p_value():
     assert isinstance(result.slope_p_value, float)
     assert not np.isnan(result.slope_p_value)
     assert 0.0 <= result.slope_p_value <= 1.0
+
+
+def test_qr_bspline_kink_location_near_truth():
+    """The estimated kink location from the spline should be near c_true."""
+    from surg.analysis.qr import fit_qr_bspline
+
+    df = _make_synthetic_qr(n=3000, c_true=2.0, seed=11)
+    result = fit_qr_bspline(
+        Y=df["Y"].to_numpy(), Z=df["Z"].to_numpy(),
+        tau=0.99, n_knots=5,
+    )
+    # Kink location should be in the same ballpark as truth
+    assert abs(result.kink_location - 2.0) < 1.0
+    assert len(result.curve_z) == 200  # default grid size
+    assert len(result.curve_q) == 200

@@ -81,6 +81,7 @@ old data outright):
 | Feed | Retention | Posting frequency | Notes |
 |------|-----------|-------------------|-------|
 | `operational_reserves` | **15 days** | every 15 seconds | Designed for live monitoring, not historical analysis. Cannot retrospectively pull windows > 15 days old. Discovered 2026-05-11 via live metadata API. |
+| `inst_load` | **~30 days** | every 5 minutes | Region-only filter (`area=PJM SOUTHERN REGION` / `PJM RTO` / etc.; no DOM-specific filter). Discovered 2026-05-13 empirically: a request for `11-12-2025 to 05-10-2026` returned only 7,815 rows starting at 2026-04-13 20:00 — a rolling ~30-day window from the pull moment, regardless of the requested start date. The API silently truncates; no error or warning is returned for older dates. Cannot retrospectively pull windows > ~30 days old. |
 
 **Restrictions on Historic queries:**
 - Date range must be **within a single calendar year** (UTC).

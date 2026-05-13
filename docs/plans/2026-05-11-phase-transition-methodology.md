@@ -232,12 +232,14 @@ mechanism fires but doesn't transmit cleanly to the congestion
 component — still a valid finding, but a different story than the
 proposal expects.
 
-**Sample-size concern.** Joint window × shoulder × 2-5 AM filter gives
-~1,053 hours. If the "above threshold" regime contains < 50 hours,
-Hansen's bootstrap power is marginal. Mitigation: pre-decided to verify
-first; if regime count is < 50, expand night window to 11 PM – 6 AM
-(triples sample) and document as a deliberate departure from the
-proposal's strict 2-5 AM filter.
+**Sample-size update (2026-05-12, empirical from Plan 2 panel build).**
+The 3.6y window extension (decisions.md 2026-05-12) gives the panel
+**31,536 hourly rows**; after the shoulder × 2-5 AM filter, **2,027
+hours pass** — 1.9× the prior 2y estimate of ~1,053. Hansen's bootstrap
+has ample power at this sample size. The pre-decided mitigation
+(expand window to 11 PM – 6 AM, triples sample) remains in §8 as a
+fallback if the "above threshold" regime turns out to be unexpectedly
+sparse, but is unlikely to be needed.
 
 ---
 
@@ -304,6 +306,33 @@ test of independence. Discordance type matters for interpretation:
 - Many (Z ≤ ĉ AND event active): "reserve events fire without high load
   volatility" — other drivers (gen outages, transmission contingencies)
   are dominant.
+
+**Stressed-regime definition refinement (2026-05-12).** Tests 2 and 3
+above use `sync_reserve_event_active` (binary, derived from
+sync_reserve_events). Plan 1's bulk pull revealed an empirical issue:
+**44% of 5-min `reserve_market_results` intervals have nonzero SR
+clearing price**, making "nonzero SR" too lax a proxy for "stressed
+regime" — it captures normal scarcity pricing, not ORDC-triggering
+events. Sync reserve events themselves are also sparse (38 in 3.6y
+across MAD). Run Tests 2 + 3 against **two** regime definitions and
+report both:
+
+1. **Sync event active** (binary, rare). Triggers the full ORDC
+   penalty stack ($850 SR + $300 PR). n ≈ 39 hours in the panel.
+2. **High SR clearing price**:
+   `sync_reserve_clearing_price_rt ≥ 850 $/MWh`. Captures hours where
+   reserve scarcity pricing fired at or above the ORDC first-step
+   penalty level even without a discrete sync_reserve_event entry.
+
+The two definitions should largely agree; large divergence is itself
+informative — it tells us either the binary event log misses
+scarcity hours (definition 2 catches more), or scarcity pricing fires
+without a registered event (mechanism transmits cleanly through
+clearing prices without the event flag). Report both as primary
+mechanism evidence; pre-register that disagreement triggers a
+sensitivity analysis on the $850 cutoff.
+
+See decisions.md 2026-05-12 § "Stressed-regime definition refined".
 
 **Tertiary robustness — power-law fit on sync_reserve_event durations.**
 Following the Texas SOC paper (arXiv 2504.10675), fit a power-law

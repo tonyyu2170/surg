@@ -431,3 +431,61 @@ pushback requires symmetry.
   pre-2022-10 portion with a regime-break dummy.
 - A new PJM market rule change is announced inside the 2022-10 →
   2026-05 window — re-check the post-cap assumption.
+
+---
+
+## 2026-05-12 — Stressed-regime definition refined to high SR clearing price
+
+**Context.** Mechanism validation tests (§6 of the methodology spec)
+originally conditioned the "stressed regime" indicator on
+`sync_reserve_event_active` (binary, derived from the
+sync_reserve_events feed). Two empirical findings from this session
+forced a refinement:
+
+1. **44% of 5-min `reserve_market_results` intervals have nonzero SR
+   clearing price** (Plan 1 bulk pull, 2026-05-11). Earlier framing
+   considered "nonzero SR clearing" as a stressed-regime proxy; this
+   is too lax — it captures normal scarcity pricing, not the discrete
+   ORDC-trigger events the mechanism predicts.
+2. **Sync reserve events in MAD are sparse**: only 38 events across
+   the 3.6y window after Plan 1.5 backfill (Plan 2 smoke build,
+   2026-05-12). The original binary regime indicator may have low
+   statistical power if it's the only signal.
+
+**Decision.** Run mechanism tests 2 + 3 against **two** stressed-regime
+definitions and report both:
+
+1. **Sync event active** (`sync_reserve_event_active = True`) —
+   binary, rare. Hits when the full ORDC penalty stack fires.
+2. **High SR clearing price** — `sync_reserve_clearing_price_rt ≥ 850
+   $/MWh` (the ORDC first-step penalty level). Hits when reserve
+   scarcity pricing reached or exceeded the ORDC first-step penalty
+   even if no discrete event row was recorded.
+
+**Rationale.** The two definitions are complementary signals of the
+same mechanism. Strong agreement = clean confirmation. Disagreement
+is informative on its own: if (2) captures more hours than (1), the
+binary event log under-counts scarcity; if (1) catches hours that (2)
+doesn't, the mechanism fires via the discrete event log without the
+clearing price reaching $850. Either result strengthens the paper.
+
+The $850 cutoff is the documented ORDC first-step penalty level
+(decisions.md 2026-05-11 § Phase 3 method, citing PJM's *Formation of
+LMP under Reserve Shortage Events* paper). Pre-register that
+disagreement between the two definitions triggers a sensitivity
+analysis sweeping the cutoff from $300 (PR penalty level) up to $3,700
+(post-2022-10 LMP cap).
+
+**Implementation.** Plan 3 mechanism tasks (T9-T12) thread both
+regime definitions through Tests 2-3 and the 2×2 cross-tab. No
+changes to TAR (T3-T5) or QR (T6-T8). No changes to the panel schema
+— `sync_reserve_clearing_price_rt` is already in EXPECTED_COLUMNS.
+
+**Revisit when.**
+- Reviewer (Prof Wei / Lihui) prefers a single primary regime
+  definition for parsimony — either is defensible; switch to (1) if
+  the sparse-event sample is large enough, or (2) if reviewers want
+  a continuous signal.
+- The two definitions diverge meaningfully (>20% of regime-active
+  hours in one but not the other) — sensitivity sweep on the $850
+  cutoff becomes load-bearing for the paper's narrative.

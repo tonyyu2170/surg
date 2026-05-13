@@ -2,13 +2,23 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Amendment 2026-05-12.** Three changes since this plan was first written:
+>
+> 1. **Sample size.** Panel is ~31,536 rows (Plan 2 smoke build, not the prerequisites' stated ~17,160) — 3.6y window per decisions.md 2026-05-12. After `passes_proposal_filter`, ~2,027 hours pass (not ~1,053). Update test fixture sizes (currently `n = 500` in Task 12) as needed — the synthetic-test contracts hold either way; only the real-data smoke (Task 16) sees the actual count.
+>
+> 2. **Stressed-regime indicators (Tests 2-3).** Methodology spec §6 now defines TWO regime indicators per the 2026-05-12 decision, and `run_mechanism` (Task 12) must run conditional-regime + 2×2 cross-tab against BOTH and structure the JSON output as `{"granger": ..., "by_regime": {"sync_event_active": {...}, "high_sr_clearing": {...}}, "power_law": ..., "threshold_used": ...}`. Definition (2) is derived: `high_sr_clearing = panel["sync_reserve_clearing_price_rt"] >= 850`. The underlying `conditional_regime_test` / `crosstab_chi2` functions (Task 10) don't change — they already accept a generic boolean. Add one test verifying both regime keys appear in the output. Task 12 expected count becomes 8 passed (was 7).
+>
+> 3. **`sync_reserve_clearing_price_rt` is already in `EXPECTED_COLUMNS`** (Plan 2 Task 1 schema) — no panel-schema changes required for this amendment.
+>
+> See `docs/decisions.md` 2026-05-12 § "Stressed-regime definition refined to high SR clearing price" and `docs/plans/2026-05-11-phase-transition-methodology.md` § 6 (refined paragraph) for context.
+
 **Goal:** Build `src/surg/analysis/` implementing the Phase 3 methodology: TAR (Hansen 1996/2000) primary fit, conditional quantile regression robustness check, and mechanism validation (Granger causality, conditional regime test, cross-tabulation, power-law fit on event durations). End state: `surg-analyze` produces `outputs/{tar_fit,qr_fit,mechanism_validation}.json` plus robustness tables.
 
 **Architecture:** Five-file module — `panel.py` (load + validate `analysis_panel.parquet`), `tar.py` (Hansen TAR estimator with bootstrap test), `qr.py` (quantile regression at τ=0.99: linear / threshold-dummy / B-spline), `mechanism.py` (Granger, conditional regime, cross-tab, power-law), `run.py` (orchestrator + CLI). Robustness checks are sub-routines of the relevant submodules.
 
 **Tech Stack:** Python 3.11+, pytest, pandas/pyarrow (existing), numpy (transitive), **statsmodels** (NEW dep — QuantReg, grangercausalitytests, AR fitting helpers), **scipy** (NEW dep — chi2_contingency, interpolate), **powerlaw** (NEW dep — Clauset/Shalizi/Newman power-law fitting with KS goodness-of-fit).
 
-**Prerequisites:** Plans 1 and 2 complete — `data/interim/analysis_panel.parquet` exists with schema_version=1 and ~17,160 rows.
+**Prerequisites:** Plans 1, 1.5, and 2 complete — `data/interim/analysis_panel.parquet` exists with `schema_version=1` and ~31,536 rows (3.6y window per decisions.md 2026-05-12; 96 rows short of theoretical 31,632 due to load-verification lag ending 2026-05-07 while LMP ends 2026-05-10).
 
 **Prerequisite reading:** `docs/plans/2026-05-11-phase-transition-methodology.md` §4-6 (TAR, QR, mechanism validation specifications); `docs/decisions.md` § "2026-05-11 — Phase 3 method".
 

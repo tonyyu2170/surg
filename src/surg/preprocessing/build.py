@@ -69,8 +69,8 @@ def build_analysis_panel(data_root: Path) -> pd.DataFrame:
     # Load + gradient
     load_df = add_load_gradient_columns(load_df)
 
-    # Outer-join on datetime_beginning_ept so we keep load hours even
-    # if some have no LMP coverage (and vice versa).
+    # Left-join from load (the spine): every load hour is kept;
+    # any LMP- or RMR-only hours are intentionally dropped.
     panel = load_df.merge(lmp_wide, on="datetime_beginning_ept", how="left")
     panel = panel.merge(rmr, on="datetime_beginning_ept", how="left")
 

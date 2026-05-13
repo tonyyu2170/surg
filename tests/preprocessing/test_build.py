@@ -116,8 +116,22 @@ def test_build_analysis_panel_clips_to_analysis_window(tmp_path: Path):
          "load_area": "DOM", "mw": 11_000.0, "is_verified": True},
     ]).to_parquet(load_dir / "dom__2021-06-15.parquet")
 
+    # Upper-boundary probes: 2026-05-10 23:00 included; 2026-05-11 00:00 excluded.
+    load_dir_2026 = tmp_path / "hrl_load_metered" / "2026"
+    load_dir_2026.mkdir(parents=True)
+    pd.DataFrame([
+        {"datetime_beginning_ept": "2026-05-10T23:00:00", "zone": "DOM",
+         "load_area": "DOM", "mw": 13_000.0, "is_verified": True},
+        {"datetime_beginning_ept": "2026-05-11T00:00:00", "zone": "DOM",
+         "load_area": "DOM", "mw": 13_010.0, "is_verified": True},
+    ]).to_parquet(load_dir_2026 / "dom__2026-05-10_to_2026-05-11.parquet")
+
     panel = build_analysis_panel(data_root=tmp_path)
     assert (panel["datetime_beginning_ept"] >= ANALYSIS_WINDOW_START).all()
     assert (panel["datetime_beginning_ept"] < ANALYSIS_WINDOW_END).all()
     # The 2021 row is not in the panel
     assert not (panel["datetime_beginning_ept"] == pd.Timestamp("2021-06-15T03:00:00")).any()
+    # 2026-05-10 23:00 is the LAST included hour (window end is exclusive at 05-11 00:00)
+    assert (panel["datetime_beginning_ept"] == pd.Timestamp("2026-05-10T23:00:00")).any()
+    # 2026-05-11 00:00 is excluded
+    assert not (panel["datetime_beginning_ept"] == pd.Timestamp("2026-05-11T00:00:00")).any()

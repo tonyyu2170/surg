@@ -86,3 +86,28 @@ def test_qr_bspline_kink_location_robust_across_seeds():
         assert len(result.curve_q) == 200
     median_err = float(np.median(errors))
     assert median_err < 0.7, f"median |kink - 2.0| = {median_err:.3f} across 5 seeds"
+
+
+def test_run_qr_writes_json(tmp_path):
+    from surg.analysis.qr import run_qr
+    from surg.preprocessing.schema import EXPECTED_COLUMNS
+
+    df = pd.DataFrame({col: [None] * 2000 for col in EXPECTED_COLUMNS})
+    synth = _make_synthetic_qr(n=2000, c_true=2.0)
+    df["dom_load_gradient_abs_mw_per_min"] = synth["Z"].values
+    df["congestion_price_rt_cluster_mean"] = synth["Y"].values
+    df["passes_proposal_filter"] = True
+    df["datetime_beginning_ept"] = pd.date_range("2024-01-01", periods=2000, freq="h")
+
+    out_path = tmp_path / "qr_fit.json"
+    run_qr(panel=df, out_path=out_path, c_for_threshold_dummy=2.0)
+    assert out_path.exists()
+
+    import json
+    payload = json.loads(out_path.read_text())
+    assert "linear" in payload
+    assert payload["linear"]["slope"] > 0
+    assert "threshold_dummy" in payload
+    assert payload["threshold_dummy"]["c"] == 2.0
+    assert "spline" in payload
+    assert "kink_location" in payload["spline"]

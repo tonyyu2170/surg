@@ -8,7 +8,9 @@ Three specifications per the design spec §5:
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -152,3 +154,50 @@ def fit_qr_bspline(
         tau=tau,
         n=len(Y),
     )
+
+
+def run_qr(
+    panel: pd.DataFrame,
+    out_path: Path,
+    *,
+    c_for_threshold_dummy: float,
+    response_col: str = "congestion_price_rt_cluster_mean",
+    threshold_col: str = "dom_load_gradient_abs_mw_per_min",
+    tau: float = 0.99,
+) -> None:
+    """End-to-end QR: linear, threshold-dummy at c, B-spline. Write JSON."""
+    subset = panel[panel["passes_proposal_filter"].fillna(False).astype(bool)].copy()
+    subset = subset.dropna(subset=[response_col, threshold_col])
+    Y = subset[response_col].to_numpy()
+    Z = subset[threshold_col].to_numpy()
+
+    linear = fit_qr_linear(Y=Y, Z=Z, tau=tau)
+    dummy = fit_qr_threshold_dummy(Y=Y, Z=Z, c=c_for_threshold_dummy, tau=tau)
+    spline = fit_qr_bspline(Y=Y, Z=Z, tau=tau)
+
+    payload = {
+        "linear": {
+            "intercept": linear.intercept,
+            "slope": linear.slope,
+            "slope_p_value": linear.slope_p_value,
+            "n": linear.n,
+        },
+        "threshold_dummy": {
+            "intercept": dummy.intercept,
+            "slope": dummy.slope,
+            "slope_p_value": dummy.slope_p_value,
+            "kink_coef": dummy.kink_coef,
+            "kink_p_value": dummy.kink_p_value,
+            "c": dummy.c,
+            "n": dummy.n,
+        },
+        "spline": {
+            "kink_location": spline.kink_location,
+            "curve_z": spline.curve_z.tolist(),
+            "curve_q": spline.curve_q.tolist(),
+            "n": spline.n,
+        },
+        "tau": tau,
+    }
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(payload, indent=2))

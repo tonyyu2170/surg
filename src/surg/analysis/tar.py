@@ -61,14 +61,14 @@ def fit_tar(
     if not (len(Y) == len(Y_lag) == len(Z)):
         raise ValueError("Y, Y_lag, Z must be the same length")
 
-    lo, hi = np.quantile(Z, trim), np.quantile(Z, 1 - trim)
-    candidates = np.linspace(lo, hi, n_grid)
+    # Candidate thresholds: quantiles of Z spaced evenly by rank in [trim, 1-trim].
+    candidates = np.quantile(Z, np.linspace(trim, 1.0 - trim, n_grid))
 
     best = None
+    min_n = int(trim * len(Y))
     for c in candidates:
         mask = Z <= c
         n_low, n_high = int(mask.sum()), int((~mask).sum())
-        min_n = int(trim * len(Y))
         if n_low < min_n or n_high < min_n:
             continue
 

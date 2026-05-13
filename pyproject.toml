@@ -22,6 +22,7 @@ dependencies = [
 [project.scripts]
 surg-pull = "surg.acquisition.pull:main"
 surg-prep = "surg.preprocessing.build:main"
+surg-analyze = "surg.analysis.run:main"
 
 [project.optional-dependencies]
 dev = [

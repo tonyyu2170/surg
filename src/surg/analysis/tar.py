@@ -88,3 +88,51 @@ def fit_tar(
     if best is None:
         raise RuntimeError("no valid threshold found (trim too aggressive?)")
     return best
+
+
+def hansen_bootstrap_test(
+    Y: np.ndarray,
+    Y_lag: np.ndarray,
+    Z: np.ndarray,
+    tar_result: TARResult,
+    *,
+    n_boot: int = 1000,
+    trim: float = 0.15,
+    n_grid: int = 300,
+    seed: int = 0,
+) -> float:
+    """Bootstrap p-value for H₀: no threshold (single AR(1) for all data).
+
+    Steps:
+      1. Fit AR(1) to the *full* sample (no regime split) → get residuals ε̂.
+      2. Compute the SSR-improvement statistic on observed data:
+           T = SSR_full - SSR_joint (observed)
+      3. For each bootstrap rep b in 1..B:
+           - Resample residuals with replacement → ε*ᵦ
+           - Generate Y*ᵦ recursively under the null AR(1)
+           - Re-fit TAR on (Y*, Y*_lag, Z)
+           - Compute T*ᵦ = SSR_full(b) - SSR_joint(b)
+      4. p = (1 + #{T*ᵦ ≥ T}) / (1 + B)
+    """
+    rng = np.random.default_rng(seed)
+
+    coef_full, ssr_full = _fit_ar1_ols(Y, Y_lag)
+    resid_full = Y - (coef_full[0] + coef_full[1] * Y_lag)
+
+    T_obs = ssr_full - tar_result.ssr_joint
+
+    n = len(Y)
+    T_boot = np.empty(n_boot)
+    for b in range(n_boot):
+        eps = rng.choice(resid_full, size=n, replace=True)
+        Y_star = np.empty(n)
+        Y_star[0] = Y_lag[0]  # initialize with the observed first lag
+        for t in range(1, n):
+            Y_star[t] = coef_full[0] + coef_full[1] * Y_star[t-1] + eps[t]
+        Y_star_lag = np.r_[Y_star[0], Y_star[:-1]]
+
+        _, ssr_full_b = _fit_ar1_ols(Y_star, Y_star_lag)
+        boot_result = fit_tar(Y_star, Y_star_lag, Z, trim=trim, n_grid=n_grid)
+        T_boot[b] = ssr_full_b - boot_result.ssr_joint
+
+    return (1 + int(np.sum(T_boot >= T_obs))) / (1 + n_boot)

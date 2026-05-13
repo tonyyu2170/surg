@@ -60,3 +60,52 @@ def test_tar_rejects_unequal_array_lengths():
             Y_lag=np.array([0.0, 1.0]),
             Z=np.array([0.5, 1.5, 2.5]),  # mismatched
         )
+
+
+def test_hansen_bootstrap_rejects_null_when_threshold_planted():
+    """If the data really has a threshold, p-value should be small."""
+    from surg.analysis.tar import fit_tar, hansen_bootstrap_test
+
+    df = _make_synthetic_tar(n=1500, c_true=2.0, seed=1)
+    result = fit_tar(
+        Y=df["Y"].to_numpy(),
+        Y_lag=df["Y_lag1"].to_numpy(),
+        Z=df["Z"].to_numpy(),
+    )
+    p = hansen_bootstrap_test(
+        Y=df["Y"].to_numpy(),
+        Y_lag=df["Y_lag1"].to_numpy(),
+        Z=df["Z"].to_numpy(),
+        tar_result=result,
+        n_boot=200,
+        seed=42,
+    )
+    assert p < 0.10  # threshold is planted → null should be rejected
+
+
+def test_hansen_bootstrap_does_not_reject_when_no_threshold():
+    """If the data is a single AR(1) with no threshold, p-value should be moderate."""
+    from surg.analysis.tar import fit_tar, hansen_bootstrap_test
+
+    rng = np.random.default_rng(0)
+    n = 1500
+    Z = rng.lognormal(0, 0.7, size=n)
+    Y = np.zeros(n)
+    for t in range(1, n):
+        Y[t] = 0.4 * Y[t-1] + rng.normal(0, 1.0)  # no threshold
+    df = pd.DataFrame({"Z": Z, "Y": Y, "Y_lag1": np.r_[np.nan, Y[:-1]]}).dropna()
+    result = fit_tar(
+        Y=df["Y"].to_numpy(),
+        Y_lag=df["Y_lag1"].to_numpy(),
+        Z=df["Z"].to_numpy(),
+    )
+    p = hansen_bootstrap_test(
+        Y=df["Y"].to_numpy(),
+        Y_lag=df["Y_lag1"].to_numpy(),
+        Z=df["Z"].to_numpy(),
+        tar_result=result,
+        n_boot=200,
+        seed=99,
+    )
+    # Hard to assert exact value; just check it isn't a vanishingly-small p
+    assert p > 0.05

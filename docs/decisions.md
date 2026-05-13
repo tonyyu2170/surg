@@ -510,3 +510,168 @@ night-block level — would shrink the sample further and is not
 warranted given the threshold question's locality.
 
 Both points should appear in the methodology section of the writeup.
+
+---
+
+## 2026-05-13 — Pre-registration: interpretation rules for n_boot=1000 TAR re-run
+
+**Context.** The 2026-05-12 real-data run of `surg-analyze` at
+`n_boot=300, n_subsample_reps=50` produced a working pipeline but
+five unsettled findings that the n=1000 re-run will either resolve
+or sharpen:
+
+1. **Boundary degeneracy.** Hansen TAR estimated `ĉ ≈ 4.4` MW/min
+   for the primary Loudoun-cluster congestion fit and 4 of 5
+   controls; `ĉ` sits at the 85th percentile of the threshold
+   variable `Z` (DOM load gradient), at the upper edge of the
+   estimator's 0.15-trim search window. Methodology spec §8 flags
+   this configuration as "boundary degenerate."
+2. **Hansen p = 0.0033 for every fit.** Exactly the bootstrap floor
+   `1/(1+n_boot)` at `n=300`. The test cannot discriminate primary
+   from controls at this resolution.
+3. **High-SR-clearing regime empty.** The 2026-05-12 dual-regime
+   amendment's second indicator (`sync_reserve_clearing_price_rt ≥
+   $850`) captures **0** active hours inside the 2,027-hour
+   `passes_proposal_filter` subset.
+4. **`total_lmp` basin at `ĉ ≈ 1.45`, congestion basin at
+   `ĉ ≈ 4.4`.** Same Loudoun cluster, but the total-LMP response
+   localizes ~3 MW/min lower than the congestion-only response.
+5. **Granger non-significant at all lags (p > 0.5).** Only 2 active
+   sync-reserve-event hours inside the filter; the test is
+   underpowered by sample size, not by `n_boot`.
+
+The re-run at `n_boot=1000` increases bootstrap resolution by 3.3×
+at the floor and directly addresses findings 1, 2, and 4. Findings
+3 and 5 are filter-occupancy / power problems that `n_boot` cannot
+fix — they need parameter sweeps and/or filter widening.
+
+This pre-registration locks interpretation rules before the n=1000
+numbers are visible. Five inconvenient findings + a fresh result
+set is exactly the configuration where post-hoc rationalization
+inflates apparent results.
+
+**Decision.** The rules below apply to the next
+`surg-analyze --n-boot 1000 --n-subsample-reps 200` run. Any
+deviation requires a new dated entry in this file explicitly
+overriding this one; we do not edit this entry post-hoc.
+
+### Rule 1 — Boundary degeneracy
+
+Compute `q_ĉ` = empirical quantile of `ĉ` in `Z`. The TAR
+estimator's search window is `[0.15, 0.85]` of `Z` (trim parameter
+0.15), so `q_ĉ` at or close to these boundaries indicates the
+algorithm hit the search wall.
+
+| `q_ĉ` | Classification | Action |
+|---|---|---|
+| `(0.20, 0.80)` | Not degenerate | `ĉ` is the headline threshold; no further mitigation |
+| `≥ 0.80` | **Boundary-degenerate** (high-`Z`) | Widen filter to **1–6 AM** (deliberate departure from the proposal's 2–5 AM, per §8); re-run; report both pre- and post-widening fits |
+| `≤ 0.20` | Low-`Z` degenerate | Flag as "no meaningful threshold detected"; do not report `ĉ` as a headline |
+
+The 0.20 / 0.80 cutoffs are deliberately tighter than the trim
+boundaries (0.15 / 0.85) — a 5-percentage-point buffer protects
+against estimates that aren't literally at the wall but are close
+enough to be wall-driven. Widening is pre-committed over trim
+tightening or `Z` rescaling because it matches the §8 default and
+preserves the algorithm's working assumptions about the search
+window.
+
+### Rule 2 — Primary-vs-controls Hansen p separation
+
+Negative controls are **OX, BRISTERS, DOM zonal** only (per the
+2026-05-10 locked target set § "Lock the 11-pnode target set").
+Ashburn TX1/TX2 are complementary primary fits on different
+physics, not controls. Let `p_loudoun` = Hansen p-value of the
+primary Loudoun-cluster congestion fit, and
+`p_min = min(p_OX, p_BRISTERS, p_DOM_zonal)`.
+
+| Pattern | Classification | Implication |
+|---|---|---|
+| `p_loudoun ≤ 0.01` AND `p_min ≥ 0.05` | **Loudoun-specific** | Headline claim supported as in proposal |
+| `p_loudoun ≤ 0.01` AND `p_min ≤ 0.01` | **DOM-wide** | Reframe paper: "DOM-zone threshold detected; not localized to Loudoun." Still a positive result, different scope |
+| `p_loudoun ≤ 0.01` AND `p_min ∈ (0.01, 0.05)` | **Ambiguous** | Report all 4 p-values; do not claim cluster-specificity; discuss in limitations |
+| `p_loudoun ∈ (0.01, 0.05]` | **Marginal cluster significance** | Report as "suggestive evidence for cluster threshold pending power analysis"; do not claim a confirmed threshold regardless of controls |
+| `p_loudoun > 0.05` | **Null for cluster** | Lean on QR + `total_lmp` to salvage interpretation |
+
+The asymmetric `≥ 0.05` / `≤ 0.01` bands within the strong-primary
+rows are intentional. The gray zone is a permitted outcome ("we
+don't know"), not a binary forcing.
+
+### Rule 3 — Choice of primary response variable (congestion vs total LMP)
+
+Compute `Δĉ = |ĉ_total_lmp − ĉ_congestion| / sd(Z)`.
+
+| Condition | Action |
+|---|---|
+| `Δĉ ≤ 0.5` AND both Hansen tests pass (`p < 0.01`) | Congestion stays primary (proposal-aligned); `total_lmp` reported as a robustness check |
+| `Δĉ > 0.5` AND both Hansen tests pass | **`total_lmp` becomes the primary outcome**; congestion demoted to "robustness: congestion component only, same cluster." Methods section cites the methodology-spec rationale that total LMP is the cleaner ORDC test (penalty enters via system-energy LMP, not congestion component) |
+| Exactly one Hansen test fails | Report the passing fit; demote the failing one |
+| Both fail | See Rule 2's null-result branch |
+
+The `0.5 · sd(Z)` threshold is a stipulation, no theoretical
+anchor. Picked as "meaningfully different on the scale of the
+data."
+
+### Rule 4 — High-SR-clearing regime sensitivity sweep
+
+Pre-authorized in `decisions.md` 2026-05-12 § "Stressed-regime
+definition refined to high SR clearing price"; this rule fixes the
+sweep parameters.
+
+Sweep `sync_reserve_clearing_price_rt ≥ cutoff` at:
+**$300, $500, $850, $1000, $2000, $3700**. Report active hour
+count inside `passes_proposal_filter` at each. Hour count is
+monotonically decreasing in cutoff, so each condition below has a
+well-defined solution.
+
+The objective is the **highest** cutoff that captures ≥ 30 active
+hours, because higher cutoffs better isolate ORDC-level stress (vs
+baseline scarcity pricing). Lowering the cutoff is a sensitivity-
+driven substitution, not a free choice.
+
+| Outcome | Action |
+|---|---|
+| `$850` (methodology-spec cutoff) captures ≥ 30 active hours | Use `$850` as originally specified; no substitution |
+| `$850` captures < 30 hours but `$500` captures ≥ 30 | Use `$500`; document as a sensitivity-driven downward substitution from the spec value |
+| `$500` captures < 30 hours but `$300` captures ≥ 30 | Use `$300` with explicit caveat: "cutoff at PR penalty level, not SR — weak supplementary signal only" |
+| `$300` captures 10–29 active hours | Use `$300` with the same supplementary-signal caveat |
+| `$300` captures < 10 hours | **Drop the dual-regime amendment** from mechanism validation; report only `sync_reserve_event_active` |
+
+### Rule 5 — Granger causality power
+
+- If Rule 1 widens the filter to 1–6 AM, Granger automatically
+  reruns on the widened filter — no separate action.
+- If Granger's final p-value is `> 0.10` (whether or not widening
+  occurred): report null result honestly with explicit power
+  discussion (`n_active_events` reported alongside). Do not drop
+  Granger from the mechanism section; reframe as "underpowered in
+  our window."
+
+**Open question — multiple-testing correction.** Rule 2 involves 4
+Hansen tests at the cluster + control level (1 primary + 3
+controls). Family-wise error rate at α = 0.05 with 4 tests inflates
+to ~0.19; Bonferroni would suggest α ≈ 0.0125 per test. This
+pre-registration **does not** apply a correction because (a) the
+controls are pre-specified at the methodology-spec level as part of
+the test of the central hypothesis, not as bonus tests, and (b) we
+want advisor (Prof Wei / Lihui) input before committing. Flagged
+for the advisor meeting; a follow-up dated entry may tighten
+Rule 2.
+
+**Rationale.** Pre-registration is the cheapest defense against
+post-hoc rationalization. Drafting these rules before seeing n=1000
+numbers means we cannot retrofit a decision boundary to make the
+result tell whichever story we prefer. The rules are deliberately
+not all-numerical (Rule 1 mixes a quantile cutoff with a qualitative
+classification; Rule 5 is procedural) because not every finding has
+a meaningful single-number boundary.
+
+**Revisit when.**
+- After the n=1000 run lands, the rules are applied as-is.
+  Disagreement with the rules in light of actual numbers triggers a
+  new dated entry, not an edit here.
+- Advisor input on multiple-testing correction may produce a
+  follow-up entry tightening Rule 2.
+- If Rule 1's widening (1–6 AM) itself produces boundary-degenerate
+  results, escalate to the next §8 option (trim tightening, then
+  `Z` rescaling).

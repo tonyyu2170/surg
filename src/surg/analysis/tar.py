@@ -179,11 +179,14 @@ def run_tar(
     # shift(1) walks rows, not real time; with a gap, _Y_lag at row t would
     # be the value many hours earlier rather than one hour earlier.
     deltas = panel["datetime_beginning_ept"].diff().dropna()
-    if not (deltas == pd.Timedelta(hours=1)).all():
-        n_gaps = int((deltas != pd.Timedelta(hours=1)).sum())
+    # Allow {0h, 1h, 2h} deltas — DST fall-back creates a 0-hour repeat,
+    # spring-forward creates a 2-hour skip. Anything else is data loss.
+    allowed = {pd.Timedelta(hours=0), pd.Timedelta(hours=1), pd.Timedelta(hours=2)}
+    unexpected = deltas[~deltas.isin(allowed)]
+    if not unexpected.empty:
         raise ValueError(
-            f"panel has {n_gaps} non-hourly gap(s); _Y_lag would be "
-            f"misaligned. Rebuild the panel with surg-prep, or pre-fill gaps."
+            f"panel has {len(unexpected)} unexpected gap(s) (> 2 hours or negative); "
+            f"_Y_lag would be misaligned. Rebuild the panel with surg-prep, or pre-fill gaps."
         )
     # Y_{t-1} on the FULL time series (per design spec §4)
     panel["_Y_lag"] = panel[response_col].shift(1)

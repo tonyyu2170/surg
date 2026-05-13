@@ -25,11 +25,14 @@ def subsample_bootstrap(
     # Same gap guard as run_tar — shift(1) walks rows not time; misaligned
     # lags would silently corrupt every c_hat in the bootstrap distribution.
     deltas = panel["datetime_beginning_ept"].diff().dropna()
-    if not (deltas == pd.Timedelta(hours=1)).all():
-        n_gaps = int((deltas != pd.Timedelta(hours=1)).sum())
+    # Allow {0h, 1h, 2h} deltas — DST fall-back creates a 0-hour repeat,
+    # spring-forward creates a 2-hour skip. Anything else is data loss.
+    allowed = {pd.Timedelta(hours=0), pd.Timedelta(hours=1), pd.Timedelta(hours=2)}
+    unexpected = deltas[~deltas.isin(allowed)]
+    if not unexpected.empty:
         raise ValueError(
-            f"panel has {n_gaps} non-hourly gap(s); _Y_lag would be misaligned. "
-            f"Rebuild via surg-prep, or pre-fill gaps."
+            f"panel has {len(unexpected)} unexpected gap(s) (> 2 hours or negative); "
+            f"_Y_lag would be misaligned. Rebuild via surg-prep, or pre-fill gaps."
         )
     panel["_Y_lag"] = panel[response_col].shift(1)
     subset = panel[panel["passes_proposal_filter"].fillna(False).astype(bool)].copy()
@@ -67,11 +70,14 @@ def leave_one_season_out(
     # Gap guard — shift(1) walks rows not time; misaligned lags would silently
     # corrupt every c_hat in the leave-one-out distribution.
     deltas = panel["datetime_beginning_ept"].diff().dropna()
-    if not (deltas == pd.Timedelta(hours=1)).all():
-        n_gaps = int((deltas != pd.Timedelta(hours=1)).sum())
+    # Allow {0h, 1h, 2h} deltas — DST fall-back creates a 0-hour repeat,
+    # spring-forward creates a 2-hour skip. Anything else is data loss.
+    allowed = {pd.Timedelta(hours=0), pd.Timedelta(hours=1), pd.Timedelta(hours=2)}
+    unexpected = deltas[~deltas.isin(allowed)]
+    if not unexpected.empty:
         raise ValueError(
-            f"panel has {n_gaps} non-hourly gap(s); _Y_lag would be misaligned. "
-            f"Rebuild via surg-prep, or pre-fill gaps."
+            f"panel has {len(unexpected)} unexpected gap(s) (> 2 hours or negative); "
+            f"_Y_lag would be misaligned. Rebuild via surg-prep, or pre-fill gaps."
         )
     panel["_Y_lag"] = panel[response_col].shift(1)
     subset = panel[panel["passes_proposal_filter"].fillna(False).astype(bool)].copy()

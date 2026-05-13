@@ -44,3 +44,34 @@ def load_rt_hrl_lmps(data_root: Path) -> pd.DataFrame:
     df["pnode_id"] = df["pnode_id"].astype("int64")
 
     return df.sort_values("datetime_beginning_ept").reset_index(drop=True)
+
+
+def load_dom_load(data_root: Path) -> pd.DataFrame:
+    """Load DOM-zone metered hourly load.
+
+    Returns: DataFrame with columns datetime_beginning_ept (datetime64),
+    dom_load_mw (float). Sorted ascending by timestamp.
+    Defensively filters to zone == 'DOM' even though acquisition
+    already filters at the API level.
+    """
+    feed_dir = data_root / "hrl_load_metered"
+    out_cols = ["datetime_beginning_ept", "dom_load_mw"]
+    if not feed_dir.exists():
+        return pd.DataFrame({c: pd.Series(dtype=object) for c in out_cols})
+
+    chunks = sorted(feed_dir.rglob("*.parquet"))
+    if not chunks:
+        return pd.DataFrame({c: pd.Series(dtype=object) for c in out_cols})
+
+    dfs = [pd.read_parquet(p) for p in chunks]
+    df = pd.concat(dfs, ignore_index=True)
+
+    # Defensive filter to DOM zone
+    df = df[df["zone"] == "DOM"].copy()
+
+    df["datetime_beginning_ept"] = pd.to_datetime(
+        df["datetime_beginning_ept"], errors="raise"
+    )
+    df = df.rename(columns={"mw": "dom_load_mw"})
+
+    return df[out_cols].sort_values("datetime_beginning_ept").reset_index(drop=True)

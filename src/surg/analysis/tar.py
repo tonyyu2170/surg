@@ -126,10 +126,13 @@ def hansen_bootstrap_test(
     for b in range(n_boot):
         eps = rng.choice(resid_full, size=n, replace=True)
         Y_star = np.empty(n)
-        Y_star[0] = Y_lag[0]  # initialize with the observed first lag
+        # Y_lag[0] is the pre-sample conditioning value; generate Y_star[0]
+        # under the null DGP using eps[0] so every row in the bootstrap
+        # regression is a valid draw (no fixed-row artifact).
+        Y_star[0] = coef_full[0] + coef_full[1] * Y_lag[0] + eps[0]
         for t in range(1, n):
             Y_star[t] = coef_full[0] + coef_full[1] * Y_star[t-1] + eps[t]
-        Y_star_lag = np.r_[Y_star[0], Y_star[:-1]]
+        Y_star_lag = np.r_[Y_lag[0], Y_star[:-1]]
 
         _, ssr_full_b = _fit_ar1_ols(Y_star, Y_star_lag)
         boot_result = fit_tar(Y_star, Y_star_lag, Z, trim=trim, n_grid=n_grid)

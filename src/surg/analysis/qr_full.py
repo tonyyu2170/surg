@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -270,7 +270,9 @@ def run_qr_full(
     fits_year_fe is an empty list with fits_year_fe_skip_reason set.
     """
     n_total = len(panel)
-    subset = panel.dropna(subset=[response_col, threshold_col]).copy()
+    subset = panel.dropna(
+        subset=[response_col, threshold_col, "datetime_beginning_ept"]
+    ).copy()
     subset = subset.sort_values("datetime_beginning_ept").reset_index(drop=True)
     n_after_dropna = len(subset)
 

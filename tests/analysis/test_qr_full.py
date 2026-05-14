@@ -297,3 +297,24 @@ def test_run_qr_full_serializes_nan_as_null(tmp_path: Path):
     # CI should be a list of two Nones (from the (nan, nan) → [null, null])
     for fit in payload["fits"]:
         assert fit["z_slope_bootstrap_ci_95"] == [None, None]
+
+
+def test_run_qr_full_single_year_skips_year_fe(tmp_path: Path):
+    """When the panel contains only one distinct year, fits_year_fe is an
+    empty list and fits_year_fe_skip_reason is present."""
+    rng = np.random.default_rng(seed=0)
+    n = 500
+    panel = pd.DataFrame({
+        "datetime_beginning_ept": pd.date_range("2024-01-01", periods=n, freq="h"),
+        "Y_target": rng.normal(size=n),
+        "Z_target": rng.uniform(0, 10, size=n),
+    })  # all rows in 2024 — single year
+    out = tmp_path / "qr_full" / "single_year.json"
+    run_qr_full(
+        panel, out_path=out, response_col="Y_target",
+        pnode_label="test", threshold_col="Z_target",
+        taus=(0.5,), n_boot=0, seed=0,
+    )
+    payload = json.loads(out.read_text())
+    assert payload["fits_year_fe"] == []
+    assert "fits_year_fe_skip_reason" in payload

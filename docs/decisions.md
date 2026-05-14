@@ -967,3 +967,320 @@ fixed point.
   constraint), etc. None expected within the SURG project timeline.
 - If we discover the smooth-curve diagnosis is wrong (e.g., a
   threshold appears via a method we have not yet tried).
+
+---
+
+## 2026-05-14 — Build Strategy C tools before advisor sign-off
+
+**Context.** The 2026-05-13 follow-up entry recommended Strategy C
+(QR-on-full-panel as primary + GPD on LMP tails) *pending advisor
+sign-off*. The advisor meeting (Prof Wei / Lihui) has not yet been
+scheduled. Continuing analysis requires either (a) waiting for the
+meeting and accepting the opportunity cost while six open methodology
+questions remain abstract, or (b) building the Strategy C modules
+ahead of the meeting on the bet they are mechanically appropriate
+regardless of which final framing the advisor endorses.
+
+**Decision.** Build and run the Strategy C modules — `fit_qr_full`,
+year-FE robustness, GPD threshold sweep, GPD conditional-on-Z
+mechanism test — and execute a production-resolution run before the
+advisor meeting. Treat the modules as analytical instruments useful
+under any final framing, not as a commitment to the Strategy C
+narrative itself.
+
+**Rationale — naming the bet.** QR-on-full-panel and GPD do not
+search for a single threshold point and are therefore filter-, time-
+resolution-, and Z-variable-robust in ways TAR is not. Per the
+2026-05-13 smooth-curve diagnosis, that robustness is mechanically
+appropriate for this data regardless of how the paper's headline
+deliverable is ultimately framed. Worst case (advisor pushes back on
+Strategy C as the *narrative pivot*): we still have concrete numbers
+characterizing the data's volatility-LMP response, which any
+revised plan will need to evaluate. Best case: the numbers make the
+advisor meeting evidence-based rather than speculative on six open
+questions. Build cost was bounded (~1 day, implemented via
+subagent-driven-development from a `feature/strategy-c-modules`
+worktree).
+
+**Implementation record.** 11-task plan at
+`docs/plans/2026-05-13-strategy-c-implementation.md`; 18 commits
+(11 feat + 7 fix) on a sibling worktree, FF-merged to main at
+`40bbfd2`, branch deleted. New modules:
+`src/surg/analysis/qr_full.py`, `src/surg/analysis/gpd.py`. Existing
+`run.py` extended with `PNODE_RESPONSES` dict and new CLI flags
+(`--qr-full-n-boot`, `--gpd-n-boot`). Output layout reorganized to
+`outputs/{tar,qr,qr_full,gpd,mechanism,robustness}/`. 172 tests
+passing (up from 145). Production-run findings recorded in the
+next entry.
+
+**Revisit when.**
+- Advisor input proposes a framing that the implemented modules
+  cannot serve (e.g., a fit method we have not yet built —
+  continuous ξ(Z) parametric model, copula-based dependence, etc.).
+  In that case, a follow-up entry records the addition.
+- Advisor input contradicts a specific implementation choice (e.g.,
+  bootstrap CI method, threshold quantile, conditioning-variable
+  granularity). Implementation is changed in code, no further
+  decisions.md entry needed unless the methodology spec itself
+  shifts.
+
+---
+
+## 2026-05-14 — Strategy C production findings: moderate-τ volatility response confirmed; conditional-Z mechanism test (median-split, 95th-pct threshold) rejects heavier-tail-at-high-volatility
+
+**Context.** Production-resolution run of the freshly-shipped
+Strategy C tools plus full-pipeline re-execution of TAR / QR /
+mechanism for cross-method consistency. Run config: `n_boot=1000`
+(TAR), `n_subsample_reps=200` (TAR subsample bootstrap),
+`qr_full_n_boot=200`, `gpd_n_boot=200`. ~40 min wall-clock on the
+full 2022-10-02 → 2026-05-10 panel.
+
+**Provenance note.** Numbers below come from the session's
+worktree-local `outputs/` directory, which was removed when the
+`feature/strategy-c-modules` worktree was cleaned up post-merge.
+Reproduce via `.venv/bin/surg-analyze` from main (default flags);
+outputs land at `outputs/{tar,qr,qr_full,gpd,mechanism,robustness}/`.
+This entry is the durable record of the run.
+
+### Finding 1 — TAR consistency check
+
+`ĉ` byte-identical to the prior n=1000 run on main (pre-Strategy-C):
+primary Loudoun cluster congestion = 4.3927, OX = 4.3927, BRISTERS =
+4.3927, DOM zonal = 3.7382. Hansen *p* at the n=1000 bootstrap floor
+(0.000999) on every fit. The smooth-curve-diagnosis prediction (TAR
+returns the same boundary value regardless of intervening
+implementation work, because it locates the smooth curve's steepest
+slope, not a threshold) is confirmed.
+
+### Finding 2 — QR-full primary spec: Loudoun cluster congestion
+
+Pair-bootstrap CIs at τ ∈ {0.90, 0.95, 0.99} on the full panel
+(31,632 hourly rows, no filter):
+
+| τ | z_slope | bootstrap 95% CI | asymptotic *p* |
+|---|---|---|---|
+| 0.90 | 0.393 | [0.325, 0.462] | < 1e-6 |
+| 0.95 | 0.578 | [0.428, 0.761] | < 1e-6 |
+| 0.99 | 0.358 | [−0.075, 1.194] | ~1e-6 |
+
+The τ = 0.99 row empirically confirms the Strategy C pivot's premise:
+asymptotic SE understates uncertainty at high τ on autocorrelated
+data; the bootstrap CI is the load-bearing inference. Both moderate
+quantiles show robust positive volatility-to-LMP response on the
+full panel.
+
+### Finding 3 — Year-FE robustness: secular vs contemporaneous decomposition
+
+`fit_qr_full` with year fixed effects (`baseline_year=2022`) absorbs
+secular trends; the residual is the contemporaneous z_slope.
+
+| τ | primary z_slope | year-FE z_slope | secular share |
+|---|---|---|---|
+| 0.90 | 0.393 | 0.252 | 36% |
+| 0.95 | 0.578 | 0.410 | 29% |
+| 0.99 | 0.358 | 0.622 | **−74% (sign flip)** |
+
+At τ = 0.99 the secular trend goes the *opposite* direction from
+contemporaneous volatility response — the 99th-pct LMP has been
+trending **down** over 2022–2026 even as the contemporaneous
+relationship to volatility stays positive. Plausible explanation:
+PJM grid investments and post-2022 ORDC reform are dampening
+extreme-tail LMP over time, offsetting (and at τ = 0.99,
+over-correcting) the DC-driven volatility effect. **This is
+methodologically real but mechanistically open** — could be a true
+structural improvement, could be a 4-year window picking up a
+cyclical trough, could be an artifact of the sparse tail at τ = 0.99
+× 31,632 obs. Flagged for advisor.
+
+### Finding 4 — QR-full cross-pnode at τ = 0.95 (primary spec)
+
+| Pnode | Tier | z_slope | bootstrap CI |
+|---|---|---|---|
+| Loudoun cluster (cong) | Primary | 0.578 | [0.43, 0.76] |
+| Loudoun cluster (total_lmp) | Primary | **2.334** | **[1.85, 2.73]** |
+| OX | Control | 0.612 | [0.40, 0.85] |
+| BRISTERS | Control | 0.570 | [0.38, 0.79] |
+| DOM zonal | Zonal | 0.195 | [−0.05, 0.47] |
+| Ashburn TX1 | Distribution | −0.604 | [−1.22, 0.52] |
+| Ashburn TX2 | Distribution | 0.119 | [−0.35, 0.47] |
+
+Three patterns:
+
+1. **`total_lmp` z_slope is ~4× the congestion z_slope on the same
+   Loudoun cluster.** The ORDC penalty stack lands in system-energy
+   LMP, not in the congestion component — this is the methodology
+   spec's prior mechanistic prediction operationalized as a number.
+   Direct support for the ORDC mechanism on the full panel.
+2. **No Loudoun-specific effect.** Loudoun ≈ OX ≈ BRISTERS at
+   τ = 0.95 (all in [0.57, 0.61]). The L/OX = 0.56 finding from the
+   2026-05-13 1-6 AM widened filter does not generalize to the full
+   panel. This is consistent with the 2026-05-13 Rule 2 verdict
+   ("DOM-wide" on the widened filter) — that verdict now generalizes
+   from the widened-filter subset to the full panel.
+3. **Ashburn TX1 has a negative point estimate.** Wide CI crosses 0,
+   so the bootstrap can't reject zero, but the median sign is the
+   wrong direction for a DC-influenced distribution-side pnode.
+   Either real (different physics at 35 kV) or noise. Flagged for
+   advisor.
+
+**Reconciliation with the 2026-05-13 Rule 3 verdict.** That rule
+classified "congestion stays primary" under TAR using the
+`Δĉ / sd(Z)` criterion. The QR-full total_lmp result above is a
+finding under a *different method* and detects a differential the
+TAR-Δĉ rule was not designed to surface. Rule 3 stands within TAR;
+the QR-full 4× differential is complementary additional evidence
+that `total_lmp` is the cleaner ORDC-mechanism response in the
+high-quantile regime.
+
+### Finding 5 — GPD threshold sweep
+
+Peaks-over-threshold GPD fit on the Loudoun-cluster mean
+`total_lmp_rt` at progressively higher LMP threshold quantiles.
+Bootstrap CI on ξ via residual resampling.
+
+| Threshold quantile of LMP | Exceedance count | ξ | tail regime |
+|---|---|---|---|
+| q = 0.90 | 3,154 | 0.851 | very heavy |
+| q = 0.95 | 1,577 | 0.706 | heavy |
+| q = 0.99 | 316 | 0.275 | moderate |
+| q = 0.995 | 158 | 0.024 | essentially exponential |
+
+Bootstrap CIs on ξ at each threshold are in
+`outputs/gpd/gpd_threshold_sweep.json` (regenerated by re-run; not
+recorded in session memory).
+
+**ξ decreases sharply with threshold.** No single GPD describes the
+full LMP tail; the tail is "heaviest" in the upper 10th percentile,
+moderate in the upper 1st percentile, and essentially exponential at
+the 0.5% extreme. This matters for paper framing: a single
+GPD-shape headline (e.g., "the LMP tail has shape ξ = X") is
+ill-defined on this data.
+
+### Finding 6 — GPD conditional Z-split mechanism test
+
+The proposal's central mechanism test, operationalized as: at a
+fixed LMP threshold, does the high-load-volatility subset of
+exceedances have a heavier GPD tail than the low-load-volatility
+subset?
+
+Test specification: threshold = 95th percentile of cluster
+`total_lmp_rt`; split exceedances by median Z (`dom_load_gradient
+_abs_mw_per_min`); fit GPD separately to each subset; report
+`shape_diff = ξ_high − ξ_low` with paired bootstrap CI.
+
+| Subset | n | ξ |
+|---|---|---|
+| low-Z (Z < median) | 789 | 0.788 |
+| high-Z (Z ≥ median) | 788 | 0.609 |
+| **`shape_diff` (high − low)** | — | **−0.180** |
+| bootstrap 95% CI | — | **[−0.371, −0.044]** |
+| bootstrap *p* (one-sided, H₁: high > low) | — | 0.99 |
+
+**The hypothesis "high load volatility produces a heavier LMP tail
+than low load volatility" is rejected at this scope.** 99% of
+bootstrap replicates produced a *lighter* tail in the high-Z
+subset.
+
+**Scope of the rejection — what this result does NOT say.** This is
+the precision point most likely to be misread in a six-month-old
+session. The result rejects exactly one specific hypothesis:
+*median-split, 95th-pct LMP threshold, full panel*. It does NOT
+reject:
+
+- **The ORDC mechanism.** The `total_lmp` 4× congestion finding
+  (Finding 4) is direct support.
+- **A volatility-LMP relationship.** Positive z_slopes at τ = 0.90
+  and τ = 0.95 (Finding 2) directly support that.
+- **Non-monotonic Z dependence.** A quartile split or continuous
+  ξ(Z) parametric model could find a non-monotonic structure
+  invisible to a median split. Not yet tested.
+- **Tail-heaviness at higher LMP thresholds.** Finding 5 swept the
+  threshold but did not run conditional-Z at each level. The
+  rejection is anchored to the 95th-pct threshold.
+- **A different conditioning variable.** Z = DOM load gradient was
+  pre-registered as the threshold variable, but the 2026-05-13
+  5-min SR-clearing probe (`§ Post-pre-reg exploration 4`)
+  established that Z = SR clearing price gives a different
+  mechanistic story. The rejection here is for the DOM load
+  gradient conditioning, not any other Z.
+
+The next question is whether the rejection holds *outside* this
+narrow scope. If it does, the proposal's central mechanistic story
+needs reframing; if it doesn't, the median-split was the wrong
+test specification. Flagged for advisor.
+
+### What this means for the proposal — net read
+
+**Supported** (full panel, robust at production bootstrap reps):
+
+- Positive volatility-to-LMP response at moderate quantiles (τ =
+  0.90, 0.95).
+- ORDC penalty stack lands in system-energy LMP, not congestion
+  (`total_lmp` z_slope ≈ 4× `congestion_price_rt` z_slope at
+  τ = 0.95).
+- Hansen TAR rejects "no threshold" at the bootstrap floor on every
+  fit — a regime change in the response *does* exist (carryover
+  from prior sessions; not new today).
+
+**Open at the rejection's specific scope** (per the precision
+points above):
+
+- Median-split, 95th-pct LMP threshold, full panel: high-Z subset
+  has *lighter* tail. The narrowly-scoped hypothesis is rejected;
+  the broader hypothesis is not testable from this one specification
+  alone.
+
+**Not robust** (from 2026-05-13, still not robust on full panel):
+
+- A specific MW/min threshold (TAR ĉ filter-, resolution-, Z-variable
+  sensitive; the 4.39 production result is the smooth-curve diagnosis's
+  predicted artifact).
+- Spatial differentiation between Loudoun cluster and DOM-zone
+  controls (full-panel cross-pnode shows Loudoun ≈ OX ≈ BRISTERS).
+- "Loudoun stresses first" framing — the 1-6 AM hourly singularity
+  did not survive the full-panel run.
+
+### Open questions carried into the advisor meeting
+
+1. **Conditional-Z rejection — true negative or median-split
+   artifact?** Quartile split or continuous ξ(Z) parametric model
+   may reveal non-monotonic structure. Pre-commit to a robustness
+   spec before re-running, to avoid post-hoc rationalization.
+2. **τ = 0.99 secular sign flip.** Real grid improvement absorbing
+   DC-volatility effect at the extreme tail, or sparse-tail
+   artifact? The implication for the projection question is large
+   — if real, projected DC growth must overpower a *declining*
+   extreme-LMP trend.
+3. **Ashburn TX1 negative point estimate.** Real distribution-side
+   inversion (different physics) or noise (CI crosses 0)? Worth a
+   focused diagnostic if any paper-relevant claim rides on
+   distribution-side pnodes.
+4. **GPD threshold choice for conditional-Z test.** 95th-pct was
+   chosen as the methodology default; ξ at the 95th-pct threshold
+   is 0.706 (heavy) and there are enough exceedances to split
+   (n = 1,577). 99th-pct gives ξ = 0.275 (moderate) and n = 316 —
+   splittable but less power. Pre-commit threshold for the
+   robustness spec.
+5. **Multiple-testing correction.** Carried from the 2026-05-13
+   pre-reg. Less load-bearing now that the headline is on QR-full
+   z_slopes (univariate per pnode), but still relevant for the
+   conditional-Z robustness sweep above.
+6. **Mechanism-validation framing for the paper.** With the
+   median-split rejection on Z and the discrete-event Granger null
+   carried over, the ORDC mechanism is supported by `total_lmp`
+   ≫ congestion but not by any direct event-conditional test on
+   load volatility. Is the cite-the-PJM-2023-paper + show-the-4×
+   evidence adequate, or does the paper need a stronger
+   load-volatility-to-mechanism link?
+
+**Revisit when.**
+- After advisor meeting on the 6 open questions; each may produce
+  a follow-up dated entry.
+- After a quartile-split or continuous-ξ(Z) robustness run on the
+  conditional-Z test produces a verdict on whether the median-split
+  rejection generalizes. Pre-commit the spec before running, per
+  the pre-registration discipline established 2026-05-13.
+- If the τ = 0.99 secular sign flip resolves via a longer historical
+  load-volatility window (would require widening the analysis window
+  past 2022-10-02, which would re-introduce the ORDC pre-cap rule
+  change — likely not pursued).

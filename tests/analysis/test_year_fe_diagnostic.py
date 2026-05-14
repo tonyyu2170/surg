@@ -54,3 +54,26 @@ def test_compute_raw_per_year_stats_p99_higher_in_hotter_year():
     )
     by_year = {s["year"]: s for s in stats}
     assert by_year[2024]["p99"] > by_year[2023]["p99"]
+
+
+def test_bootstrap_year_dummy_coefs_returns_ci_per_year():
+    from surg.analysis.year_fe_diagnostic import bootstrap_year_dummy_coefs
+
+    panel = _two_year_panel(per_year=1500, seed=1)
+    result = bootstrap_year_dummy_coefs(
+        panel,
+        response_col="Y",
+        z_col="Z",
+        year_col="datetime_beginning_ept",
+        taus=(0.50,),
+        n_boot=40,
+        seed=0,
+    )
+    assert "tau_0.50" in result
+    by_year = result["tau_0.50"]
+    # Baseline (2023) excluded; 2024 dummy present.
+    assert "year_2024" in by_year
+    entry = by_year["year_2024"]
+    assert "point" in entry
+    assert "ci" in entry
+    assert len(entry["ci"]) == 2

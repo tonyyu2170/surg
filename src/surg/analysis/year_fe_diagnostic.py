@@ -39,3 +39,84 @@ def compute_raw_per_year_stats(
             row[f"p{int(p*100)}"] = float(np.quantile(group[response_col].to_numpy(), p))
         stats.append(row)
     return sorted(stats, key=lambda r: r["year"])
+
+
+def _nan_to_none(x: float | None) -> float | None:
+    if x is None:
+        return None
+    if isinstance(x, float) and (math.isnan(x) or math.isinf(x)):
+        return None
+    return float(x)
+
+
+def bootstrap_year_dummy_coefs(
+    panel: pd.DataFrame,
+    *,
+    response_col: str,
+    z_col: str,
+    year_col: str,
+    taus: tuple[float, ...],
+    n_boot: int = 200,
+    seed: int = 0,
+) -> dict:
+    """Pair-bootstrap CIs for year-dummy coefficients in fit_qr_full's year_fe spec.
+
+    Reports descriptive PER-YEAR LEVEL SHIFTS (from baseline). NOT a trend test.
+    """
+    sub = panel.dropna(subset=[response_col, z_col, year_col]).copy()
+    sub[year_col] = pd.to_datetime(sub[year_col])
+    Y = sub[response_col].to_numpy()
+    Z = sub[z_col].to_numpy()
+    hour = sub[year_col].dt.hour.to_numpy()
+    month = sub[year_col].dt.month.to_numpy()
+    year = sub[year_col].dt.year.to_numpy()
+
+    distinct_years = sorted(np.unique(year).tolist())
+    if len(distinct_years) < 2:
+        return {"skip_reason": f"only {len(distinct_years)} distinct year(s)"}
+
+    baseline = distinct_years[0]
+    dummy_years = distinct_years[1:]
+
+    out: dict = {}
+    n = len(Y)
+    for tau_idx, tau in enumerate(taus):
+        # Point estimate from a single fit (no bootstrap of point).
+        point_fit = fit_qr_full(Y, Z, hour, month, year=year, tau=tau, n_boot=0,
+                                seed=seed + tau_idx * 1000)
+        point_coefs = point_fit.covariate_coefs
+
+        # Pair-bootstrap each year dummy.
+        rng = np.random.default_rng(seed + tau_idx * 1000 + 7)
+        boot_coefs: dict[int, list[float]] = {y: [] for y in dummy_years}
+        for rep in range(n_boot):
+            idx = rng.integers(0, n, size=n)
+            try:
+                rep_fit = fit_qr_full(
+                    Y[idx], Z[idx], hour[idx], month[idx],
+                    year=year[idx], tau=tau, n_boot=0, seed=0,
+                )
+            except Exception:
+                continue
+            for y in dummy_years:
+                key = f"year_{y}"
+                if key in rep_fit.covariate_coefs:
+                    val = rep_fit.covariate_coefs[key]
+                    if np.isfinite(val):
+                        boot_coefs[y].append(val)
+
+        by_year: dict[str, dict] = {}
+        for y in dummy_years:
+            arr = np.asarray(boot_coefs[y])
+            if len(arr) < 20:
+                ci = (float("nan"), float("nan"))
+            else:
+                ci = (float(np.quantile(arr, 0.025)), float(np.quantile(arr, 0.975)))
+            by_year[f"year_{y}"] = {
+                "point": _nan_to_none(point_coefs.get(f"year_{y}", float("nan"))),
+                "ci": [_nan_to_none(ci[0]), _nan_to_none(ci[1])],
+                "n_boot_converged": int(len(arr)),
+            }
+        out[f"tau_{tau:.2f}"] = by_year
+        out[f"tau_{tau:.2f}_baseline_year"] = int(baseline)
+    return out

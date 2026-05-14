@@ -60,6 +60,15 @@ def fit_qr_full(
     NaN rows before passing.) `n_boot=0` skips bootstrap CI and returns
     `(nan, nan)` for `z_slope_bootstrap_ci_95`; non-zero `n_boot` will be
     wired in a subsequent task.
+
+    Notes:
+        The returned asymptotic `z_slope_se` and `z_slope_p_value` come from
+        statsmodels' Koenker-Bassett sandwich estimator. This is reliable at
+        central quantiles (τ ≈ 0.5) but is known to underperform at high τ
+        (≥ 0.99) on autocorrelated time-series data. Task 7 of the Strategy
+        C implementation plan adds a pair-bootstrap CI on `z_slope` that is
+        the more honest interval at the tail quantiles used in the
+        production analysis.
     """
     Y_arr = np.asarray(Y, dtype=float)
     Z_arr = np.asarray(Z, dtype=float)
@@ -74,6 +83,13 @@ def fit_qr_full(
         )
     if any(np.isnan(arr).any() for arr in (Y_arr, Z_arr)):
         raise ValueError("Y or Z contains NaN; caller must drop NaN rows first")
+
+    if not (np.all((hour_arr >= 0) & (hour_arr <= 23)) and
+            np.all((month_arr >= 1) & (month_arr <= 12))):
+        raise ValueError(
+            "hour must be in [0, 23] and month in [1, 12] (integers); "
+            "check for NaN or out-of-range values before calling fit_qr_full"
+        )
 
     basis = _build_periodic_basis(hour_arr, month_arr)
     X = np.column_stack([

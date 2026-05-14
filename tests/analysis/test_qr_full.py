@@ -81,3 +81,28 @@ def test_fit_qr_full_validates_no_nan():
     month = rng.integers(1, 13, size=100)
     with pytest.raises(ValueError, match="NaN"):
         fit_qr_full(Y, Z, hour, month, tau=0.5)
+
+
+def test_fit_qr_full_validates_hour_out_of_range():
+    """hour values outside [0, 23] should raise ValueError, defending against
+    silent NaN-to-zero corruption when np.asarray(..., dtype=int) is applied."""
+    rng = np.random.default_rng(seed=42)
+    Y = rng.normal(size=100)
+    Z = rng.normal(size=100)
+    hour = rng.integers(0, 24, size=100).astype(int)
+    hour[5] = 24  # out of range
+    month = rng.integers(1, 13, size=100)
+    with pytest.raises(ValueError, match="hour must be in"):
+        fit_qr_full(Y, Z, hour, month, tau=0.5)
+
+
+def test_fit_qr_full_validates_month_out_of_range():
+    """month values outside [1, 12] should raise ValueError."""
+    rng = np.random.default_rng(seed=42)
+    Y = rng.normal(size=100)
+    Z = rng.normal(size=100)
+    hour = rng.integers(0, 24, size=100)
+    month = rng.integers(1, 13, size=100).astype(int)
+    month[5] = 0  # 0-indexed bug
+    with pytest.raises(ValueError, match="month in"):
+        fit_qr_full(Y, Z, hour, month, tau=0.5)

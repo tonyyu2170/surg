@@ -120,3 +120,65 @@ def bootstrap_year_dummy_coefs(
         out[f"tau_{tau:.2f}"] = by_year
         out[f"tau_{tau:.2f}_baseline_year"] = int(baseline)
     return out
+
+
+def bootstrap_secular_component(
+    panel: pd.DataFrame,
+    *,
+    response_col: str,
+    z_col: str,
+    year_col: str,
+    taus: tuple[float, ...],
+    n_boot: int = 200,
+    seed: int = 0,
+) -> dict:
+    """Pair-bootstrap CI on primary_z_slope - year_fe_z_slope per tau.
+
+    This IS the trend test for the τ=0.99 secular sign-flip claim.
+    """
+    sub = panel.dropna(subset=[response_col, z_col, year_col]).copy()
+    sub[year_col] = pd.to_datetime(sub[year_col])
+    Y = sub[response_col].to_numpy()
+    Z = sub[z_col].to_numpy()
+    hour = sub[year_col].dt.hour.to_numpy()
+    month = sub[year_col].dt.month.to_numpy()
+    year = sub[year_col].dt.year.to_numpy()
+
+    distinct_years = sorted(np.unique(year).tolist())
+    if len(distinct_years) < 2:
+        return {"skip_reason": f"only {len(distinct_years)} distinct year(s)"}
+
+    out: dict = {}
+    n = len(Y)
+    for tau_idx, tau in enumerate(taus):
+        primary_fit = fit_qr_full(Y, Z, hour, month, tau=tau, n_boot=0, seed=seed)
+        yfe_fit = fit_qr_full(Y, Z, hour, month, year=year, tau=tau, n_boot=0, seed=seed)
+        point_secular = primary_fit.z_slope - yfe_fit.z_slope
+
+        rng = np.random.default_rng(seed + tau_idx * 1000 + 11)
+        diffs: list[float] = []
+        for rep in range(n_boot):
+            idx = rng.integers(0, n, size=n)
+            try:
+                pfit = fit_qr_full(Y[idx], Z[idx], hour[idx], month[idx],
+                                   tau=tau, n_boot=0, seed=0)
+                yfit = fit_qr_full(Y[idx], Z[idx], hour[idx], month[idx],
+                                   year=year[idx], tau=tau, n_boot=0, seed=0)
+            except Exception:
+                continue
+            d = pfit.z_slope - yfit.z_slope
+            if np.isfinite(d):
+                diffs.append(d)
+        if len(diffs) < 20:
+            ci = (float("nan"), float("nan"))
+        else:
+            arr = np.asarray(diffs)
+            ci = (float(np.quantile(arr, 0.025)), float(np.quantile(arr, 0.975)))
+        out[f"tau_{tau:.2f}"] = {
+            "primary_z_slope": _nan_to_none(primary_fit.z_slope),
+            "year_fe_z_slope": _nan_to_none(yfe_fit.z_slope),
+            "secular_component_point": _nan_to_none(point_secular),
+            "secular_component_ci": [_nan_to_none(ci[0]), _nan_to_none(ci[1])],
+            "n_boot_converged": int(len(diffs)),
+        }
+    return out

@@ -77,3 +77,26 @@ def test_bootstrap_year_dummy_coefs_returns_ci_per_year():
     assert "point" in entry
     assert "ci" in entry
     assert len(entry["ci"]) == 2
+
+
+def test_bootstrap_secular_component_returns_ci_per_tau():
+    from surg.analysis.year_fe_diagnostic import bootstrap_secular_component
+
+    panel = _two_year_panel(per_year=1500, seed=2)
+    result = bootstrap_secular_component(
+        panel,
+        response_col="Y",
+        z_col="Z",
+        year_col="datetime_beginning_ept",
+        taus=(0.50, 0.95),
+        n_boot=30,
+        seed=0,
+    )
+    for key in ("tau_0.50", "tau_0.95"):
+        assert key in result
+        entry = result[key]
+        assert "primary_z_slope" in entry
+        assert "year_fe_z_slope" in entry
+        assert "secular_component_point" in entry
+        assert "secular_component_ci" in entry
+        assert len(entry["secular_component_ci"]) == 2

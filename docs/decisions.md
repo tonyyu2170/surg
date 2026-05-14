@@ -2034,3 +2034,44 @@ The closure roadmap is updated accordingly: items 2-5 remain; #1 closed.
 - **Items 2-5** in the sub-q1 closure roadmap complete. The Ashburn TX1 diagnostic (#4) is now more interesting given the Spec B 99th-pct sign reversal — could be a paper-worthy finding if real, or a footnote if noise.
 - **A longer historical window** that shrinks Spec B's CIs at higher granularity. Currently no path without re-introducing the 2022-10 pre-cap break.
 - **A different conditioning variable Z'** (e.g., SR clearing price as Z). Separate scientific question.
+
+## 2026-05-14 — Pre-registration: LMP-components decomposition (sub-q1 closure item #2)
+
+**Pre-registration applies to sub-question 1 closure roadmap item #2.** Locks decision rules before the LMP-components decomposition fits run, per the discipline used for Spec B and the conditional-Z robustness battery.
+
+### Rule 1 — Singular headline test (pre-committed)
+
+The singular paper-level claim from item #2 is the **median-split conditional-Z test on `system_energy_price_rt_cluster_mean` at 95th-pct LMP**, on the primary Loudoun cluster, with Z = `dom_load_gradient_abs_mw_per_min`, applied to the filtered subset (`passes_proposal_filter=True`). This is the same scope as the 2026-05-14 conditional-Z battery's headline test on congestion (n=1577 at 95th-pct → 789/half), substituting the response variable.
+
+All other tests run in the production phase are descriptive supplementary, including: (a) the same median-split applied to `congestion_price_rt_cluster_mean` and `marginal_loss_price_rt_cluster_mean` on the primary cluster; (b) cross-pnode supplementary across all 7 pnodes for each component; (c) threshold sweep at 90/95/99-pct LMP.
+
+### Rule 2 — Decision-rule table for the headline
+
+The test produces `shape_diff = ξ_high − ξ_low` with a pair-bootstrap 95% CI. Outcome interpretation (locked before any fit runs):
+
+| Outcome | Paper claim |
+|---|---|
+| `shape_diff > 0`, CI excludes 0 | **Cancellation hypothesis supported.** system_energy carries the ORDC-predicted direction (heavier tail at HIGH Z); congestion's opposite-direction effect cancels it in total_lmp. This is the proposal's strongest mechanism-affirming outcome. |
+| `shape_diff < 0`, CI excludes 0 | **ORDC-predicted direction rejected for system_energy too.** Heavier-tail-at-LOW-Z effect is broader than congestion; mechanism is NOT ORDC-specific. Sharpens the conditional-Z rejection rather than redirecting it. |
+| CI spans 0, `shape_diff < 0` | **Underpowered;** direction consistent with congestion finding (heavier tail at LOW Z), not consistent with ORDC's predicted direction. Magnitude bounded only by the available n; paper acknowledges the power ceiling. |
+| CI spans 0, `shape_diff ≥ 0` | **Underpowered;** direction consistent with ORDC's predicted direction (heavier tail at HIGH Z) but cannot confirm at this scope. Same power-ceiling language. |
+
+**Mechanistic basis.** The PJM ORDC adds scarcity adders to the system marginal price when synchronized reserves drop below the demand curve threshold. Reserve drawdown is concentrated during high-load / high-volatility events → ORDC scarcity events concentrate at HIGH Z → system_energy_price spikes at HIGH Z → heavier tail at HIGH Z → `shape_diff > 0`. The 2026-05-14 conditional-Z battery's rejection on congestion produced `shape_diff < 0` (heavier tail at LOW Z, OPPOSITE direction to ORDC's prediction). The "cancellation hypothesis" predicts these opposite-direction effects partially offset when aggregated into total_lmp, explaining why the same median-split test on total_lmp was inconclusive in prior runs.
+
+### Rule 3 — Spline/LRT layer
+
+Not applicable to item #2 (median-split is binary, not continuous). Reference only.
+
+### Rule 4 — Low-power skip rule
+
+Any individual median-split test for which `n_exc / 2 < 50` reports status `insufficient_sample` and does NOT contribute a verdict line. The threshold of 50 matches the typical GPD MLE convergence floor on a 2-parameter (ξ, σ) fit, below which the asymptotic likelihood geometry becomes unreliable. Cross-pnode supplementary tests on Ashburn TX1 / TX2 at deep thresholds (99th-pct, 99.5th-pct) may trigger this rule.
+
+### Rule 5 — Multiple-testing posture
+
+Singular headline only at α=0.05. All other tests in the production phase are descriptive supplementary; reported with point estimates + bootstrap CIs but no family-wise correction. Matches Spec B's Rule 1 posture exactly.
+
+### Revisit when
+
+- Production fit results come in (write the application entry per Rule 2).
+- Advisor input materially shifts framing.
+- A different conditioning variable Z' becomes available (separate scientific question).

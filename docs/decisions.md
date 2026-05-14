@@ -1284,3 +1284,260 @@ points above):
   load-volatility window (would require widening the analysis window
   past 2022-10-02, which would re-introduce the ORDC pre-cap rule
   change — likely not pursued).
+
+---
+
+## 2026-05-14 — Pre-registration: conditional-Z robustness battery (A/C/F + gated B)
+
+**Context.** The same-date production-findings entry above reported a
+median-split conditional-Z GPD test with `shape_diff (high − low) =
+−0.180`, bootstrap CI `[−0.371, −0.044]` (99% of replicates produced a
+lighter tail in the high-Z subset) at the 95th-pct LMP threshold on
+the full panel. That result rejects the specific hypothesis
+*median-split, 95th-pct LMP threshold, full panel, Z = DOM load
+gradient* — but the rejection's generalizability across split
+granularity, threshold quantile, and signal-isolation filter is
+open (open question 1 in that entry).
+
+The 2026-05-14 build-decision entry's "Revisit when" section
+contemplates a follow-up entry to govern QR/GPD code changes
+addressing the open questions. The post-session memory carries a
+"do not start QR/GPD code changes until advisor input" rule. This
+entry is the principled relaxation of that rule: we lock decision
+rules before any new specifications run, and the rules are committed
+in writing before the implementation work begins. This is the same
+discipline the 2026-05-13 pre-reg entry exemplified — written *before*
+the n=1000 numbers were visible, applied mechanically after.
+
+The robustness battery below is the minimum sufficient set to
+distinguish the three competing readings of today's median-split
+rejection:
+
+1. **The rejection generalizes.** Tail-heaviness systematically
+   decreases with load volatility across the Z distribution.
+2. **The rejection is artifactual at the median.** Tail-heaviness has
+   non-monotonic Z structure that a 2-way split mis-summarizes.
+3. **The rejection is artifactual at the threshold or fails to
+   replicate within the signal-isolation regime.** The 95th-pct LMP
+   threshold pools moderate exceedances with ORDC-level ones (3a),
+   or the conditional-Z relationship within the proposal's filtered
+   regime (shoulder × 2–5 AM) does not match the full-panel result
+   (3b).
+
+Each spec below tests exactly one of these readings.
+
+**Decision.** Run the **A/C/F battery** below before any further
+substantive analysis on this sub-question. Decision rules apply
+mechanically to the produced numbers. Spec B (continuous ξ(Z)
+regression) is **gated** — it runs only on outcomes that demand a
+smooth characterization the discrete specs cannot deliver.
+
+### Spec A — Quartile-split conditional-Z at 95th-pct LMP, full panel
+
+**What it tests.** Hypothesis (2): the median split is too coarse.
+Partition exceedance Z values into quartiles Q1 (lowest Z) through Q4
+(highest Z); fit GPD to each subset; report ξ trajectory across
+quartiles plus bootstrap CI on the Q4 − Q1 contrast.
+
+**Sample sizes** (forecast from production-findings entry):
+n_exceedances ≈ 1,577 → ~394 per quartile. Adequate for stable GPD
+fits.
+
+**Primary decision criterion** — bootstrap 95% CI on `ξ_Q4 − ξ_Q1`:
+
+| CI on (ξ_Q4 − ξ_Q1) | Verdict |
+|---|---|
+| Excludes 0, sign negative | Rejection generalizes at the extreme contrast (lowest vs highest Z quartile). |
+| Excludes 0, sign positive | Proposal's hypothesis supported despite median-split rejection. The median-split was anti-conservative. |
+| Spans 0 | Inconclusive on the extreme contrast; consult secondary monotonicity criterion. |
+
+**Secondary criterion — monotonicity of ξ across quartiles:**
+
+| Pattern | Combined verdict |
+|---|---|
+| Monotone (decreasing or increasing) — sign matches primary CI | Clean answer; primary verdict stands |
+| Non-monotone (e.g., U-shape, inverse-U, single-quartile spike) | **Trigger Spec B** to characterize the smooth shape that discrete quartiles cannot capture |
+| Approximately flat (max − min < 0.05) | No Z-dependence of tail shape; median rejection was sample-specific noise |
+
+**Bootstrap protocol.** Pair-bootstrap (same protocol as the existing
+median-split test): resample exceedance rows with replacement, refit
+all four GPDs per replicate, compute the four ξ values, report the
+empirical 95% CI on (ξ_Q4 − ξ_Q1) across replicates.
+
+### Spec C — Median-split conditional-Z at 99th-pct LMP, full panel
+
+**What it tests.** Hypothesis (3a): the 95th-pct threshold pools too
+many moderate exceedances. At the 99th-pct threshold, only ORDC-stress-
+relevant exceedances are included.
+
+**Sample sizes** (forecast): n_exceedances ≈ 316 → ~158 per Z-half.
+Tight; bootstrap CIs will be substantially wider than at the 95th-pct.
+GPD fits at n = 158 with `fit_gpd`'s regularity assumptions: tractable
+based on the existing module's tested ranges, but a `fit_gpd` failure
+on either subset is a possible outcome (singular Hessian, ξ →
+boundary). Pre-commit: failure is reported as **inconclusive due to
+power**, not refit at a lower threshold ad hoc.
+
+**Primary decision criterion** — bootstrap 95% CI on `shape_diff =
+ξ_high − ξ_low`:
+
+| CI on shape_diff | Verdict |
+|---|---|
+| Excludes 0, sign negative | Rejection persists at the deeper-tail threshold. Combined with A confirming, gives the strongest possible negative claim. |
+| Excludes 0, sign positive | Threshold-dependent rejection: at 95th-pct rejection holds, at 99th-pct the proposal is supported. Important nuance; paper claim shifts to "the test variant matters." |
+| Spans 0 | Underpowered at this threshold; no claim on this spec, do not generalize. |
+
+### Spec F — Median-split conditional-Z within signal-isolation filter
+
+**What it tests.** Hypothesis (3b): the conditional-Z tail-shape
+relationship within the proposal's signal-isolation regime (shoulder
+months Mar–May, Sep–Nov × 2–5 AM hours) — does it match the full-panel
+rejection or differ from it? This is *not* a strict dilution test
+(same LMP threshold value across full panel and filter); it is a
+within-regime replication test (same nominal *quantile* threshold of
+each regime's own LMP distribution).
+
+**Sample sizes** (forecast): filtered n ≈ 2,027 hours; at within-subset
+95th-pct LMP threshold, n_exceedances ≈ 101; median split gives ~50
+per Z-half. **Substantially underpowered for GPD inference.** This is
+acknowledged up front: the most likely outcome is a wide CI spanning
+0, which is itself informative — it would mean the signal-isolation
+filter does not deliver enough exceedances to discriminate the
+hypothesis under the existing test framework, regardless of which
+direction the truth lies.
+
+**Threshold construction.** The 95th-pct LMP is computed **within the
+filtered subset**, not inherited from the full panel. This ensures
+the test operates on the filtered LMP distribution rather than
+catching tail rows that happen to fall inside the filter.
+
+**Primary decision criterion** — bootstrap 95% CI on `shape_diff =
+ξ_high − ξ_low`:
+
+| CI on shape_diff | Verdict |
+|---|---|
+| Excludes 0, sign negative | Rejection replicates within signal-isolated regime. Strong: the full-panel finding holds even after the proposal's own filter is applied. |
+| Excludes 0, sign positive | Within-regime relationship reverses. The filter sees a different signal than the full panel — the paper's mechanism narrative must distinguish full-panel and signal-isolated regimes. |
+| Spans 0 | **Most-likely outcome.** Filter is underpowered for tail-shape inference at within-regime 95th-pct; no claim. Failure to detect is not evidence of equivalence to the full-panel result. |
+
+**Implementation failure mode.** If either subset's GPD fit fails
+(n < 30 after the median split, singular fit, ξ → boundary): report
+as fit-failure-due-to-power, do not lower the threshold ad hoc.
+
+### Multiple-testing correction
+
+Family-wise error rate at α = 0.05 across the three battery specs.
+Apply **Holm–Bonferroni** ordering on the three bootstrap p-values
+(**two-sided**, against H₀: shape_diff = 0). The sign of each spec's
+shape_diff CI determines the direction of any rejection:
+
+- Sort p-values ascending: p_(1) ≤ p_(2) ≤ p_(3).
+- Reject H₀ at level (1) if p_(1) ≤ α/3 = 0.0167.
+- Reject H₀ at level (2) if p_(2) ≤ α/2 = 0.025 *and* level (1)
+  rejected.
+- Reject H₀ at level (3) if p_(3) ≤ α = 0.05 *and* level (2)
+  rejected.
+
+Two-sided is used deliberately because the per-spec decision tables
+above admit both sign directions as substantively meaningful — a
+one-sided correction would suppress significant sign-positive
+outcomes (e.g., Spec C reversing the rejection at the 99th-pct
+threshold) that the entry already commits to reporting as
+paper-reshaping findings.
+
+The family-wise correction governs only the **headline family-wise
+inferential statement**. Each individual spec's shape_diff and CI
+are still reported verbatim alongside its unadjusted bootstrap
+two-sided p-value. The correction is the threshold for making a
+family-wise claim, not a filter on what gets reported.
+
+### Roll-up verdict on "where does the response shift"
+
+The post-battery overall verdict for the paper's central claim,
+mapped from the battery outcomes:
+
+| A | C | F | Overall verdict |
+|---|---|---|---|
+| Confirms (CI excludes 0, sign neg, monotone) | Confirms | Confirms | **Strong rejection.** Proposal's heavier-tail-at-high-Z hypothesis rejected at all three test variants. Paper headline. |
+| Confirms | Confirms | Inconclusive | **Rejection holds** with explicit power caveat on the filtered subset. |
+| Confirms | Inconclusive | Inconclusive | **Rejection holds** at the original threshold and split granularity, both power-caveat'd extensions inconclusive. |
+| Confirms | Reverses (CI excludes 0, sign pos) | Inconclusive | **Threshold-dependent rejection.** The 95th-pct rejection is real, but at ORDC-relevant LMP levels (99th-pct) the proposal is supported. Major nuance. |
+| Non-monotone | any | any | **Spec B triggered.** No paper-level verdict until continuous fit completes. |
+| Flat | any | any | **Median-split was noise.** No Z-dependence of tail shape at this scope; the today's rejection was sample-specific. Paper claim updates to "no detectable Z-dependence." |
+| Reverses (Q4 > Q1) | Reverses | Confirms (rejection) | **Pathological.** Methodology section gets a dedicated subsection. Investigate before drawing any conclusion. |
+
+The "Confirms / Inconclusive / Inconclusive" row is the
+power-realistic central scenario. Pre-committing that it counts as
+"rejection holds" (rather than requiring all three to fire) prevents
+post-hoc demands for unattainable Spec C / Spec F precision.
+
+### Gated follow-up: Spec B — continuous ξ(Z) regression
+
+**Trigger:** Spec A returns non-monotone ξ trajectory **or** Spec A
+returns inconclusive primary CI **and** monotonicity is unclear.
+
+**What it would test.** Fit GPD with shape parameter as a function of
+Z: ξ(Z) = β₀ + β₁ · Z (linear) or a low-order spline. Maximum-
+likelihood with Z as a covariate on the shape parameter.
+
+**Why gated.** B is the methodologically richest spec but
+substantially more involved to implement and validate. Building it
+before A/C/F have run is overkill if A returns a clean monotone
+verdict; building it conditionally on outcomes that genuinely demand
+a smooth fit respects implementation budget. The trigger condition
+above is the principled "no monotone discrete summary is adequate"
+signal.
+
+**If B runs:** decision rules for β₁'s CI will be written in a
+follow-up dated entry. Pre-committing rules for an unspecified
+parametric form is premature.
+
+### Open questions explicitly *not* in scope of this pre-reg
+
+The following are real methodology questions but they are not what
+this battery tests; they get their own pre-reg if and when they're
+pursued:
+
+- **Different conditioning variable (Z = SR clearing).** The
+  2026-05-13 5-min SR-clearing probe established this is a separate
+  mechanism question, not a robustness check on the existing one.
+- **τ = 0.99 secular sign flip.** Investigative refinement on a
+  different result (QR-full year-FE decomposition), not on the
+  conditional-Z test.
+- **Ashburn TX1 negative point estimate.** Side-pnode question.
+- **Discrete-event Granger.** Power-limited by sync_reserve_event
+  sparsity; needs a different remedy.
+
+### Rationale
+
+Pre-registration's value rises sharply when the result space is
+small and the temptation to retrofit is correspondingly high. Three
+specs × three CI outcomes apiece = 27 result cells, of which several
+have low-stakes interpretations and several would substantially
+reshape the paper. Without pre-registered decision rules, the
+combinatorics of "which subset of the results to feature" become a
+post-hoc choice. With rules locked in writing, the choice is
+mechanical.
+
+The decision-rule tables above include the "spans 0" / inconclusive
+outcomes as first-class results, not as defaults to be re-run with
+modified specifications. A pre-reg that only governs significant
+outcomes is an asymmetric pre-reg.
+
+### Revisit when
+
+- After the battery runs, a follow-up dated entry records mechanical
+  rule application (paralleling 2026-05-13's "Application of pre-reg"
+  entry).
+- If A's outcome triggers Spec B, the B decision rules are written
+  in their own dated entry before B runs.
+- If the advisor meeting subsequently produces guidance that changes
+  the battery's spec list (e.g., recommends running C at the 97.5th-pct
+  instead of 99th-pct, or suggests an entirely different Z variable),
+  a new dated entry overrides this one. We do not edit this entry
+  post-hoc.
+- If the implementation of any spec hits a regularity issue not
+  anticipated above (e.g., `fit_gpd` fails on the full quartile-split
+  battery, not just on a sparse subset), an implementation-note entry
+  documents what changed, but the decision rules above stand unless
+  the spec itself becomes uncomputable.

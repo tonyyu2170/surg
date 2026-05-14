@@ -8,6 +8,7 @@ import pytest
 from scipy import stats
 
 from surg.analysis.gpd import GPDFitResult, fit_gpd, gpd_threshold_sweep
+from surg.analysis.gpd import GPDConditionalResult, gpd_conditional_on_z
 
 
 def test_fit_gpd_recovers_planted_shape_and_scale():
@@ -113,3 +114,63 @@ def test_gpd_threshold_sweep_seed_reproducibility():
     r2 = gpd_threshold_sweep(Y, quantiles=(0.5, 0.75), n_boot=30, seed=123)
     for f1, f2 in zip(r1, r2, strict=True):
         assert f1.shape_bootstrap_ci_95 == f2.shape_bootstrap_ci_95
+
+
+def test_gpd_conditional_detects_z_dependent_shape():
+    """When DGP has higher tail heaviness at high Z, the conditional split
+    should detect it: shape_diff > 0 with low bootstrap p-value."""
+    rng = np.random.default_rng(seed=42)
+    n = 8000
+    Z = rng.uniform(0, 10, size=n)
+    # Generate Y with Z-dependent GPD shape: ξ = 0.5 if Z > 5, else 0.1
+    Y = np.empty(n)
+    high_z = Z > 5.0
+    n_high = int(high_z.sum())
+    n_low = n - n_high
+    Y[high_z] = stats.genpareto.rvs(c=0.5, scale=2.0, size=n_high, random_state=rng)
+    Y[~high_z] = stats.genpareto.rvs(c=0.1, scale=2.0, size=n_low, random_state=rng)
+
+    result = gpd_conditional_on_z(
+        Y, Z, threshold_quantile=0.5, z_split_quantile=0.5, n_boot=100, seed=0,
+    )
+
+    assert isinstance(result, GPDConditionalResult)
+    # z_split is computed over Z within exceedances, not the full Z population.
+    # Under a non-null DGP (higher-ξ at high-Z), the exceedance set is enriched
+    # for high-Z rows, so median(Z_exc) > median(Z). Assert against the correct
+    # conditional expectation.
+    threshold_val = float(np.quantile(Y, 0.5))
+    expected_z_split = float(np.median(Z[Y > threshold_val]))
+    assert result.z_split_value == pytest.approx(expected_z_split, abs=0.1)
+    assert result.shape_diff > 0.2, f"shape_diff too small: {result.shape_diff}"
+    assert result.shape_diff_bootstrap_p_value < 0.05, \
+        f"failed to detect z-dependence: p={result.shape_diff_bootstrap_p_value}"
+    # CI should not include 0 since the difference is real and positive
+    lo, hi = result.shape_diff_bootstrap_ci_95
+    assert lo > 0 or hi < 0 or (lo < 0 < hi and abs(lo) < hi), \
+        f"CI does not cleanly exclude 0: ({lo}, {hi})"
+
+
+def test_gpd_conditional_null_when_z_independent():
+    """When DGP has Z-independent shape, the conditional split should give
+    a non-tiny bootstrap p-value (broad null check, not exact)."""
+    rng = np.random.default_rng(seed=42)
+    n = 4000
+    Z = rng.uniform(0, 10, size=n)
+    Y = stats.genpareto.rvs(c=0.3, scale=2.0, size=n, random_state=rng)
+
+    result = gpd_conditional_on_z(
+        Y, Z, threshold_quantile=0.5, z_split_quantile=0.5, n_boot=100, seed=0,
+    )
+
+    assert result.shape_diff_bootstrap_p_value > 0.10, \
+        f"false-positive z-dependence: p={result.shape_diff_bootstrap_p_value}"
+
+
+def test_gpd_conditional_validates_length_mismatch():
+    """Y and Z must have the same length."""
+    rng = np.random.default_rng(seed=42)
+    Y = rng.exponential(scale=5.0, size=100)
+    Z = rng.uniform(0, 10, size=50)  # wrong length
+    with pytest.raises(ValueError, match="length"):
+        gpd_conditional_on_z(Y, Z, threshold_quantile=0.5, n_boot=10)

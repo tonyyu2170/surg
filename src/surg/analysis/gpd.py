@@ -122,6 +122,119 @@ def _bootstrap_shape_ci(
     return (float(np.quantile(arr, 0.025)), float(np.quantile(arr, 0.975)))
 
 
+@dataclass(frozen=True, slots=True)
+class GPDConditionalResult:
+    """Z-conditional GPD: fit on low-Z and high-Z halves of the exceedance set."""
+    threshold_quantile: float
+    threshold_value: float
+    z_split_quantile: float
+    z_split_value: float
+    low_z: GPDFitResult
+    high_z: GPDFitResult
+    shape_diff: float                                # ξ_high − ξ_low
+    shape_diff_bootstrap_ci_95: tuple[float, float]
+    shape_diff_bootstrap_p_value: float              # one-sided: P(ξ_high − ξ_low ≤ 0)
+
+
+def gpd_conditional_on_z(
+    Y: np.ndarray | pd.Series,
+    Z: np.ndarray | pd.Series,
+    *,
+    threshold_quantile: float = 0.95,
+    z_split_quantile: float = 0.5,
+    n_boot: int = 200,
+    seed: int = 0,
+) -> GPDConditionalResult:
+    """Fit GPD separately to low-Z and high-Z halves of the exceedance set.
+
+    Procedure:
+      1. threshold = empirical quantile of Y at `threshold_quantile`
+      2. exceedances = rows where Y > threshold
+      3. z_split = empirical quantile of Z[exceedances] at `z_split_quantile`
+      4. low_z subset = exceedances where Z ≤ z_split
+         high_z subset = exceedances where Z > z_split
+      5. Fit GPD on each subset independently
+      6. Bootstrap: resample exceedance row indices (paired Y,Z) with replacement,
+         recompute z_split inside each bootstrap rep, refit both subsets, record
+         shape_diff = ξ_high - ξ_low. Return 2.5%/97.5% quantiles plus one-sided
+         p-value (fraction of bootstrap reps with shape_diff ≤ 0).
+    """
+    Y_arr = np.asarray(Y, dtype=float)
+    Z_arr = np.asarray(Z, dtype=float)
+    if len(Y_arr) != len(Z_arr):
+        raise ValueError(f"Y and Z must have equal length; got {len(Y_arr)} vs {len(Z_arr)}")
+    if not 0.0 < threshold_quantile < 1.0:
+        raise ValueError(f"threshold_quantile must be in (0,1); got {threshold_quantile}")
+    if not 0.0 < z_split_quantile < 1.0:
+        raise ValueError(f"z_split_quantile must be in (0,1); got {z_split_quantile}")
+
+    threshold = float(np.quantile(Y_arr, threshold_quantile))
+    exceed_mask = Y_arr > threshold
+    Y_exc = Y_arr[exceed_mask]
+    Z_exc = Z_arr[exceed_mask]
+    if len(Y_exc) < 20:
+        raise ValueError(
+            f"too few exceedances ({len(Y_exc)}) above threshold_quantile={threshold_quantile} "
+            f"for a Z-split test (need ≥20)"
+        )
+
+    z_split = float(np.quantile(Z_exc, z_split_quantile))
+    low_mask = Z_exc <= z_split
+    high_mask = ~low_mask
+
+    if low_mask.sum() < 10 or high_mask.sum() < 10:
+        raise ValueError(
+            f"too few exceedances per subset at z_split_quantile={z_split_quantile}: "
+            f"low_z={int(low_mask.sum())}, high_z={int(high_mask.sum())} (each needs ≥10)"
+        )
+
+    low_z_fit = fit_gpd(Y_exc[low_mask], threshold=threshold)
+    high_z_fit = fit_gpd(Y_exc[high_mask], threshold=threshold)
+    shape_diff = high_z_fit.shape - low_z_fit.shape
+
+    # Bootstrap on shape_diff: resample exceedance indices, recompute split,
+    # refit both. Skip reps where either subset has too few obs.
+    rng = np.random.default_rng(seed)
+    n_exc = len(Y_exc)
+    diffs: list[float] = []
+    for _ in range(n_boot):
+        idx = rng.integers(0, n_exc, size=n_exc)
+        Y_b = Y_exc[idx]
+        Z_b = Z_exc[idx]
+        z_split_b = float(np.quantile(Z_b, z_split_quantile))
+        low_b = Z_b <= z_split_b
+        high_b = ~low_b
+        if low_b.sum() < 10 or high_b.sum() < 10:
+            continue
+        try:
+            low_fit_b = fit_gpd(Y_b[low_b], threshold=threshold)
+            high_fit_b = fit_gpd(Y_b[high_b], threshold=threshold)
+        except ValueError:
+            continue
+        diffs.append(high_fit_b.shape - low_fit_b.shape)
+
+    if len(diffs) < 20:
+        ci = (float("nan"), float("nan"))
+        p_value = float("nan")
+    else:
+        arr = np.asarray(diffs)
+        ci = (float(np.quantile(arr, 0.025)), float(np.quantile(arr, 0.975)))
+        # One-sided test: alternative is shape_diff > 0
+        p_value = float(np.mean(arr <= 0.0))
+
+    return GPDConditionalResult(
+        threshold_quantile=float(threshold_quantile),
+        threshold_value=threshold,
+        z_split_quantile=float(z_split_quantile),
+        z_split_value=z_split,
+        low_z=low_z_fit,
+        high_z=high_z_fit,
+        shape_diff=float(shape_diff),
+        shape_diff_bootstrap_ci_95=ci,
+        shape_diff_bootstrap_p_value=p_value,
+    )
+
+
 def gpd_threshold_sweep(
     Y: np.ndarray | pd.Series,
     *,

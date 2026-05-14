@@ -51,6 +51,7 @@ def test_run_all_writes_all_outputs(tmp_path: Path):
         n_subsample_reps=10,
         qr_full_n_boot=5,
         gpd_n_boot=5,
+        continuous_n_boot=5,
     )
     expected_paths = {
         # Existing TAR (one per pnode)
@@ -83,6 +84,15 @@ def test_run_all_writes_all_outputs(tmp_path: Path):
         out_root / "gpd" / "ashburn_tx2.json",
         # NEW: conditional-Z robustness battery
         out_root / "gpd" / "conditional_z_robustness.json",
+        # NEW: Spec B continuous ξ(Z) regression (one per pnode + headline)
+        out_root / "gpd_continuous" / "primary.json",
+        out_root / "gpd_continuous" / "total_lmp.json",
+        out_root / "gpd_continuous" / "ox.json",
+        out_root / "gpd_continuous" / "bristers.json",
+        out_root / "gpd_continuous" / "dom_zonal.json",
+        out_root / "gpd_continuous" / "ashburn_tx1.json",
+        out_root / "gpd_continuous" / "ashburn_tx2.json",
+        out_root / "gpd_continuous" / "headline.json",
     }
     for p in expected_paths:
         assert p.exists(), f"expected output not written: {p}"

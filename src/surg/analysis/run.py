@@ -13,6 +13,7 @@ from surg.analysis.tar import run_tar
 from surg.analysis.qr import run_qr
 from surg.analysis.qr_full import run_qr_full
 from surg.analysis.gpd import run_gpd, run_conditional_z_robustness
+from surg.analysis.gpd_continuous import run_gpd_continuous_z
 from surg.analysis.mechanism import run_mechanism
 from surg.analysis.robustness import subsample_bootstrap
 from surg.preprocessing.loaders import load_sync_reserve_events
@@ -42,6 +43,7 @@ def run_all(
     n_subsample_reps: int = 200,
     qr_full_n_boot: int = 200,
     gpd_n_boot: int = 200,
+    continuous_n_boot: int = 200,
 ) -> None:
     """Run the full Phase 3 analysis pipeline.
 
@@ -125,6 +127,22 @@ def run_all(
         n_boot=gpd_n_boot,
     )
 
+    # 2026-05-14 Spec B continuous ξ(Z) regression battery — sub-q1 closure.
+    # Per pre-reg: docs/decisions.md § "2026-05-14 — Pre-registration: Spec B".
+    for label, col in PNODE_RESPONSES.items():
+        if panel[col].dropna().empty:
+            continue
+        run_gpd_continuous_z(
+            panel=panel,
+            out_path=out_root / "gpd_continuous" / f"{label}.json",
+            response_col=col,
+            pnode_label=label,
+            n_boot=continuous_n_boot,
+        )
+
+    # Headline JSON: primary congestion @ 95th-pct linear β₁ per pre-reg
+    _write_spec_b_headline(out_root / "gpd_continuous")
+
     # Note: leave_one_season_out (robustness.py) is intentionally NOT called
     # from run_all per the plan's "Out of scope" section — the panel does not
     # yet carry an explicit _season_id column. The function remains importable
@@ -150,6 +168,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    help="Bootstrap reps for QR-full slope CI.")
     p.add_argument("--gpd-n-boot", type=int, default=200,
                    help="Bootstrap reps for GPD shape CI and conditional p-value.")
+    p.add_argument("--continuous-n-boot", type=int, default=200,
+                   help="Bootstrap reps for Spec B continuous ξ(Z) regression.")
     return p
 
 
@@ -168,9 +188,64 @@ def main(argv: list[str] | None = None) -> int:
         n_subsample_reps=args.n_subsample_reps,
         qr_full_n_boot=args.qr_full_n_boot,
         gpd_n_boot=args.gpd_n_boot,
+        continuous_n_boot=args.continuous_n_boot,
     )
     print(f"wrote analysis outputs to {args.out_root}/")
     return 0
+
+
+def _write_spec_b_headline(gpd_continuous_dir: Path) -> None:
+    """Emit the Spec B headline JSON consolidating primary congestion @ 95th-pct
+    linear β₁ per the 2026-05-14 Spec B pre-reg."""
+    import json
+    primary_path = gpd_continuous_dir / "primary.json"
+    if not primary_path.exists():
+        return
+    payload = json.loads(primary_path.read_text())
+    # Find the 95th-pct entry
+    entry_95 = next(
+        (e for e in payload["threshold_sweep"]
+         if abs(e["threshold_quantile"] - 0.95) < 1e-6),
+        None,
+    )
+    if entry_95 is None or entry_95["linear"]["convergence_status"] != "converged":
+        # Headline cannot be computed; write a minimal record
+        headline = {
+            "test": "spec_b_primary_95th_linear",
+            "convergence_status":
+                entry_95["linear"]["convergence_status"] if entry_95 else "missing",
+            "decision_rule_outcome": "could_not_compute_headline",
+        }
+    else:
+        lin = entry_95["linear"]
+        beta_1 = lin["shape_coefficients"][1]
+        ci_beta_1 = lin["shape_coefficients_bootstrap_ci_95"][1]
+        p = lin["beta_1_two_sided_p_value"]
+        if p is None or ci_beta_1 is None or ci_beta_1[0] is None:
+            outcome = "underpowered"
+        elif ci_beta_1[1] < 0 and beta_1 < 0:
+            outcome = "rejection_confirmed_linear"
+        elif ci_beta_1[0] > 0 and beta_1 > 0:
+            outcome = "contradicts_median_split"
+        else:
+            outcome = "underpowered"
+        headline = {
+            "test": "spec_b_primary_95th_linear",
+            "response_col": payload["response_col"],
+            "pnode_label": "primary",
+            "threshold_quantile": 0.95,
+            "form": "linear",
+            "beta_1": beta_1,
+            "beta_1_bootstrap_ci_95": ci_beta_1,
+            "beta_1_two_sided_p_value": p,
+            "decision_rule_outcome": outcome,
+            "pre_reg_reference": (
+                "docs/decisions.md § 2026-05-14 — Pre-registration: "
+                "Spec B continuous ξ(Z) regression"
+            ),
+        }
+    out = gpd_continuous_dir / "headline.json"
+    out.write_text(json.dumps(headline, indent=2))
 
 
 if __name__ == "__main__":  # pragma: no cover

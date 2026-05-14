@@ -17,12 +17,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Literal
 
 import numpy as np
-import pandas as pd
-from scipy import stats
 
 from surg.analysis.gpd import fit_gpd
 
@@ -68,12 +65,13 @@ def _design_matrix(
     Spline shape: X = [1, Z, Z², Z³], shape=(n, 4) — polynomial-degree-3 basis.
     Scale (always linear): X = [1, Z], shape=(n, 2).
     """
+    if form not in ("linear", "spline"):
+        raise ValueError(f"form must be 'linear' or 'spline'; got {form!r}")
     Z_arr = np.asarray(Z, dtype=float)
     if for_scale or form == "linear":
         return np.column_stack([np.ones_like(Z_arr), Z_arr])
-    if form == "spline":
-        return np.column_stack([np.ones_like(Z_arr), Z_arr, Z_arr ** 2, Z_arr ** 3])
-    raise ValueError(f"form must be 'linear' or 'spline'; got {form!r}")
+    # form == "spline" at this point
+    return np.column_stack([np.ones_like(Z_arr), Z_arr, Z_arr ** 2, Z_arr ** 3])
 
 
 def _initial_params(

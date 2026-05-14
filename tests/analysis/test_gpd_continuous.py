@@ -4,7 +4,6 @@ from __future__ import annotations
 import math
 
 import numpy as np
-import pandas as pd
 import pytest
 from scipy import stats
 
@@ -33,6 +32,8 @@ def test_gpd_continuous_fit_result_is_frozen_slots_dataclass():
     assert result.form == "linear"
     with pytest.raises(Exception):
         result.form = "spline"  # frozen
+    # slots=True prevents __dict__ creation
+    assert not hasattr(result, '__dict__'), "slots=True should prevent instance __dict__"
 
 
 def test_design_matrix_linear_returns_two_columns():
@@ -78,34 +79,41 @@ def test_design_matrix_scale_always_linear():
 
 def test_initial_params_linear_uses_stationary_fit_as_intercepts():
     """Initial params for linear form: stationary GPD fit gives [β₀, 0, σ₀, 0]
-    where β₀=shape and σ₀=log(scale) from the stationary fit."""
+    where β₀ and σ₀ are taken directly from fit_gpd's output (exact equality)."""
+    from surg.analysis.gpd import fit_gpd
     rng = np.random.default_rng(seed=42)
     Y_exc = stats.genpareto.rvs(c=0.3, scale=2.0, size=500, random_state=rng)
     init = _initial_params(Y_exc, form="linear")
+    base = fit_gpd(Y_exc, threshold=0.0)
     # Linear shape: [β₀, β₁]; Scale: [σ₀ (log scale), σ₁]
     assert len(init) == 4
     beta_0, beta_1, sigma_0_log, sigma_1 = init
-    # β₀ should be near the planted shape (0.3) within MLE noise
-    assert abs(beta_0 - 0.3) < 0.2, f"β₀ initial too far from stationary: {beta_0}"
+    # Exact equality: β₀ comes from base.shape
+    assert beta_0 == base.shape, \
+        f"β₀ should equal stationary fit_gpd.shape: {beta_0} vs {base.shape}"
     # β₁ should be 0 (no Z dependence in initial guess)
     assert beta_1 == 0.0
-    # σ₀ = log(scale) should be near log(2.0) = 0.693
-    assert abs(sigma_0_log - math.log(2.0)) < 0.5, f"σ₀ initial off: {sigma_0_log}"
+    # σ₀ = log(scale) — exact equality via math.log
+    assert sigma_0_log == math.log(base.scale), \
+        f"σ₀ should equal math.log(fit_gpd.scale): {sigma_0_log} vs {math.log(base.scale)}"
     # σ₁ should be 0
     assert sigma_1 == 0.0
 
 
 def test_initial_params_spline_returns_six_params():
-    """Spline form initial params: 4 shape params + 2 scale params = 6 total."""
+    """Spline form initial params: 4 shape params + 2 scale params = 6 total.
+    Intercepts come exactly from fit_gpd."""
+    from surg.analysis.gpd import fit_gpd
     rng = np.random.default_rng(seed=42)
     Y_exc = stats.genpareto.rvs(c=0.3, scale=2.0, size=500, random_state=rng)
     init = _initial_params(Y_exc, form="spline")
+    base = fit_gpd(Y_exc, threshold=0.0)
     assert len(init) == 6
-    # First 4 are shape (β₀, β₁, β₂, β₃); β₀ ≈ planted shape, others 0
-    assert abs(init[0] - 0.3) < 0.2
+    # First 4 are shape (β₀, β₁, β₂, β₃); β₀ exact from fit_gpd, others 0
+    assert init[0] == base.shape
     assert init[1] == 0.0
     assert init[2] == 0.0
     assert init[3] == 0.0
-    # Last 2 are scale (σ₀ log, σ₁)
-    assert abs(init[4] - math.log(2.0)) < 0.5
+    # Last 2 are scale (σ₀ log, σ₁) — σ₀ exact from log(fit_gpd.scale)
+    assert init[4] == math.log(base.scale)
     assert init[5] == 0.0

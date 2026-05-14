@@ -15,6 +15,7 @@ from surg.analysis.qr_full import run_qr_full
 from surg.analysis.gpd import run_gpd, run_conditional_z_robustness
 from surg.analysis.gpd_continuous import run_gpd_continuous_z
 from surg.analysis.gpd_components import run_gpd_components
+from surg.analysis.year_fe_diagnostic import run_year_fe_diagnostic, write_cross_pnode_summary
 from surg.analysis.mechanism import run_mechanism
 from surg.analysis.robustness import subsample_bootstrap
 from surg.preprocessing.loaders import load_sync_reserve_events
@@ -47,6 +48,8 @@ def run_all(
     continuous_n_boot: int = 200,
     components_n_boot: int = 200,
     skip_gpd_components: bool = False,
+    year_fe_n_boot: int = 200,
+    skip_year_fe_diagnostic: bool = False,
 ) -> None:
     """Run the full Phase 3 analysis pipeline.
 
@@ -155,6 +158,22 @@ def run_all(
             n_boot=components_n_boot,
         )
 
+    # Sub-q1 closure item #3: τ=0.99 secular sign-flip diagnostic (descriptive).
+    if not skip_year_fe_diagnostic:
+        pnode_labels_processed: list[str] = []
+        for label, col in PNODE_RESPONSES.items():
+            if panel[col].dropna().empty:
+                continue
+            run_year_fe_diagnostic(
+                panel=panel,
+                out_path=out_root / "year_fe_diagnostic" / f"{label}.json",
+                pnode_label=label,
+                response_col=col,
+                n_boot=year_fe_n_boot,
+            )
+            pnode_labels_processed.append(label)
+        write_cross_pnode_summary(out_root / "year_fe_diagnostic", tuple(pnode_labels_processed))
+
     # Note: leave_one_season_out (robustness.py) is intentionally NOT called
     # from run_all per the plan's "Out of scope" section — the panel does not
     # yet carry an explicit _season_id column. The function remains importable
@@ -186,6 +205,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    help="Bootstrap reps for sub-q1 item #2 LMP-components decomposition.")
     p.add_argument("--skip-gpd-components", action="store_true",
                    help="Skip sub-q1 item #2 (gpd_components) orchestrator.")
+    p.add_argument("--year-fe-n-boot", type=int, default=200,
+                   help="Bootstrap reps for sub-q1 item #3 year-FE secular diagnostic.")
+    p.add_argument("--skip-year-fe-diagnostic", action="store_true",
+                   help="Skip sub-q1 item #3 (year_fe_diagnostic) orchestrator.")
     return p
 
 
@@ -207,6 +230,8 @@ def main(argv: list[str] | None = None) -> int:
         continuous_n_boot=args.continuous_n_boot,
         components_n_boot=args.components_n_boot,
         skip_gpd_components=args.skip_gpd_components,
+        year_fe_n_boot=args.year_fe_n_boot,
+        skip_year_fe_diagnostic=args.skip_year_fe_diagnostic,
     )
     print(f"wrote analysis outputs to {args.out_root}/")
     return 0

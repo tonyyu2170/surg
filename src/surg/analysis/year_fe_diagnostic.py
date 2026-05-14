@@ -182,3 +182,73 @@ def bootstrap_secular_component(
             "n_boot_converged": int(len(diffs)),
         }
     return out
+
+
+def run_year_fe_diagnostic(
+    panel: pd.DataFrame,
+    out_path: Path,
+    *,
+    pnode_label: str,
+    response_col: str,
+    z_col: str = "dom_load_gradient_abs_mw_per_min",
+    taus: tuple[float, ...] = (0.90, 0.95, 0.99),
+    pct_list: tuple[float, ...] = (0.90, 0.95, 0.99),
+    n_boot: int = 200,
+    seed: int = 0,
+) -> None:
+    """Run three-layer year-FE diagnostic for one pnode. Writes JSON at out_path."""
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    layer1 = compute_raw_per_year_stats(
+        panel, response_col=response_col,
+        year_col="datetime_beginning_ept",
+        pct_list=pct_list,
+    )
+    layer2 = bootstrap_year_dummy_coefs(
+        panel, response_col=response_col, z_col=z_col,
+        year_col="datetime_beginning_ept",
+        taus=taus, n_boot=n_boot, seed=seed,
+    )
+    layer3 = bootstrap_secular_component(
+        panel, response_col=response_col, z_col=z_col,
+        year_col="datetime_beginning_ept",
+        taus=taus, n_boot=n_boot, seed=seed + 50,
+    )
+
+    payload = {
+        "pnode_label": pnode_label,
+        "response_col": response_col,
+        "z_col": z_col,
+        "taus": list(taus),
+        "n_total_panel": int(len(panel)),
+        "n_after_dropna": int(panel.dropna(subset=[response_col, z_col]).shape[0]),
+        "layer1_raw_per_year": layer1,
+        "layer2_year_dummy_bootstrap": layer2,
+        "layer3_secular_component_bootstrap": layer3,
+        "layer2_label": "PER-YEAR LEVEL SHIFTS — descriptive supplementary, not a trend test",
+        "layer3_label": "SECULAR-COMPONENT TREND TEST — primary_z_slope - year_fe_z_slope per τ",
+    }
+    out_path.write_text(json.dumps(payload, indent=2))
+
+
+def write_cross_pnode_summary(out_dir: Path, pnode_labels: tuple[str, ...]) -> None:
+    """Aggregate per-pnode year_fe_diagnostic JSONs into one flat table."""
+    rows: list[dict] = []
+    for label in pnode_labels:
+        path = out_dir / f"{label}.json"
+        if not path.exists():
+            continue
+        payload = json.loads(path.read_text())
+        for tau_key, l3 in payload.get("layer3_secular_component_bootstrap", {}).items():
+            if isinstance(l3, dict) and "secular_component_point" in l3:
+                rows.append({
+                    "pnode_label": label,
+                    "tau_key": tau_key,
+                    "primary_z_slope": l3["primary_z_slope"],
+                    "year_fe_z_slope": l3["year_fe_z_slope"],
+                    "secular_component_point": l3["secular_component_point"],
+                    "secular_component_ci": l3["secular_component_ci"],
+                })
+    (out_dir / "cross_pnode_summary.json").write_text(
+        json.dumps({"rows": rows}, indent=2)
+    )

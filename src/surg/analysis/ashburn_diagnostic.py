@@ -100,3 +100,36 @@ def loo_beta_distribution(
         top5_influential_indices=top5,
         full_sample_percentile_in_loo=pct,
     )
+
+
+def extract_threshold_sweep_summary(
+    *,
+    spec_b_json_path: Path,
+    threshold_qs: tuple[float, ...] = (0.90, 0.95, 0.99, 0.995),
+) -> dict:
+    """Pull Spec B linear-form β₁ + CI for a pnode at each threshold quantile."""
+    payload = json.loads(spec_b_json_path.read_text())
+    entries: list[dict] = []
+    for q in threshold_qs:
+        match = next(
+            (e for e in payload.get("threshold_sweep", [])
+             if abs(e.get("threshold_quantile", -1) - q) < 1e-6),
+            None,
+        )
+        if match is None or "linear" not in match:
+            continue
+        lin = match["linear"]
+        beta_1 = lin["shape_coefficients"][1] if lin.get("convergence_status") == "converged" else None
+        ci_pair = lin.get("shape_coefficients_bootstrap_ci_95")
+        beta_1_ci = ci_pair[1] if (ci_pair is not None and len(ci_pair) > 1) else None
+        entries.append({
+            "threshold_quantile": q,
+            "beta_1": beta_1,
+            "beta_1_ci_95": beta_1_ci,
+            "convergence_status": lin.get("convergence_status"),
+        })
+    return {
+        "pnode_label": payload.get("pnode_label"),
+        "response_col": payload.get("response_col"),
+        "entries": entries,
+    }

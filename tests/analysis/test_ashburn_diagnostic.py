@@ -49,3 +49,38 @@ def test_loo_beta_distribution_top5_sorted_descending_by_delta():
     top5 = result.top5_influential_indices
     sorted_top5 = sorted(top5, key=lambda i: -abs(deltas[i]))
     assert list(top5) == sorted_top5
+
+
+def _make_spec_b_json_fixture(tmp_path: Path, pnode: str) -> Path:
+    path = tmp_path / f"{pnode}.json"
+    path.write_text(json.dumps({
+        "response_col": f"total_lmp_rt_{pnode}",
+        "pnode_label": pnode,
+        "threshold_sweep": [
+            {"threshold_quantile": 0.90, "linear": {"shape_coefficients": [0.5, -0.01],
+              "shape_coefficients_bootstrap_ci_95": [[0.3, 0.7], [-0.02, 0.001]],
+              "convergence_status": "converged"}},
+            {"threshold_quantile": 0.95, "linear": {"shape_coefficients": [0.6, -0.025],
+              "shape_coefficients_bootstrap_ci_95": [[0.4, 0.8], [-0.049, -0.004]],
+              "convergence_status": "converged"}},
+            {"threshold_quantile": 0.99, "linear": {"shape_coefficients": [0.7, 0.09],
+              "shape_coefficients_bootstrap_ci_95": [[0.5, 0.9], [0.01, 0.17]],
+              "convergence_status": "converged"}},
+        ],
+    }, indent=2))
+    return path
+
+
+def test_extract_threshold_sweep_summary_parses_spec_b_json(tmp_path: Path):
+    from surg.analysis.ashburn_diagnostic import extract_threshold_sweep_summary
+
+    json_path = _make_spec_b_json_fixture(tmp_path, "ashburn_tx1")
+    summary = extract_threshold_sweep_summary(
+        spec_b_json_path=json_path,
+        threshold_qs=(0.90, 0.95, 0.99),
+    )
+    assert summary["pnode_label"] == "ashburn_tx1"
+    assert len(summary["entries"]) == 3
+    entry_99 = next(e for e in summary["entries"] if e["threshold_quantile"] == 0.99)
+    assert entry_99["beta_1"] == 0.09
+    assert entry_99["beta_1_ci_95"] == [0.01, 0.17]

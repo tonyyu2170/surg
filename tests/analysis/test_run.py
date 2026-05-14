@@ -44,12 +44,16 @@ def test_run_all_writes_all_outputs(tmp_path: Path):
         panel[col] = synth_extra["Y"].values
 
     run_all(
-        panel=panel, events=events,
+        panel=panel,
+        events=events,
         out_root=out_root,
         n_boot=30,  # fast
         n_subsample_reps=10,
+        qr_full_n_boot=5,
+        gpd_n_boot=5,
     )
     expected_paths = {
+        # Existing TAR (one per pnode)
         out_root / "tar" / "primary.json",
         out_root / "tar" / "total_lmp.json",
         out_root / "tar" / "ox.json",
@@ -57,9 +61,26 @@ def test_run_all_writes_all_outputs(tmp_path: Path):
         out_root / "tar" / "dom_zonal.json",
         out_root / "tar" / "ashburn_tx1.json",
         out_root / "tar" / "ashburn_tx2.json",
+        # Existing QR / mechanism / robustness
         out_root / "qr" / "filtered_at_tar_c.json",
         out_root / "mechanism" / "validation.json",
         out_root / "robustness" / "subsample_bootstrap.parquet",
+        # NEW: QR-full (one per pnode)
+        out_root / "qr_full" / "primary.json",
+        out_root / "qr_full" / "total_lmp.json",
+        out_root / "qr_full" / "ox.json",
+        out_root / "qr_full" / "bristers.json",
+        out_root / "qr_full" / "dom_zonal.json",
+        out_root / "qr_full" / "ashburn_tx1.json",
+        out_root / "qr_full" / "ashburn_tx2.json",
+        # NEW: GPD (one per pnode)
+        out_root / "gpd" / "primary.json",
+        out_root / "gpd" / "total_lmp.json",
+        out_root / "gpd" / "ox.json",
+        out_root / "gpd" / "bristers.json",
+        out_root / "gpd" / "dom_zonal.json",
+        out_root / "gpd" / "ashburn_tx1.json",
+        out_root / "gpd" / "ashburn_tx2.json",
     }
     for p in expected_paths:
         assert p.exists(), f"expected output not written: {p}"

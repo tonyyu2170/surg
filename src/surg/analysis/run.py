@@ -11,6 +11,8 @@ import pandas as pd
 from surg.analysis.panel import load_panel
 from surg.analysis.tar import run_tar
 from surg.analysis.qr import run_qr
+from surg.analysis.qr_full import run_qr_full
+from surg.analysis.gpd import run_gpd
 from surg.analysis.mechanism import run_mechanism
 from surg.analysis.robustness import subsample_bootstrap
 from surg.preprocessing.loaders import load_sync_reserve_events
@@ -38,18 +40,18 @@ def run_all(
     *,
     n_boot: int = 1000,
     n_subsample_reps: int = 200,
+    qr_full_n_boot: int = 200,
+    gpd_n_boot: int = 200,
 ) -> None:
     """Run the full Phase 3 analysis pipeline.
 
     Output layout (per-method subdirectories):
-      - outputs/tar/<pnode_label>.json
-      - outputs/qr/filtered_at_tar_c.json   (filtered subset, at TAR's primary c_hat)
+      - outputs/tar/<pnode_label>.json                          (Hansen TAR)
+      - outputs/qr/filtered_at_tar_c.json                       (QR at TAR's ĉ, filtered)
+      - outputs/qr_full/<pnode_label>.json                      (Strategy C QR-full)
+      - outputs/gpd/<pnode_label>.json                          (Strategy C GPD)
       - outputs/mechanism/validation.json
       - outputs/robustness/subsample_bootstrap.parquet
-
-    Future Strategy C methods (qr_full, gpd) wire in here after the existing
-    fits land. They are added in subsequent tasks; this function currently
-    only covers the reorganization of the existing pipeline.
     """
     out_root.mkdir(parents=True, exist_ok=True)
 
@@ -91,6 +93,25 @@ def run_all(
         n_reps=n_subsample_reps,
     )
 
+    # Strategy C methods: QR-full + GPD per pnode, full panel (no filter)
+    for label, col in PNODE_RESPONSES.items():
+        if panel[col].dropna().empty:
+            continue
+        run_qr_full(
+            panel=panel,
+            out_path=out_root / "qr_full" / f"{label}.json",
+            response_col=col,
+            pnode_label=label,
+            n_boot=qr_full_n_boot,
+        )
+        run_gpd(
+            panel=panel,
+            out_path=out_root / "gpd" / f"{label}.json",
+            response_col=col,
+            pnode_label=label,
+            n_boot=gpd_n_boot,
+        )
+
     # Note: leave_one_season_out (robustness.py) is intentionally NOT called
     # from run_all per the plan's "Out of scope" section — the panel does not
     # yet carry an explicit _season_id column. The function remains importable
@@ -112,6 +133,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    help="Number of bootstrap reps for Hansen test + CI.")
     p.add_argument("--n-subsample-reps", type=int, default=200,
                    help="Subsample bootstrap reps for c_hat CI.")
+    p.add_argument("--qr-full-n-boot", type=int, default=200,
+                   help="Bootstrap reps for QR-full slope CI.")
+    p.add_argument("--gpd-n-boot", type=int, default=200,
+                   help="Bootstrap reps for GPD shape CI and conditional p-value.")
     return p
 
 
@@ -128,6 +153,8 @@ def main(argv: list[str] | None = None) -> int:
         out_root=Path(args.out_root),
         n_boot=args.n_boot,
         n_subsample_reps=args.n_subsample_reps,
+        qr_full_n_boot=args.qr_full_n_boot,
+        gpd_n_boot=args.gpd_n_boot,
     )
     print(f"wrote analysis outputs to {args.out_root}/")
     return 0

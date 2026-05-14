@@ -135,6 +135,91 @@ def extract_threshold_sweep_summary(
     }
 
 
+def _nan_to_none(x: float | None) -> float | None:
+    if x is None:
+        return None
+    if isinstance(x, float) and (math.isnan(x) or math.isinf(x)):
+        return None
+    return float(x)
+
+
+def _loo_to_dict(r: LOOResult) -> dict:
+    return {
+        "pnode_label": r.pnode_label,
+        "threshold_quantile": r.threshold_quantile,
+        "n_exc": r.n_exc,
+        "full_sample_beta_1": _nan_to_none(r.full_sample_beta_1),
+        "loo_beta_1_distribution": [_nan_to_none(b) for b in r.loo_beta_1_distribution],
+        "delta_beta_1_per_exceedance": [_nan_to_none(d) for d in r.delta_beta_1_per_exceedance],
+        "top5_influential_indices": list(r.top5_influential_indices),
+        "full_sample_percentile_in_loo": _nan_to_none(r.full_sample_percentile_in_loo),
+    }
+
+
+def run_ashburn_diagnostic(
+    panel: pd.DataFrame,
+    out_dir: Path,
+    *,
+    pnode_labels: tuple[str, ...] = ("ashburn_tx1", "ashburn_tx2"),
+    threshold_quantiles: tuple[float, ...] = (0.90, 0.95, 0.99, 0.995),
+    spec_b_results_dir: Path | None = None,
+    z_col: str = "dom_load_gradient_abs_mw_per_min",
+    response_col_template: str = "total_lmp_rt_{pnode}",
+    seed: int = 0,
+) -> None:
+    """Orchestrator for sub-q1 closure item #4 — Ashburn diagnostic."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    spec_b_dir = spec_b_results_dir if spec_b_results_dir is not None else Path("outputs/gpd_continuous")
+
+    # Per-pnode LOO across thresholds.
+    pnode_response_cols: dict[str, str] = {}
+    fitted_slopes: dict[str, dict[float, float]] = {}
+    cross_summary: list[dict] = []
+
+    for pnode in pnode_labels:
+        col = response_col_template.format(pnode=pnode)
+        if col not in panel.columns or panel[col].dropna().empty:
+            continue
+        pnode_response_cols[pnode] = col
+        loo_results: list[dict] = []
+        for q in threshold_quantiles:
+            r = loo_beta_distribution(
+                panel=panel, response_col=col, z_col=z_col,
+                threshold_quantile=q, pnode_label=pnode,
+            )
+            loo_results.append(_loo_to_dict(r))
+        (out_dir / f"{pnode.replace('ashburn_', '')}_loo.json").write_text(
+            json.dumps({"pnode_label": pnode, "results": loo_results}, indent=2)
+        )
+
+        # Cross-threshold summary from existing Spec B JSON (if present).
+        spec_b_path = spec_b_dir / f"{pnode}.json"
+        if spec_b_path.exists():
+            summary = extract_threshold_sweep_summary(
+                spec_b_json_path=spec_b_path,
+                threshold_qs=threshold_quantiles,
+            )
+            cross_summary.append(summary)
+            fitted_slopes[pnode] = {
+                e["threshold_quantile"]: e["beta_1"]
+                for e in summary["entries"]
+                if e["beta_1"] is not None
+            }
+
+    (out_dir / "cross_threshold_summary.json").write_text(
+        json.dumps({"pnodes": cross_summary}, indent=2)
+    )
+
+    plot_lmp_vs_z_scatter(
+        panel=panel,
+        pnode_response_cols=pnode_response_cols,
+        z_col=z_col,
+        threshold_qs=threshold_quantiles,
+        out_path=out_dir / "scatter_overlay.png",
+        fitted_slopes=fitted_slopes,
+    )
+
+
 def plot_lmp_vs_z_scatter(
     panel: pd.DataFrame,
     *,

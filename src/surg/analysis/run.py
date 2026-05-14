@@ -16,6 +16,7 @@ from surg.analysis.gpd import run_gpd, run_conditional_z_robustness
 from surg.analysis.gpd_continuous import run_gpd_continuous_z
 from surg.analysis.gpd_components import run_gpd_components
 from surg.analysis.year_fe_diagnostic import run_year_fe_diagnostic, write_cross_pnode_summary
+from surg.analysis.ashburn_diagnostic import run_ashburn_diagnostic
 from surg.analysis.mechanism import run_mechanism
 from surg.analysis.robustness import subsample_bootstrap
 from surg.preprocessing.loaders import load_sync_reserve_events
@@ -50,6 +51,8 @@ def run_all(
     skip_gpd_components: bool = False,
     year_fe_n_boot: int = 200,
     skip_year_fe_diagnostic: bool = False,
+    skip_ashburn_diagnostic: bool = False,
+    ashburn_loo_skip: bool = False,
 ) -> None:
     """Run the full Phase 3 analysis pipeline.
 
@@ -174,6 +177,18 @@ def run_all(
             pnode_labels_processed.append(label)
         write_cross_pnode_summary(out_root / "year_fe_diagnostic", tuple(pnode_labels_processed))
 
+    # Sub-q1 closure item #4: Ashburn TX1 anomaly diagnostic (descriptive).
+    if not skip_ashburn_diagnostic:
+        out_subdir = out_root / "ashburn_diagnostic"
+        if ashburn_loo_skip and (out_subdir / "tx1_loo.json").exists():
+            pass
+        else:
+            run_ashburn_diagnostic(
+                panel=panel,
+                out_dir=out_subdir,
+                spec_b_results_dir=out_root / "gpd_continuous",
+            )
+
     # Note: leave_one_season_out (robustness.py) is intentionally NOT called
     # from run_all per the plan's "Out of scope" section — the panel does not
     # yet carry an explicit _season_id column. The function remains importable
@@ -209,6 +224,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    help="Bootstrap reps for sub-q1 item #3 year-FE secular diagnostic.")
     p.add_argument("--skip-year-fe-diagnostic", action="store_true",
                    help="Skip sub-q1 item #3 (year_fe_diagnostic) orchestrator.")
+    p.add_argument("--skip-ashburn-diagnostic", action="store_true",
+                   help="Skip sub-q1 item #4 (ashburn_diagnostic) orchestrator.")
+    p.add_argument("--ashburn-loo-skip", action="store_true",
+                   help="Soft idempotency: skip ashburn LOO if outputs already exist.")
     return p
 
 
@@ -232,6 +251,8 @@ def main(argv: list[str] | None = None) -> int:
         skip_gpd_components=args.skip_gpd_components,
         year_fe_n_boot=args.year_fe_n_boot,
         skip_year_fe_diagnostic=args.skip_year_fe_diagnostic,
+        skip_ashburn_diagnostic=args.skip_ashburn_diagnostic,
+        ashburn_loo_skip=args.ashburn_loo_skip,
     )
     print(f"wrote analysis outputs to {args.out_root}/")
     return 0

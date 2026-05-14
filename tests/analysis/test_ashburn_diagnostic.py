@@ -103,3 +103,25 @@ def test_plot_lmp_vs_z_scatter_writes_nonempty_png(tmp_path: Path):
     )
     assert out_path.exists()
     assert out_path.stat().st_size > 0
+
+
+def test_run_ashburn_diagnostic_writes_all_outputs(tmp_path: Path):
+    from surg.analysis.ashburn_diagnostic import run_ashburn_diagnostic
+
+    panel = _ashburn_fixture(n_rows=2000, seed=5)
+    spec_b_dir = tmp_path / "gpd_continuous"
+    spec_b_dir.mkdir()
+    _make_spec_b_json_fixture(spec_b_dir, "ashburn_tx1")
+    _make_spec_b_json_fixture(spec_b_dir, "ashburn_tx2")
+
+    out_dir = tmp_path / "ashburn_diagnostic"
+    run_ashburn_diagnostic(
+        panel=panel,
+        out_dir=out_dir,
+        spec_b_results_dir=spec_b_dir,
+        threshold_quantiles=(0.90, 0.95),  # smaller for test speed
+    )
+    assert (out_dir / "tx1_loo.json").exists()
+    assert (out_dir / "tx2_loo.json").exists()
+    assert (out_dir / "cross_threshold_summary.json").exists()
+    assert (out_dir / "scatter_overlay.png").exists()

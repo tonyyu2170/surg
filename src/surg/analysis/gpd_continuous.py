@@ -22,6 +22,7 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 from scipy import optimize as _optimize
+from scipy import stats
 
 from surg.analysis.gpd import fit_gpd
 
@@ -363,3 +364,64 @@ def fit_gpd_continuous_z(
         headline_p_value=p_two_sided,
         convergence_status="converged",
     )
+
+
+def _likelihood_ratio_test(
+    linear_result: GPDContinuousFitResult,
+    spline_result: GPDContinuousFitResult,
+    Y: np.ndarray,
+    Z: np.ndarray,
+    *,
+    threshold: float,
+) -> dict:
+    """Likelihood-ratio test for nested non-stationary GPD models.
+
+    Tests H0: spline-extra-DOF = 0 (i.e., linear is adequate) vs H1: spline.
+
+    LRT statistic: chi² = 2 · (NLL_linear − NLL_spline). Asymptotic χ²
+    distribution with df = (spline DOF) − (linear DOF) = 4 − 2 = 2.
+
+    Only the primary fit coefficients are used; bootstrap results are not
+    needed. Accepts both "converged" and "insufficient_bootstrap_reps" statuses
+    (primary params are finite in both cases). Returns NaN values and df=2 if
+    either fit has status "failed" (NaN primary params).
+    """
+    _VALID_STATUSES = {"converged", "insufficient_bootstrap_reps"}
+    out = {"df": 2, "chi2": float("nan"), "asymptotic_p_value": float("nan")}
+    if (linear_result.convergence_status not in _VALID_STATUSES
+            or spline_result.convergence_status not in _VALID_STATUSES):
+        return out
+
+    Y_arr = np.asarray(Y, dtype=float)
+    Z_arr = np.asarray(Z, dtype=float)
+    exceed_mask = Y_arr > threshold
+    Y_exc = Y_arr[exceed_mask] - threshold
+    Z_exc = Z_arr[exceed_mask]
+
+    # Reconstruct NLL at the fitted params for both forms
+    X_xi_lin = _design_matrix(Z_exc, form="linear")
+    X_sigma_lin = _design_matrix(Z_exc, form="linear", for_scale=True)
+    params_lin = np.array(
+        list(linear_result.shape_coefficients) + list(linear_result.scale_coefficients)
+    )
+    nll_linear = _neg_log_likelihood_nonstationary_gpd(
+        params_lin, Y_exc, X_xi_lin, X_sigma_lin,
+    )
+
+    X_xi_spl = _design_matrix(Z_exc, form="spline")
+    X_sigma_spl = _design_matrix(Z_exc, form="spline", for_scale=True)
+    params_spl = np.array(
+        list(spline_result.shape_coefficients) + list(spline_result.scale_coefficients)
+    )
+    nll_spline = _neg_log_likelihood_nonstationary_gpd(
+        params_spl, Y_exc, X_xi_spl, X_sigma_spl,
+    )
+
+    if not (math.isfinite(nll_linear) and math.isfinite(nll_spline)):
+        return out
+
+    chi2 = max(0.0, 2.0 * (nll_linear - nll_spline))
+    asymptotic_p = float(1.0 - stats.chi2.cdf(chi2, df=2))
+    out["chi2"] = float(chi2)
+    out["asymptotic_p_value"] = asymptotic_p
+    return out

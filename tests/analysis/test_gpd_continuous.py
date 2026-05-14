@@ -12,6 +12,7 @@ from surg.analysis.gpd_continuous import (
     _design_matrix,
     _initial_params,
     _neg_log_likelihood_nonstationary_gpd,
+    _likelihood_ratio_test,
     fit_gpd_continuous_z,
 )
 
@@ -324,3 +325,83 @@ def test_fit_gpd_continuous_z_returns_failed_status_on_zero_exceedances():
     for c in result.shape_coefficients:
         assert math.isnan(c)
     assert math.isnan(result.headline_p_value)
+
+
+def test_likelihood_ratio_test_under_null_returns_high_p_value():
+    """When DGP is linear, the LRT should not reject the linear-null in favor of spline."""
+    rng = np.random.default_rng(seed=42)
+    n = 3000
+    Z = rng.uniform(1.0, 10.0, size=n)
+    Y = stats.genpareto.rvs(c=0.3, scale=2.0, size=n, random_state=rng)
+
+    linear_result = fit_gpd_continuous_z(Y, Z, threshold=0.0, form="linear", n_boot=50, seed=0)
+    spline_result = fit_gpd_continuous_z(Y, Z, threshold=0.0, form="spline", n_boot=50, seed=0)
+    lrt = _likelihood_ratio_test(linear_result, spline_result, Y, Z, threshold=0.0)
+
+    assert lrt["df"] == 2  # spline (4 DOF shape) - linear (2 DOF shape)
+    # Under null, asymptotic p should be > 0.05
+    assert lrt["asymptotic_p_value"] > 0.05, \
+        f"False rejection of linear null: p={lrt['asymptotic_p_value']}"
+    assert lrt["chi2"] >= 0, f"LRT chi² should be non-negative: {lrt['chi2']}"
+
+
+def test_likelihood_ratio_test_with_strongly_nonlinear_dgp_rejects_linear():
+    """When DGP has a strongly cubic ξ(Z), LRT should reject linear in favor of spline."""
+    rng = np.random.default_rng(seed=42)
+    n = 6000
+    Z = rng.uniform(1.0, 10.0, size=n)
+    # Strongly cubic shape: ξ(Z) = 0.2 + 0.3·Z - 0.06·Z² + 0.003·Z³
+    # (coefficients scaled 3x so the hump amplitude is ~0.44, not ~0.15 —
+    # a 0.15-range hump is nearly indistinguishable from a line at this sample size)
+    Y = np.empty(n)
+    for i in range(n):
+        xi_i = 0.2 + 0.3 * Z[i] - 0.06 * Z[i] ** 2 + 0.003 * Z[i] ** 3
+        # Clamp to safe MLE range
+        xi_i = max(-0.4, min(xi_i, 0.8))
+        Y[i] = stats.genpareto.rvs(c=xi_i, scale=2.0, size=1, random_state=rng)[0]
+
+    linear_result = fit_gpd_continuous_z(Y, Z, threshold=0.0, form="linear", n_boot=50, seed=0)
+    spline_result = fit_gpd_continuous_z(Y, Z, threshold=0.0, form="spline", n_boot=50, seed=0)
+    lrt = _likelihood_ratio_test(linear_result, spline_result, Y, Z, threshold=0.0)
+
+    # Strong non-linearity should produce small p (we use 0.10 cutoff for tolerance)
+    assert lrt["asymptotic_p_value"] < 0.10, \
+        f"Failed to detect non-linearity: p={lrt['asymptotic_p_value']}, chi2={lrt['chi2']}"
+
+
+def test_likelihood_ratio_test_handles_failed_fits():
+    """If either input fit has status != 'converged', LRT returns NaN values
+    rather than crashing."""
+    # Construct a failed linear-result (NaN shape coefficients)
+    nan_ci = tuple((float("nan"), float("nan")) for _ in range(2))
+    failed_result = GPDContinuousFitResult(
+        form="linear",
+        threshold_quantile=0.95,
+        threshold_value=10.0,
+        n_exceedances=10,
+        shape_coefficients=(float("nan"), float("nan")),
+        shape_coefficients_bootstrap_ci_95=nan_ci,
+        scale_coefficients=(float("nan"), float("nan")),
+        scale_coefficients_bootstrap_ci_95=((float("nan"), float("nan")),) * 2,
+        headline_slope_or_lrt=float("nan"),
+        headline_p_value=float("nan"),
+        convergence_status="failed",
+    )
+    spline_ok = GPDContinuousFitResult(
+        form="spline",
+        threshold_quantile=0.95,
+        threshold_value=10.0,
+        n_exceedances=10,
+        shape_coefficients=(0.3, 0.0, 0.0, 0.0),
+        shape_coefficients_bootstrap_ci_95=((0, 0),) * 4,
+        scale_coefficients=(0.69, 0.0),
+        scale_coefficients_bootstrap_ci_95=((0, 0),) * 2,
+        headline_slope_or_lrt=0.0,
+        headline_p_value=1.0,
+        convergence_status="converged",
+    )
+
+    lrt = _likelihood_ratio_test(failed_result, spline_ok, np.zeros(10), np.zeros(10), threshold=0.0)
+    assert math.isnan(lrt["chi2"])
+    assert math.isnan(lrt["asymptotic_p_value"])
+    assert lrt["df"] == 2

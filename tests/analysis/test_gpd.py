@@ -56,3 +56,29 @@ def test_fit_gpd_threshold_above_max_raises():
     Y = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
     with pytest.raises(ValueError, match="threshold"):
         fit_gpd(Y, threshold=100.0)
+
+
+def test_fit_gpd_nan_se_when_shape_below_regularity_boundary():
+    """When the data force a heavy-negative shape (shape ≤ -0.5), the
+    asymptotic SE is undefined (regularity condition violated). Both SEs
+    should be NaN in that case.
+
+    Bounded uniform data typically yields a strongly negative shape from
+    scipy's GPD MLE.
+    """
+    rng = np.random.default_rng(seed=42)
+    Y = rng.uniform(0.0, 1.0, size=2000)
+
+    result = fit_gpd(Y, threshold=0.0)
+
+    if result.shape <= -0.5:
+        assert math.isnan(result.shape_se), \
+            f"shape_se should be NaN when shape={result.shape:.4f} ≤ -0.5"
+        assert math.isnan(result.scale_se), \
+            f"scale_se should be NaN when shape={result.shape:.4f} ≤ -0.5"
+    else:
+        # Not strictly testing the NaN branch — scipy returned a less-extreme
+        # shape than expected; just verify the regular SE branch produced
+        # finite values (the alternative path).
+        assert math.isfinite(result.shape_se)
+        assert math.isfinite(result.scale_se)

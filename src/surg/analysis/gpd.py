@@ -21,9 +21,9 @@ from scipy import stats
 class GPDFitResult:
     """Point-estimate result from a single GPD fit at one threshold.
 
-    `shape_bootstrap_ci_95` is `(nan, nan)` on a bare fit_gpd call; it
-    is filled in by `gpd_threshold_sweep` and `gpd_conditional_on_z`
-    which wrap fit_gpd with a bootstrap loop.
+    `shape_bootstrap_ci_95` is `(nan, nan)` on a bare fit_gpd call;
+    `gpd_threshold_sweep` and `gpd_conditional_on_z` return new
+    `GPDFitResult` instances with the bootstrap CI populated.
     """
     threshold_quantile: float
     threshold_value: float
@@ -46,6 +46,10 @@ def fit_gpd(Y: np.ndarray | pd.Series, *, threshold: float) -> GPDFitResult:
     fewer than 10 exceedances remain (fit is too noisy to be useful).
     """
     Y_arr = np.asarray(Y, dtype=float)
+    if not np.isfinite(Y_arr).all():
+        raise ValueError(
+            "Y contains non-finite values (NaN or inf); caller must drop them first"
+        )
     if not np.isfinite(threshold):
         raise ValueError(f"threshold must be finite, got {threshold}")
     if threshold > Y_arr.max():

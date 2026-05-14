@@ -34,7 +34,10 @@ def test_run_all_writes_all_outputs(tmp_path: Path):
     # so all fits succeed
     for col in [
         "total_lmp_rt_cluster_mean",
+        "system_energy_price_rt_cluster_mean",
+        "marginal_loss_price_rt_cluster_mean",
         "congestion_price_rt_ashburn_tx1", "congestion_price_rt_ashburn_tx2",
+        "total_lmp_rt_ashburn_tx1", "total_lmp_rt_ashburn_tx2",
         "congestion_price_rt_ox", "congestion_price_rt_bristers",
         "congestion_price_rt_dom_zonal",
     ]:
@@ -52,6 +55,8 @@ def test_run_all_writes_all_outputs(tmp_path: Path):
         qr_full_n_boot=5,
         gpd_n_boot=5,
         continuous_n_boot=5,
+        components_n_boot=5,
+        year_fe_n_boot=5,
     )
     expected_paths = {
         # Existing TAR (one per pnode)
@@ -93,6 +98,25 @@ def test_run_all_writes_all_outputs(tmp_path: Path):
         out_root / "gpd_continuous" / "ashburn_tx1.json",
         out_root / "gpd_continuous" / "ashburn_tx2.json",
         out_root / "gpd_continuous" / "headline.json",
+        # Sub-q1 closure item #2 — LMP-components decomposition
+        out_root / "gpd_components" / "headline.json",
+        out_root / "gpd_components" / "primary_cluster_supplementary.json",
+        out_root / "gpd_components" / "cross_pnode.json",
+        out_root / "gpd_components" / "threshold_sweep.json",
+        # Sub-q1 closure item #3 — year-FE diagnostic per pnode + cross-pnode summary
+        out_root / "year_fe_diagnostic" / "primary.json",
+        out_root / "year_fe_diagnostic" / "total_lmp.json",
+        out_root / "year_fe_diagnostic" / "ox.json",
+        out_root / "year_fe_diagnostic" / "bristers.json",
+        out_root / "year_fe_diagnostic" / "dom_zonal.json",
+        out_root / "year_fe_diagnostic" / "ashburn_tx1.json",
+        out_root / "year_fe_diagnostic" / "ashburn_tx2.json",
+        out_root / "year_fe_diagnostic" / "cross_pnode_summary.json",
+        # Sub-q1 closure item #4 — Ashburn diagnostic
+        out_root / "ashburn_diagnostic" / "tx1_loo.json",
+        out_root / "ashburn_diagnostic" / "tx2_loo.json",
+        out_root / "ashburn_diagnostic" / "cross_threshold_summary.json",
+        out_root / "ashburn_diagnostic" / "scatter_overlay.png",
     }
     for p in expected_paths:
         assert p.exists(), f"expected output not written: {p}"

@@ -1,0 +1,58 @@
+"""Unit tests for src/surg/analysis/gpd.py — Strategy C GPD module."""
+from __future__ import annotations
+
+import math
+
+import numpy as np
+import pytest
+from scipy import stats
+
+from surg.analysis.gpd import GPDFitResult, fit_gpd
+
+
+def test_fit_gpd_recovers_planted_shape_and_scale():
+    """fit_gpd with simulated GPD data should recover the planted parameters
+    to within tolerance proportional to sqrt(n_exceedances)."""
+    rng = np.random.default_rng(seed=42)
+    true_shape, true_scale = 0.3, 2.0
+    threshold = 10.0
+    # Generate exceedances and shift by threshold so the data is "above threshold"
+    excess = stats.genpareto.rvs(c=true_shape, scale=true_scale, size=5000, random_state=rng)
+    Y = excess + threshold
+    # Pad with a few below-threshold observations so fit_gpd has something to filter
+    Y_full = np.concatenate([Y, rng.uniform(0, threshold - 0.1, size=200)])
+
+    result = fit_gpd(Y_full, threshold=threshold)
+
+    assert isinstance(result, GPDFitResult)
+    assert result.n_exceedances == 5000
+    assert result.threshold_value == pytest.approx(10.0)
+    assert result.threshold_quantile == pytest.approx(200 / 5200, abs=0.01)
+    # Recovery tolerance: ~0.1 for shape with n=5000 (asymptotic SE ≈ 0.018)
+    assert result.shape == pytest.approx(true_shape, abs=0.1)
+    assert result.scale == pytest.approx(true_scale, abs=0.3)
+    # Asymptotic SE should be positive and finite
+    assert result.shape_se > 0
+    assert math.isfinite(result.shape_se)
+    assert result.scale_se > 0
+    assert math.isfinite(result.scale_se)
+
+
+def test_fit_gpd_recovers_xi_near_zero_for_exponential():
+    """fit_gpd on exponential data (a special case of GPD with shape=0) should
+    return shape close to zero."""
+    rng = np.random.default_rng(seed=42)
+    # Exponential with rate 1/5 (mean=5), shifted to be "above threshold 0"
+    Y = rng.exponential(scale=5.0, size=5000) + 0.001  # tiny offset to avoid zeros
+
+    result = fit_gpd(Y, threshold=0.0)
+
+    assert abs(result.shape) < 0.1, f"shape too far from 0: {result.shape}"
+    assert result.scale == pytest.approx(5.0, abs=0.5)
+
+
+def test_fit_gpd_threshold_above_max_raises():
+    """If threshold > max(Y), there are zero exceedances and the fit is ill-defined."""
+    Y = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    with pytest.raises(ValueError, match="threshold"):
+        fit_gpd(Y, threshold=100.0)

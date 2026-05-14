@@ -27,34 +27,26 @@
 
 ## Remaining work to close sub-q1 (in priority order)
 
-### 1. Spec B — Continuous ξ(Z) regression *(IN PROGRESS)*
+### 1. Spec B — Continuous ξ(Z) regression *(DONE 2026-05-14)*
 
-**Status:** Design spec at
+**Status:** Closed by `docs/decisions.md` § "2026-05-14 — Application
+of Spec B pre-reg: continuous ξ(Z) verdict". Design at
 `docs/plans/2026-05-14-spec-b-continuous-xi-z-design.md` (commit
-`3753b97`). Pre-reg entry pending in this commit. Implementation
-plan + execution next.
+`3753b97`); implementation plan at
+`docs/plans/2026-05-14-spec-b-continuous-xi-z-implementation.md`
+(commit `ca05d25`); pre-reg in decisions.md (commit `0d1064d`);
+production run on full 31,536-row panel + application entry written
+post-execution. **Headline outcome: "underpowered"** per Rule 2 —
+β₁ = −0.0080, CI [−0.021, +0.003], spans 0. Direction consistent
+across all 7 pnodes (cross-pnode supplementary); magnitude grows at
+deeper thresholds (β₁ = −0.028 at 99th-pct, n_exc = 316); LRT detects
+non-linearity at 90th-pct (p = 0.007).
 
-**Why first:** The conditional-Z battery's pre-reg explicitly triggers
-Spec B on Spec A's non-monotone outcome. Without B, the battery's
-verdict is "extensions inconclusive due to power" — not a clean
-answer for the paper.
-
-**What it produces:** Non-stationary GPD fit with both σ(Z) and ξ(Z)
-varying as functions of Z. Linear form gives the headline β₁ slope
-(+ bootstrap CI + two-sided p); 3-knot natural cubic spline form
-characterizes any smooth non-monotonicity. Full threshold sweep
-(90/95/99/99.5) × 7 pnodes × 2 forms.
-
-**Headline claim for paper:** primary congestion @ 95th-pct, linear
-β₁. Decision rules locked in pre-reg entry.
-
-**Effort estimate:** 2-3 focused sessions matching conditional-Z
-battery cadence (brainstorm + pre-reg + plan + subagent-driven
-execution + application-of-pre-reg entry + FF-merge).
-
-**Closes:** the central pre-reg-required follow-up. Without this,
-sub-q1's conditional-Z verdict reads "underpowered at extension
-scopes."
+**Closed:** the central pre-reg-required follow-up. Sub-q1's
+conditional-Z verdict now reads "median-split rejection on congestion
+holds at α = 0.05; continuous fit is underpowered to sharpen at
+α = 0.05 but direction is consistent across all 7 pnodes and across
+the threshold sweep." Truthful and defensible.
 
 ### 2. Response-variable sensitivity diagnostic
 

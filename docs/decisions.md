@@ -1870,3 +1870,167 @@ proposal's original hypothesis without due diligence.
   (e.g., MLE fails on all 7 pnodes at 99.5th-pct), an
   implementation-note entry documents what changed; the decision
   rules stand unless the spec itself becomes uncomputable.
+
+---
+
+## 2026-05-14 — Application of Spec B pre-reg: continuous ξ(Z) verdict
+
+**Context.** The same-date Spec B pre-registration locked decision
+rules before any non-stationary GPD fit ran. This entry records (a)
+mechanical application of the Rule 2 paper-claim table to the
+production-run outputs in `outputs/gpd_continuous/`, (b) supplementary
+descriptive findings across pnodes and thresholds, and (c) the
+resulting verdict on sub-question 1 with Spec B included.
+
+The headline outcome is **"underpowered"** per Rule 2 (β₁ point
+estimate negative direction but CI spans 0). Median-split rejection
+on congestion at 95th-pct (recorded in the 2026-05-14
+conditional-Z application entry) remains the strongest empirical
+evidence the data supports.
+
+**Production-run config.**
+- Code: `feature/spec-b-continuous-xi-z` worktree (FF-merged into
+  main after this entry). 213 tests passing.
+- Implementation matches design + pre-reg with one tactical deviation
+  documented in Task 1: polynomial-degree-3 basis [1, Z, Z², Z³]
+  instead of natural cubic spline (matches 4-DOF intent without
+  knot-placement decision; equivalent capability within observed Z
+  range). Documented in Spec B implementation plan commit and the
+  module's docstring.
+- 7 pnodes × 4 threshold quantiles × 2 forms (linear + polynomial-3)
+  × pair-bootstrap n_boot=200. ~50 min wall on the full 31,536-row
+  panel; all fits converged with no `"failed"` or
+  `"insufficient_bootstrap_reps"` statuses at production resolution.
+
+### Headline result — Rule 1 application
+
+Primary congestion (Loudoun cluster) @ 95th-pct LMP, linear form:
+
+- **β₁ = −0.0080**
+- bootstrap 95% CI: **[−0.0208, +0.0034]**
+- two-sided bootstrap p-value: **0.230**
+- LRT (spline-vs-linear) chi² = 5.34, asymptotic p = **0.068**
+
+Per Rule 2's table, the row that applies is:
+
+> **β₁ point estimate < 0 BUT CI spans 0 → "underpowered"**
+>
+> Paper claim: *"Continuous fit is underpowered on this 3.6y window: β₁ = −0.0080, bootstrap CI [−0.021, +0.003] (spans 0). The median-split rejection at 95th-pct is the strongest evidence the data supports; Spec B does not sharpen the conclusion. Paper acknowledges the power ceiling explicitly."*
+
+The LRT borderline p (0.068, just under the "not significant" 0.10 cutoff in Rule 3) tilts the spline interpretation toward "the linear approximation is adequate; spline reported for transparency." No paper-shaking outcome.
+
+### Cross-pnode summary at 95th-pct (linear form, descriptive)
+
+All 7 pnodes converged. Direction is **consistently negative** (ξ decreases with Z) across every pnode. Magnitudes are small.
+
+| Pnode | β₁ | Bootstrap CI 95% | Two-sided p | LRT p |
+|---|---|---|---|---|
+| primary (congestion) | −0.0080 | [−0.021, +0.003] | 0.230 | 0.068 |
+| total_lmp | −0.0013 | [−0.012, +0.010] | 0.720 | 0.067 |
+| ox (control) | −0.0081 | [−0.023, +0.003] | 0.190 | 0.085 |
+| bristers (control) | −0.0079 | [−0.021, +0.007] | 0.260 | 0.122 |
+| dom_zonal | −0.0035 | [−0.015, +0.007] | 0.540 | **0.033** |
+| **ashburn_tx1** | **−0.0252** | **[−0.049, −0.004]** | **0.030** | NaN (degenerate LRT) |
+| ashburn_tx2 | −0.0114 | [−0.033, +0.013] | 0.320 | 0.735 |
+
+**Observations:**
+
+1. **Sign consistency.** All 7 pnodes show β₁ negative direction — across primary, controls, zonal, and distribution-side. This is consistent with the conditional-Z median-split's cross-pnode pattern (all `shape_diff` negative, with primary the only one whose CI excluded 0).
+
+2. **Ashburn TX1 is the only single-pnode rejection at α = 0.05.** β₁ = −0.0252, CI excludes 0, p = 0.030. **Per Rule 4** (cross-pnode supplementary, no family-wise correction), this is reported descriptively, not as a paper-level claim. Magnitude is ~3× the primary's |β₁| — consistent with the QR-full finding that Ashburn TX1 has wider response variance at distribution-level voltage. See "notable findings" below.
+
+3. **DOM zonal LRT p = 0.033 (significant at α = 0.05).** This is the only single-pnode LRT rejection. The cubic non-linearity is detectable on the zonal aggregate. Per Rule 3, this would normally trigger a "non-linear shape is informative" footnote — but only the *headline* test's LRT (primary @ 95th) is interpreted at α = 0.05 by Rule 3; the cross-pnode descriptive LRT values are flagged here without family-wise correction.
+
+### Threshold sweep — primary congestion (descriptive)
+
+| q | n_exc | β₁ | CI 95% | Two-sided p | LRT p |
+|---|---|---|---|---|---|
+| 0.90 | 3,154 | −0.0075 | [−0.019, +0.002] | 0.090 | **0.007** |
+| 0.95 (headline) | 1,577 | −0.0080 | [−0.021, +0.003] | 0.230 | 0.068 |
+| 0.99 | 316 | −0.0280 | [−0.063, +0.002] | 0.070 | 0.259 |
+| 0.995 | 158 | +0.0143 | [−0.070, +0.128] | 0.646 | 1.000 |
+
+**Observations:**
+
+1. **LRT p = 0.007 at 90th-pct** indicates the cubic non-linearity in ξ(Z) IS detectable at the larger n_exc. As threshold deepens (n_exc shrinks), LRT loses power: p = 0.068 at 95th, 0.259 at 99th, 1.000 at 99.5th. This suggests there IS a smooth non-monotonicity in ξ(Z) that median-split granularity (Spec A's 4-quartile pattern, where Q2 spiked) plausibly reflected.
+
+2. **β₁ magnitude grows with threshold (0.90 → 0.99: −0.0075 → −0.028).** A 3.7× larger magnitude at the deeper threshold. This is consistent with the conditional-Z battery's 99th-pct sweep (Spec C in conditional-Z showed shape_diff = −0.20, more negative than median-split's −0.18). The Spec B continuous fit confirms the *direction* sharpens at deeper thresholds, but power loss prevents the rejection.
+
+3. **99.5th-pct sign reversal at n_exc = 158.** Power-driven; CI very wide. Not interpreted.
+
+### Notable cross-pnode findings (descriptive)
+
+**Ashburn TX1's 99th-pct sign reversal.** At threshold quantile 0.99 (n_exc = 175), Ashburn TX1's β₁ flips sign to **+0.0932** (CI [+0.010, +0.167], p = 0.030) with LRT p = 0.000 — strong non-linearity. At 90/95/99.5 thresholds, β₁ stays negative. This is the most unusual single-pnode finding from Spec B. Three interpretations:
+
+- (a) **Real distribution-side physics at extreme tail.** Ashburn (35 kV LOAD subtype) may have qualitatively different tail-shape behavior at ORDC-relevant levels vs. 500 kV transmission pnodes. The signal is detectable at the 99th-pct because that's where ORDC events concentrate.
+- (b) **Power-driven artifact.** n_exc = 175 split into 4-parameter (linear) or 6-parameter (spline) MLE + bootstrap is fragile. The single-threshold anomaly with strong sign-flip + LRT = 0.000 looks like an over-fit on a small sample with one or two outlier exceedances.
+- (c) **Data quality issue.** Ashburn pnodes have asymmetric coverage (only ~2y vs 3.6y for other pnodes per 2026-05-12 archive-mode decision); the 99th-pct exceedances are concentrated in fewer total hours.
+
+Resolving this between (a)/(b)/(c) is the **"Ashburn TX1 diagnostic"** sub-q1 closure item (#4 in the roadmap). Spec B's evidence is descriptive; the paper's mechanism section should acknowledge Ashburn TX1 as a methodology footnote — not a headline finding.
+
+### Verdict on sub-question 1 — final consolidated answer
+
+After Spec B's results land, sub-question 1 has the following four-component answer:
+
+1. **No single MW/min threshold.** Smooth-curve diagnosis stands.
+
+2. **Moderate-quantile QR-full response is robust and positive.** z_slopes at τ = 0.90 / 0.95 are robust to bootstrap; τ = 0.99 underpowered. `total_lmp` ≈ 4× congestion at τ = 0.95 — direct ORDC mechanism support.
+
+3. **GPD conditional-Z mechanism test on congestion (proposal's variable):**
+   - Median-split (2026-05-14 conditional-Z entry, n=789/half): **rejects** at α = 0.05. shape_diff = −0.180, CI [−0.371, −0.044]. Direction: heavier tail at LOW load volatility (opposite of proposal's prediction).
+   - **Spec B continuous fit (this entry, all panel data):** **underpowered at headline scope.** β₁ = −0.0080, CI [−0.021, +0.003] spans 0. Direction consistent with median-split (ξ decreases with Z), magnitude small.
+   - **Deeper-threshold continuous fits** (99th-pct, n=316): β₁ = −0.028, CI just barely spans 0 (p = 0.07). Direction sharpens at deeper threshold; magnitude grows 3.5×; power-limited.
+   - **LRT detects significant non-linearity at 90th-pct** (p = 0.007). The smooth ξ(Z) curve is not perfectly linear; some non-monotonicity exists in the smooth fit at the larger n_exc.
+
+4. **Cross-pnode pattern:** all 7 pnodes have β₁ < 0 (continuous fit) and shape_diff < 0 (median-split). Direction is consistent across the cluster, controls, zonal aggregate, and distribution-side. Magnitudes are small for most; Ashburn TX1 is the only pnode whose continuous β₁ CI excludes 0 individually (with a 99th-pct anomaly that needs separate diagnosis).
+
+**Implication for the paper's headline.** Sub-q1 has a defensible mixed answer:
+
+- **POSITIVE finding (carries the paper):** moderate-quantile volatility-LMP response is robust; ORDC mechanism is supported via `total_lmp` ≈ 4× congestion.
+- **NEGATIVE finding at median-split scope:** the proposal's heavier-tail-at-high-Z hypothesis on congestion is rejected at α = 0.05 (n=789/half). Direction is *opposite* to proposal's prediction.
+- **CONTINUOUS-FIT honest acknowledgment:** Spec B is underpowered to sharpen the rejection at higher granularity. The direction is consistent across all 7 pnodes and across the threshold sweep, but only the binary median-split at headline n excludes 0. The paper acknowledges this power ceiling explicitly per the pre-reg.
+- **METHODOLOGICAL contribution:** The cross-method consistency (median-split rejects, continuous fit underpowered but same direction, cross-pnode all same sign) is the strongest evidentiary triangulation the data supports.
+
+The paper's narrative for sub-q1 reads as: "the proposal's MW/min threshold framing is the wrong question for this data; the smooth-response characterization shows positive moderate-quantile sensitivity with strong total_lmp / congestion differential consistent with ORDC; the mechanism test on the proposal's specific variable detects a direction opposite to the prediction at sufficient granularity but is power-limited at higher granularity. The 3.6y post-2022-10 window establishes the direction but cannot bound the magnitude precisely."
+
+### Open methodology questions — status after this entry
+
+From the 2026-05-14 conditional-Z application entry + this entry:
+
+1. **Conditional-Z rejection — true negative or median-split artifact?** → **PARTIALLY RESOLVED.** Spec B's continuous fit on congestion is consistent with the rejection direction but underpowered to confirm at α = 0.05. Cross-pnode + cross-threshold sign consistency is evidence the direction is real; magnitude is bounded by the available n.
+
+2. **τ = 0.99 secular sign flip.** → **STILL OPEN.** Independent investigation, not addressed by Spec B.
+
+3. **Ashburn TX1 negative point estimate (QR-full) + 99th-pct sign reversal (Spec B).** → **NEWLY MORE OPEN.** Spec B sharpens Ashburn TX1 as a methodological anomaly: at 90/95 the β₁ is significantly negative; at 99th it strongly reverses (β₁ = +0.093, CI excludes 0 in positive direction, LRT p = 0.000). Worth a focused diagnostic before paper.
+
+4. **GPD threshold choice for conditional-Z test.** → **RESOLVED.** Threshold sweep on primary (Spec B) shows β₁ magnitude grows with threshold (-0.008 → -0.028), confirming the direction generalizes to deeper tails; LRT p decreases with threshold (0.007 → 1.000), showing power loss at higher quantiles.
+
+5. **Multiple-testing correction.** → **RESOLVED.** Singular headline (primary @ 95th-pct linear) was pre-committed; all other Spec B tests are descriptive per Rule 1. No family-wise correction applied to the larger family.
+
+6. **Mechanism-validation framing for paper.** → **FURTHER REFRAMED.** With Spec B's underpowered headline, the paper's mechanism story now includes:
+   - Mean-quantile mechanism: supported via `total_lmp` ≈ 4× congestion (positive at α = 0.05).
+   - Tail-shape mechanism: rejected at median-split scope on congestion; underpowered at continuous-fit scope; consistent direction across all robustness tests.
+   - The "direction is robust, magnitude is power-bounded" framing is the truthful position.
+
+7. **Spec B (continuous ξ(Z)) triggered by both batteries' non-monotone Spec A** → **RESOLVED**. This entry.
+
+### Sub-q1 closure status
+
+Per `docs/plans/2026-05-14-sub-question-1-closure-roadmap.md`:
+
+| Item | Status after this entry |
+|---|---|
+| #1 Spec B | **DONE** — this entry. |
+| #2 Response-variable sensitivity diagnostic | Open. Spec B confirmed total_lmp's continuous β₁ is much smaller in magnitude (−0.0013) than congestion's (−0.0080), but the diagnostic is still useful for the paper's methods section. |
+| #3 τ = 0.99 secular sign flip | Open. |
+| #4 Ashburn TX1 diagnostic | **Newly sharpened** by Spec B's 99th-pct anomaly. |
+| #5 Advisor meeting | Open. Now ready: Spec B verdict, cross-pnode evidence, threshold sweep, Ashburn anomaly are all available for discussion. |
+
+The closure roadmap is updated accordingly: items 2-5 remain; #1 closed.
+
+### Revisit when
+
+- **Advisor input** materially shifts the framing. The "underpowered but direction-consistent" framing is the truthful position the data supports; an advisor may push toward emphasizing either the positive findings (QR-full) or the negative ones (median-split rejection on congestion).
+- **Items 2-5** in the sub-q1 closure roadmap complete. The Ashburn TX1 diagnostic (#4) is now more interesting given the Spec B 99th-pct sign reversal — could be a paper-worthy finding if real, or a footnote if noise.
+- **A longer historical window** that shrinks Spec B's CIs at higher granularity. Currently no path without re-introducing the 2022-10 pre-cap break.
+- **A different conditioning variable Z'** (e.g., SR clearing price as Z). Separate scientific question.

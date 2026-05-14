@@ -37,8 +37,7 @@ class GPDContinuousFitResult:
     LRT statistic (chi² value) for spline.
     `headline_p_value`: two-sided bootstrap p-value for β₁ (linear) or bootstrap
     p-value for LRT (spline).
-    `convergence_status`: "converged" | "max_iter" | "failed" |
-    "insufficient_bootstrap_reps".
+    `convergence_status`: "converged" | "failed" | "insufficient_bootstrap_reps".
     """
 
     form: Literal["linear", "spline"]
@@ -174,17 +173,20 @@ def _optimize_mle(
 ) -> tuple[np.ndarray, str]:
     """Run MLE optimization with BFGS, falling back to Nelder-Mead.
 
-    Returns (params, status) where status ∈ {"converged", "max_iter", "failed"}.
+    Returns (params, status) where status ∈ {"converged", "failed"}.
+    The `_initial_params` call is inside the try/except so that fit_gpd
+    failures on degenerate data are treated as "failed" rather than crashing.
     """
     X_xi = _design_matrix(Z_exc, form=form)
     X_sigma = _design_matrix(Z_exc, form=form, for_scale=True)
-    x0 = np.asarray(_initial_params(Y_exc, form=form), dtype=float)
 
     def objective(params):
         return _neg_log_likelihood_nonstationary_gpd(params, Y_exc, X_xi, X_sigma)
 
-    # BFGS first
+    # BFGS first — includes _initial_params inside the guard
+    x0 = None
     try:
+        x0 = np.asarray(_initial_params(Y_exc, form=form), dtype=float)
         res = _optimize.minimize(
             objective, x0, method="BFGS", options={"maxiter": 500, "gtol": 1e-6},
         )
@@ -193,8 +195,10 @@ def _optimize_mle(
     except (ValueError, FloatingPointError):
         pass
 
-    # Nelder-Mead fallback
+    # Nelder-Mead fallback — reuse x0 if computed; recompute if BFGS path crashed before x0
     try:
+        if x0 is None:
+            x0 = np.asarray(_initial_params(Y_exc, form=form), dtype=float)
         res = _optimize.minimize(
             objective, x0, method="Nelder-Mead",
             options={"maxiter": 2000, "xatol": 1e-5, "fatol": 1e-5},
@@ -204,7 +208,9 @@ def _optimize_mle(
     except (ValueError, FloatingPointError):
         pass
 
-    return (np.full_like(x0, np.nan), "failed")
+    # x0 may be None if _initial_params failed twice; use zeros as a stub for the NaN return shape
+    n_params = X_xi.shape[1] + X_sigma.shape[1]
+    return (np.full(n_params, np.nan), "failed")
 
 
 def fit_gpd_continuous_z(
@@ -250,6 +256,22 @@ def fit_gpd_continuous_z(
     n_exc = len(Y_exc)
 
     n_xi = 2 if form == "linear" else 4
+
+    if n_exc == 0:
+        nan_ci = tuple((float("nan"), float("nan")) for _ in range(n_xi))
+        return GPDContinuousFitResult(
+            form=form,
+            threshold_quantile=float(np.mean(Y_arr <= threshold)),
+            threshold_value=float(threshold),
+            n_exceedances=0,
+            shape_coefficients=tuple(float("nan") for _ in range(n_xi)),
+            shape_coefficients_bootstrap_ci_95=nan_ci,
+            scale_coefficients=(float("nan"), float("nan")),
+            scale_coefficients_bootstrap_ci_95=((float("nan"), float("nan")),) * 2,
+            headline_slope_or_lrt=float("nan"),
+            headline_p_value=float("nan"),
+            convergence_status="failed",
+        )
 
     # Primary fit
     primary_params, primary_status = _optimize_mle(Y_exc, Z_exc, form=form)
@@ -320,6 +342,9 @@ def fit_gpd_continuous_z(
 
     # Two-sided bootstrap p on β₁ (regardless of form — for spline, this
     # captures the linear-coefficient share; LRT for spline is in Task 4).
+    # Two-sided bootstrap p on β₁. The outer min(1.0, ...) clip handles
+    # the degenerate case where all bootstrap β₁ samples are exactly 0
+    # (p_left = p_right = 1.0 → 2*1.0 = 2.0 without the clip).
     beta_1_boot = xi_array[:, 1]
     p_left = float(np.mean(beta_1_boot <= 0.0))
     p_right = float(np.mean(beta_1_boot >= 0.0))

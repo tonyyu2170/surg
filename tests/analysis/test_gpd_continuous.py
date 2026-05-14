@@ -405,3 +405,108 @@ def test_likelihood_ratio_test_handles_failed_fits():
     assert math.isnan(lrt["chi2"])
     assert math.isnan(lrt["asymptotic_p_value"])
     assert lrt["df"] == 2
+
+
+import json
+import pandas as pd
+from pathlib import Path
+from surg.analysis.gpd_continuous import run_gpd_continuous_z
+
+
+def test_run_gpd_continuous_z_writes_expected_json_schema(tmp_path: Path):
+    """End-to-end: writes JSON with the per-pnode schema documented in the design."""
+    rng = np.random.default_rng(seed=42)
+    n = 4000
+    panel = pd.DataFrame({
+        "datetime_beginning_ept": pd.date_range("2024-01-01", periods=n, freq="h"),
+        "Y_target": stats.genpareto.rvs(c=0.3, scale=2.0, size=n, random_state=rng),
+        "Z_target": rng.uniform(1.0, 10.0, size=n),
+    })
+
+    out = tmp_path / "gpd_continuous" / "test_pnode.json"
+    run_gpd_continuous_z(
+        panel,
+        out_path=out,
+        response_col="Y_target",
+        pnode_label="test_pnode",
+        threshold_col="Z_target",
+        threshold_quantiles=(0.50, 0.75, 0.90),
+        n_boot=30,
+        seed=0,
+    )
+
+    assert out.exists()
+    payload = json.loads(out.read_text())
+    assert payload["pnode_label"] == "test_pnode"
+    assert payload["response_col"] == "Y_target"
+    assert payload["threshold_col"] == "Z_target"
+    assert payload["n_total_panel"] == n
+    sweep = payload["threshold_sweep"]
+    assert len(sweep) == 3
+    for entry in sweep:
+        assert set(entry.keys()) >= {
+            "threshold_quantile", "threshold_value", "n_exceedances",
+            "linear", "spline", "likelihood_ratio_test",
+        }
+        assert set(entry["linear"].keys()) >= {
+            "convergence_status", "shape_coefficients",
+            "shape_coefficients_bootstrap_ci_95", "scale_coefficients",
+            "scale_coefficients_bootstrap_ci_95", "beta_1_two_sided_p_value",
+        }
+        assert set(entry["spline"].keys()) >= {
+            "convergence_status", "shape_coefficients",
+            "shape_coefficients_bootstrap_ci_95", "scale_coefficients",
+            "scale_coefficients_bootstrap_ci_95",
+        }
+        assert set(entry["likelihood_ratio_test"].keys()) >= {
+            "chi2", "df", "asymptotic_p_value",
+        }
+
+
+def test_run_gpd_continuous_z_handles_dropna_in_response(tmp_path: Path):
+    """Rows with NaN in response_col or threshold_col are dropped; n_after_dropna
+    reflects the actual fit sample size."""
+    rng = np.random.default_rng(seed=42)
+    n = 2000
+    Y = stats.genpareto.rvs(c=0.3, scale=2.0, size=n, random_state=rng)
+    Z = rng.uniform(1.0, 10.0, size=n)
+    Y[10] = float("nan")
+    Y[20] = float("nan")
+    Z[100] = float("nan")
+    panel = pd.DataFrame({
+        "datetime_beginning_ept": pd.date_range("2024-01-01", periods=n, freq="h"),
+        "Y_target": Y,
+        "Z_target": Z,
+    })
+
+    out = tmp_path / "gpd_continuous" / "test_dropna.json"
+    run_gpd_continuous_z(
+        panel, out_path=out,
+        response_col="Y_target", pnode_label="dropna_test",
+        threshold_col="Z_target",
+        threshold_quantiles=(0.5,), n_boot=30, seed=0,
+    )
+
+    payload = json.loads(out.read_text())
+    assert payload["n_total_panel"] == 2000
+    assert payload["n_after_dropna"] == 1997  # 3 rows with any NaN dropped
+
+
+def test_run_gpd_continuous_z_serializes_nan_as_null(tmp_path: Path):
+    """JSON output uses null for NaN values (RFC-compliant), not literal NaN."""
+    # Force a fit failure scenario with very small n
+    panel = pd.DataFrame({
+        "datetime_beginning_ept": pd.date_range("2024-01-01", periods=50, freq="h"),
+        "Y_target": np.random.default_rng(42).uniform(0, 1, size=50),
+        "Z_target": np.random.default_rng(42).uniform(1, 10, size=50),
+    })
+    out = tmp_path / "gpd_continuous" / "nan_check.json"
+    run_gpd_continuous_z(
+        panel, out_path=out,
+        response_col="Y_target", pnode_label="nan_test",
+        threshold_col="Z_target",
+        threshold_quantiles=(0.5,), n_boot=20, seed=0,
+    )
+    text = out.read_text()
+    assert "NaN" not in text, "JSON output contains literal NaN token"
+    json.loads(text)  # strict JSON parsing must succeed

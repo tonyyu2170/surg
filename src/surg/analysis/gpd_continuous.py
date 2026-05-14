@@ -15,8 +15,10 @@ Implementation reference: Davison & Smith 1990 (JRSS-B), Coles 2001 §6.3.
 """
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -425,3 +427,88 @@ def _likelihood_ratio_test(
     out["chi2"] = float(chi2)
     out["asymptotic_p_value"] = asymptotic_p
     return out
+
+
+def _nan_to_none(obj):
+    """Recursively replace float NaN/inf with None for JSON serialization."""
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, (list, tuple)):
+        return [_nan_to_none(v) for v in obj]
+    if isinstance(obj, dict):
+        return {k: _nan_to_none(v) for k, v in obj.items()}
+    return obj
+
+
+def _fit_result_to_dict(fit: GPDContinuousFitResult) -> dict:
+    return {
+        "convergence_status": fit.convergence_status,
+        "shape_coefficients": list(fit.shape_coefficients),
+        "shape_coefficients_bootstrap_ci_95": [list(ci) for ci in fit.shape_coefficients_bootstrap_ci_95],
+        "scale_coefficients": list(fit.scale_coefficients),
+        "scale_coefficients_bootstrap_ci_95": [list(ci) for ci in fit.scale_coefficients_bootstrap_ci_95],
+        "beta_1_two_sided_p_value": fit.headline_p_value,
+    }
+
+
+def run_gpd_continuous_z(
+    panel: pd.DataFrame,
+    out_path: Path,
+    *,
+    response_col: str,
+    pnode_label: str,
+    threshold_col: str = "dom_load_gradient_abs_mw_per_min",
+    threshold_quantiles: tuple[float, ...] = (0.90, 0.95, 0.99, 0.995),
+    n_boot: int = 200,
+    seed: int = 0,
+) -> None:
+    """Per-pnode Spec B orchestrator: threshold sweep × (linear + spline + LRT).
+
+    Drops NaN rows in [response_col, threshold_col]. For each threshold quantile,
+    fits both linear and spline forms, runs the LRT. Writes a single JSON
+    output file matching the design schema.
+    """
+    n_total = len(panel)
+    subset = panel.dropna(subset=[response_col, threshold_col])
+    Y = subset[response_col].to_numpy()
+    Z = subset[threshold_col].to_numpy()
+    n_after = len(subset)
+
+    sweep_entries: list[dict] = []
+    for i, q in enumerate(threshold_quantiles):
+        threshold = float(np.quantile(Y, q))
+        n_exc = int((Y > threshold).sum())
+        linear_result = fit_gpd_continuous_z(
+            Y, Z, threshold=threshold, form="linear", n_boot=n_boot, seed=seed + 10 * i,
+        )
+        spline_result = fit_gpd_continuous_z(
+            Y, Z, threshold=threshold, form="spline", n_boot=n_boot, seed=seed + 10 * i + 5,
+        )
+        lrt = _likelihood_ratio_test(
+            linear_result, spline_result, Y, Z, threshold=threshold,
+        )
+        sweep_entries.append({
+            "threshold_quantile": float(q),
+            "threshold_value": float(threshold),
+            "n_exceedances": n_exc,
+            "linear": _fit_result_to_dict(linear_result),
+            "spline": _fit_result_to_dict(spline_result),
+            "likelihood_ratio_test": {
+                "chi2": lrt["chi2"],
+                "df": int(lrt["df"]),
+                "asymptotic_p_value": lrt["asymptotic_p_value"],
+            },
+        })
+
+    payload = {
+        "pnode_label": pnode_label,
+        "response_col": response_col,
+        "threshold_col": threshold_col,
+        "n_total_panel": int(n_total),
+        "n_after_dropna": int(n_after),
+        "threshold_sweep": sweep_entries,
+    }
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(_nan_to_none(payload), indent=2))

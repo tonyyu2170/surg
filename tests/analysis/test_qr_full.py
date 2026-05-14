@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from surg.analysis.qr_full import QRFullFitResult, fit_qr_full
+from surg.analysis.qr_full import QRFullFitResult, fit_qr_full, run_qr_full
 
 
 def _synth_inputs(
@@ -214,3 +214,86 @@ def test_fit_qr_full_year_fe_isolates_contemporaneous_response():
         f"year_fe z_slope too far from 1.0: {year_fe.z_slope}"
     assert primary.z_slope > year_fe.z_slope, \
         f"primary slope ({primary.z_slope}) should exceed year_fe slope ({year_fe.z_slope})"
+
+
+def test_run_qr_full_writes_expected_json_schema(tmp_path: Path):
+    """run_qr_full writes a JSON file with primary fits and year_fe fits."""
+    rng = np.random.default_rng(seed=42)
+    n = 2000
+    # Span two years (~83 days each) so the year-FE spec has ≥2 years
+    panel = pd.DataFrame({
+        "datetime_beginning_ept": pd.date_range("2024-01-01", periods=n, freq="h"),
+        "Y_target": rng.normal(size=n),
+        "Z_target": rng.uniform(0, 10, size=n),
+    })
+    # Shift half the dates into 2025
+    panel.loc[n // 2:, "datetime_beginning_ept"] = pd.date_range("2025-01-01", periods=n - n // 2, freq="h")
+
+    out = tmp_path / "qr_full" / "test_pnode.json"
+    run_qr_full(
+        panel,
+        out_path=out,
+        response_col="Y_target",
+        pnode_label="test_pnode",
+        threshold_col="Z_target",
+        taus=(0.90, 0.95, 0.99),
+        n_boot=30,
+        seed=0,
+    )
+
+    assert out.exists()
+    payload = json.loads(out.read_text())
+
+    assert payload["pnode_label"] == "test_pnode"
+    assert payload["covariate_encoding"] == "sin_cos_hour_24_month_12"
+    assert payload["n_after_dropna"] == n
+
+    # Primary fits
+    fits = payload["fits"]
+    assert len(fits) == 3
+    for fit, expected_tau in zip(fits, (0.90, 0.95, 0.99), strict=True):
+        assert fit["spec"] == "primary"
+        assert fit["tau"] == pytest.approx(expected_tau)
+        assert set(fit["covariate_coefs"].keys()) == {
+            "hour_sin", "hour_cos", "month_sin", "month_cos",
+        }
+
+    # year_fe fits with year dummies
+    yfe = payload["fits_year_fe"]
+    assert len(yfe) == 3
+    for fit in yfe:
+        assert fit["spec"] == "year_fe"
+        year_keys = [k for k in fit["covariate_coefs"] if k.startswith("year_")]
+        assert year_keys == ["year_2025"]  # 2024 is baseline, 2025 is the dummy
+
+
+def test_run_qr_full_serializes_nan_as_null(tmp_path: Path):
+    """run_qr_full's JSON output should contain `null`, not the non-RFC `NaN`
+    token, when the bootstrap CI is skipped (n_boot < 20) so the CI fields
+    are (nan, nan)."""
+    rng = np.random.default_rng(seed=42)
+    n = 500
+    panel = pd.DataFrame({
+        "datetime_beginning_ept": pd.date_range("2024-01-01", periods=n, freq="h"),
+        "Y_target": rng.normal(size=n),
+        "Z_target": rng.uniform(0, 10, size=n),
+    })
+
+    out = tmp_path / "qr_full" / "test_pnode.json"
+    run_qr_full(
+        panel,
+        out_path=out,
+        response_col="Y_target",
+        pnode_label="test_pnode",
+        threshold_col="Z_target",
+        taus=(0.5,),
+        n_boot=0,  # < 20 triggers (nan, nan) CI
+        seed=0,
+    )
+
+    text = out.read_text()
+    assert "NaN" not in text, "JSON output contains literal NaN token (not RFC-valid)"
+    payload = json.loads(text)  # strict json.loads would fail on NaN
+    # CI should be a list of two Nones (from the (nan, nan) → [null, null])
+    for fit in payload["fits"]:
+        assert fit["z_slope_bootstrap_ci_95"] == [None, None]

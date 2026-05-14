@@ -9,6 +9,7 @@ Task 8.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -215,3 +216,100 @@ def fit_qr_full(
         spec=spec,
         n=n,
     )
+
+
+def _nan_to_none(obj):
+    """Recursively replace float NaN/inf with None for JSON serialization.
+
+    Same pattern as gpd.py's _nan_to_none. Python's json.dumps emits the
+    literal token NaN for float NaN, which is not valid JSON per RFC 8259.
+    """
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, list):
+        return [_nan_to_none(v) for v in obj]
+    if isinstance(obj, dict):
+        return {k: _nan_to_none(v) for k, v in obj.items()}
+    return obj
+
+
+def _qr_fit_result_to_dict(fit: QRFullFitResult) -> dict:
+    return {
+        "tau": fit.tau,
+        "spec": fit.spec,
+        "z_slope": fit.z_slope,
+        "z_slope_se": fit.z_slope_se,
+        "z_slope_p_value": fit.z_slope_p_value,
+        "z_slope_bootstrap_ci_95": list(fit.z_slope_bootstrap_ci_95),
+        "intercept": fit.intercept,
+        "covariate_coefs": dict(fit.covariate_coefs),
+    }
+
+
+def run_qr_full(
+    panel: pd.DataFrame,
+    out_path: Path,
+    *,
+    response_col: str,
+    pnode_label: str,
+    threshold_col: str = "dom_load_gradient_abs_mw_per_min",
+    taus: tuple[float, ...] = (0.90, 0.95, 0.99),
+    n_boot: int = 200,
+    seed: int = 0,
+) -> None:
+    """End-to-end QR on full panel. Writes JSON at out_path.
+
+    Fits the primary specification (sin/cos covariates only) and the year-FE
+    robustness specification (sin/cos + year dummies) at each tau. Drops NaN
+    rows in [response_col, threshold_col] only; does NOT filter by
+    passes_proposal_filter.
+
+    When the panel spans only 1 year, the year-FE spec cannot run and
+    fits_year_fe is an empty list with fits_year_fe_skip_reason set.
+    """
+    n_total = len(panel)
+    subset = panel.dropna(subset=[response_col, threshold_col]).copy()
+    subset = subset.sort_values("datetime_beginning_ept").reset_index(drop=True)
+    n_after_dropna = len(subset)
+
+    Y = subset[response_col].to_numpy()
+    Z = subset[threshold_col].to_numpy()
+    hour = subset["datetime_beginning_ept"].dt.hour.to_numpy()
+    month = subset["datetime_beginning_ept"].dt.month.to_numpy()
+    year = subset["datetime_beginning_ept"].dt.year.to_numpy()
+
+    distinct_years = sorted(np.unique(year).tolist())
+    year_fe_available = len(distinct_years) >= 2
+
+    primary_fits: list[QRFullFitResult] = []
+    yfe_fits: list[QRFullFitResult] = []
+    for i, tau in enumerate(taus):
+        primary_fits.append(fit_qr_full(
+            Y, Z, hour, month, tau=tau, n_boot=n_boot, seed=seed + 10 * i,
+        ))
+        if year_fe_available:
+            yfe_fits.append(fit_qr_full(
+                Y, Z, hour, month, year=year,
+                tau=tau, n_boot=n_boot, seed=seed + 10 * i + 1,
+            ))
+
+    payload: dict = {
+        "pnode_label": pnode_label,
+        "response_col": response_col,
+        "threshold_col": threshold_col,
+        "covariate_encoding": "sin_cos_hour_24_month_12",
+        "n_total_panel": int(n_total),
+        "n_after_dropna": int(n_after_dropna),
+        "fits": [_qr_fit_result_to_dict(f) for f in primary_fits],
+        "fits_year_fe": [_qr_fit_result_to_dict(f) for f in yfe_fits],
+    }
+    if not year_fe_available:
+        payload["fits_year_fe_skip_reason"] = (
+            f"only {len(distinct_years)} distinct year(s) in panel "
+            f"({distinct_years}); year-FE spec requires ≥2"
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(_nan_to_none(payload), indent=2))

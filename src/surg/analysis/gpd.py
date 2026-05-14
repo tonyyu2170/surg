@@ -304,6 +304,23 @@ def gpd_conditional_on_z(
     )
 
 
+def _assign_groups(Z: np.ndarray, edges: tuple[float, ...]) -> list[np.ndarray]:
+    """Return a list of boolean masks partitioning Z into len(edges)+1 groups.
+
+    Group 0: Z ≤ edges[0]; group k (1 ≤ k ≤ N-1): edges[k-1] < Z ≤ edges[k];
+    group N: Z > edges[N-1]. Lower bound of group 0 is −∞; upper bound of
+    group N is +∞. Edges should be sorted ascending; behavior on unsorted
+    edges is undefined.
+    """
+    masks: list[np.ndarray] = []
+    prev = -np.inf
+    for edge in edges:
+        masks.append((Z > prev) & (Z <= edge))
+        prev = edge
+    masks.append(Z > prev)
+    return masks
+
+
 @dataclass(frozen=True, slots=True)
 class GPDQuantileSplitResult:
     """N-way Z-quantile split of GPD fits on exceedances of a fixed threshold.
@@ -374,9 +391,13 @@ def gpd_quantile_split_on_z(
         raise ValueError("split_quantiles must have at least one entry")
     if not all(0.0 < q < 1.0 for q in split_quantiles):
         raise ValueError(f"split_quantiles must be in (0,1); got {split_quantiles}")
-    if list(split_quantiles) != sorted(set(split_quantiles)):
+    if len(split_quantiles) != len(set(split_quantiles)):
         raise ValueError(
-            f"split_quantiles must be strictly ascending and unique; got {split_quantiles}"
+            f"split_quantiles must be unique; got {split_quantiles}"
+        )
+    if list(split_quantiles) != sorted(split_quantiles):
+        raise ValueError(
+            f"split_quantiles must be strictly ascending; got {split_quantiles}"
         )
 
     threshold = float(np.quantile(Y_arr, threshold_quantile))
@@ -453,22 +474,6 @@ def gpd_quantile_split_on_z(
         extreme_contrast_bootstrap_ci_95=ci,
         extreme_contrast_bootstrap_p_value=p_two_sided,
     )
-
-
-def _assign_groups(Z: np.ndarray, edges: tuple[float, ...]) -> list[np.ndarray]:
-    """Return a list of boolean masks partitioning Z into len(edges)+1 groups.
-
-    Group i contains rows where edges[i-1] < Z <= edges[i], with edges[-1] = -inf
-    for the first group and edges[len(edges)] = +inf for the last. Edges should
-    be sorted ascending; behavior on unsorted edges is undefined.
-    """
-    masks: list[np.ndarray] = []
-    prev = -np.inf
-    for edge in edges:
-        masks.append((Z > prev) & (Z <= edge))
-        prev = edge
-    masks.append(Z > prev)
-    return masks
 
 
 def _nan_to_none(obj):

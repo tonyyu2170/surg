@@ -13,6 +13,7 @@ from scipy import stats
 from surg.analysis.gpd import GPDFitResult, fit_gpd, gpd_threshold_sweep
 from surg.analysis.gpd import GPDConditionalResult, gpd_conditional_on_z
 from surg.analysis.gpd import run_gpd
+from surg.analysis.gpd import GPDQuantileSplitResult, gpd_quantile_split_on_z
 
 
 def test_fit_gpd_recovers_planted_shape_and_scale():
@@ -294,8 +295,6 @@ def test_run_gpd_serializes_nan_as_null(tmp_path: Path):
 
 # ─── gpd_quantile_split_on_z (Spec A engine) ──────────────────────────────────
 
-from surg.analysis.gpd import GPDQuantileSplitResult, gpd_quantile_split_on_z
-
 
 def test_gpd_quantile_split_detects_monotone_shape():
     """When DGP has monotonically increasing GPD shape across Z quartiles,
@@ -347,9 +346,10 @@ def test_gpd_quantile_split_detects_monotone_shape():
 def test_gpd_quantile_split_n2_matches_median_split_shape_diff():
     """gpd_quantile_split_on_z with split_quantiles=(0.5,) should reproduce
     the same per-subset shape estimates as gpd_conditional_on_z with
-    z_split_quantile=0.5. The bootstrap CI on extreme_contrast may differ
-    slightly because of independent RNG streams, but the point estimates
-    must match exactly."""
+    z_split_quantile=0.5. The bootstrap CI may differ due to different
+    resampling protocols in the two functions (the new function refits all
+    N+1 groups jointly via _assign_groups; the existing 2-way function uses
+    high_b = ~low_b), but the point estimates must match exactly."""
     rng = np.random.default_rng(seed=42)
     n = 4000
     Z = rng.uniform(0, 10, size=n)
@@ -433,3 +433,23 @@ def test_gpd_quantile_split_two_sided_p_value_for_null_dgp():
 
     assert result.extreme_contrast_bootstrap_p_value > 0.10, \
         f"false-positive quartile-dependence: p={result.extreme_contrast_bootstrap_p_value}"
+
+
+def test_gpd_quantile_split_seed_reproducibility():
+    """Same seed must produce identical bootstrap CIs and p-values across runs."""
+    rng = np.random.default_rng(seed=42)
+    n = 4000
+    Z = rng.uniform(0, 10, size=n)
+    Y = stats.genpareto.rvs(c=0.3, scale=2.0, size=n, random_state=rng)
+
+    r1 = gpd_quantile_split_on_z(
+        Y, Z, threshold_quantile=0.5,
+        split_quantiles=(0.25, 0.5, 0.75), n_boot=50, seed=7,
+    )
+    r2 = gpd_quantile_split_on_z(
+        Y, Z, threshold_quantile=0.5,
+        split_quantiles=(0.25, 0.5, 0.75), n_boot=50, seed=7,
+    )
+
+    assert r1.extreme_contrast_bootstrap_ci_95 == r2.extreme_contrast_bootstrap_ci_95
+    assert r1.extreme_contrast_bootstrap_p_value == r2.extreme_contrast_bootstrap_p_value

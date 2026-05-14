@@ -92,11 +92,40 @@ Historical minimum required reserve margin: 15–18%.
 
 ## Numbers that need separate user extraction
 
-The following are not present in the pages extracted (1-15, 19-38) but the user will likely need them:
+After reading Chapter 4 (Energy Costs, pages 43-56), the previously-missing
+`dc_share_of_load` number has a defensible proxy in **Table 4-1**:
 
-- **Current (2024–2025) DOM-zone DC share of total DOM load** — needed for `dc_share_of_load` parameter. May be in Chapter 4 (Energy Costs, pages 43-56) or Appendix B (Research methods, pages 95+).
-- **Year-by-year DC load projection trajectory** (not just 2023/2040 anchors). Likely in an Excel companion file to the JLARC report or in PJM's annual Load Forecast Report.
-- **DOM-zone-specific 2040 forecast** (vs statewide Virginia numbers). PJM Load Forecast Report (annual publication, public, ~Q1 release) has DOM-zone breakouts.
+### 7. DC share of Dominion costs (proxy for share of load) — Table 4-1, p. 45
+
+Dominion's customer-class cost allocations:
+
+| Customer class | Generation cost share | Transmission cost share |
+|---|---|---|
+| Residential | 40% | 53% |
+| GS-1 (small non-residential) | 5% | 5% |
+| GS-2 (intermediate) | 14% | 12% |
+| GS-3 (large, secondary voltage) | 15% | 12% |
+| **GS-4 (large, primary voltage — "includes most data centers")** | **26%** | **18%** |
+
+> **For the config's `dc_share_of_load` parameter:** the GS-4 class accounts
+> for **~26% of Dominion's generation costs** today. This is the closest
+> proxy to "current DC share of DOM load" in the JLARC report. Caveats:
+> - Cost allocation ≠ load share exactly (load factor weighting differs by class).
+> - GS-4 also contains non-DC large industrial customers, so 26% is an
+>   *upper bound* on DC-specific share.
+> - The proper number would be PJM's zonal-load-by-customer-class data,
+>   which Dominion files with FERC. Worth requesting if precision matters.
+
+### Other items still not extracted
+
+- **Year-by-year DC load projection trajectory** (only 2023/2040 anchors are in JLARC Fig 3-3). PJM's annual Load Forecast Report has DOM-zone year-by-year data.
+- **DOM-zone-specific 2040 load forecast in MW (not statewide GWh).** The JLARC figures are all statewide Virginia aggregate; Dominion-zone-specific MW would come from PJM Load Forecast Report.
+
+### Additional Chapter 4 findings worth knowing for paper context
+
+- **Half-unconstrained scenario by 2040 requires +80-90% generation capacity and +36% transmission capacity** (p. 48). The "very difficult to achieve" unconstrained scenario is roughly double this.
+- **Residential cost impact:** Dominion residential customer's monthly generation+transmission bill rises from $90 (2023 baseline) to $90+$14 (half-unconstrained 2040) or $90+$37 (unconstrained 2040 with VCEA) — Table 4-2.
+- **Dominion-zone aggregate cost increase by 2040:** $8.5–10 billion (half-unconstrained) or $16–18 billion (unconstrained) — page 45. Useful for paper introduction's policy-relevance framing.
 
 ## Suggested `growth_scenarios.yaml` based on what's extracted
 
@@ -135,9 +164,11 @@ projection:
   benchmark_lmp: 850            # ORDC first-step penalty level
   extrapolation_warning_threshold: 2.0
 
-# Optional (for DC-attributed scaling robustness path):
-# Population this only if dc_share_of_load can be reliably estimated.
-# dc_share_of_load: 0.30  # placeholder — user to verify from PJM/JLARC sources
+# DC-attributed scaling — primary path per design (proportional is the
+# strong-claim fallback). 0.26 from JLARC Table 4-1: GS-4 customer class
+# (which "includes most data centers") = 26% of Dominion generation cost
+# share. Upper bound — GS-4 also contains non-DC large industrial.
+dc_share_of_load: 0.26
 ```
 
 ## Caveats for user review

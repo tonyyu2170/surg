@@ -21,7 +21,9 @@ def _seed_minimal_raw(data_root: Path) -> None:
         {"datetime_beginning_ept": "2024-07-15T18:00:00",
          "pnode_id": pid, "pnode_name": name,
          "congestion_price_rt": 5.0 + (pid % 10),
-         "total_lmp_rt": 50.0 + (pid % 10)}
+         "total_lmp_rt": 50.0 + (pid % 10),
+         "system_energy_price_rt": 30.0 + (pid % 10),
+         "marginal_loss_price_rt": 1.0 + (pid % 10)}
         for pid, name in pnodes
     ]).to_parquet(rt_dir / "dom_targets__2024-07-15_to_2024-07-15.parquet")
 
@@ -99,6 +101,22 @@ def test_build_analysis_panel_writes_atomic_parquet(tmp_path: Path):
     # Round-trip
     loaded = pd.read_parquet(out)
     assert len(loaded) == len(panel)
+
+
+def test_build_renames_system_energy_and_marginal_loss_for_labeled_pnodes(tmp_path: Path):
+    from surg.preprocessing.build import build_analysis_panel
+    _seed_minimal_raw(tmp_path)
+    panel = build_analysis_panel(data_root=tmp_path)
+    expected_labeled = ["ashburn_tx1", "ashburn_tx2", "ox", "bristers", "dom_zonal"]
+    for lab in expected_labeled:
+        assert f"system_energy_price_rt_{lab}" in panel.columns, (
+            f"missing system_energy_price_rt_{lab}"
+        )
+        assert f"marginal_loss_price_rt_{lab}" in panel.columns, (
+            f"missing marginal_loss_price_rt_{lab}"
+        )
+    assert "system_energy_price_rt_cluster_mean" in panel.columns
+    assert "marginal_loss_price_rt_cluster_mean" in panel.columns
 
 
 def test_build_analysis_panel_clips_to_analysis_window(tmp_path: Path):

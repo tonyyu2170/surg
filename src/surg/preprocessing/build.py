@@ -61,11 +61,27 @@ def build_analysis_panel(data_root: Path) -> pd.DataFrame:
     lmp_wide = pivot_lmp_long_to_pnode_columns(lmp_long)
     lmp_wide = add_loudoun_cluster_columns(lmp_wide, LOUDOUN_CLUSTER_IDS)
     rename = {
+        # congestion — all 5 labeled pnodes
         f"congestion_price_rt_{ASHBURN_TX1}": "congestion_price_rt_ashburn_tx1",
         f"congestion_price_rt_{ASHBURN_TX2}": "congestion_price_rt_ashburn_tx2",
         f"congestion_price_rt_{CONTROL_OX}":  "congestion_price_rt_ox",
         f"congestion_price_rt_{CONTROL_BRISTERS}": "congestion_price_rt_bristers",
         f"congestion_price_rt_{DOM_ZONAL}":   "congestion_price_rt_dom_zonal",
+        # total_lmp — Ashburn only (needed for item #4 scatter diagnostic)
+        f"total_lmp_rt_{ASHBURN_TX1}":        "total_lmp_rt_ashburn_tx1",
+        f"total_lmp_rt_{ASHBURN_TX2}":        "total_lmp_rt_ashburn_tx2",
+        # system_energy — all 5 labeled pnodes
+        f"system_energy_price_rt_{ASHBURN_TX1}": "system_energy_price_rt_ashburn_tx1",
+        f"system_energy_price_rt_{ASHBURN_TX2}": "system_energy_price_rt_ashburn_tx2",
+        f"system_energy_price_rt_{CONTROL_OX}":  "system_energy_price_rt_ox",
+        f"system_energy_price_rt_{CONTROL_BRISTERS}": "system_energy_price_rt_bristers",
+        f"system_energy_price_rt_{DOM_ZONAL}":   "system_energy_price_rt_dom_zonal",
+        # marginal_loss — all 5 labeled pnodes
+        f"marginal_loss_price_rt_{ASHBURN_TX1}": "marginal_loss_price_rt_ashburn_tx1",
+        f"marginal_loss_price_rt_{ASHBURN_TX2}": "marginal_loss_price_rt_ashburn_tx2",
+        f"marginal_loss_price_rt_{CONTROL_OX}":  "marginal_loss_price_rt_ox",
+        f"marginal_loss_price_rt_{CONTROL_BRISTERS}": "marginal_loss_price_rt_bristers",
+        f"marginal_loss_price_rt_{DOM_ZONAL}":   "marginal_loss_price_rt_dom_zonal",
     }
     lmp_wide = lmp_wide.rename(columns=rename)
 

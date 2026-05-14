@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # bumped for sub-q1 closure item #2: system_energy + marginal_loss components
 
 EXPECTED_COLUMNS: tuple[str, ...] = (
     # Identifiers & metadata
@@ -26,13 +26,27 @@ EXPECTED_COLUMNS: tuple[str, ...] = (
     "congestion_price_rt_cluster_mean",
     "congestion_price_rt_cluster_max",
     "total_lmp_rt_cluster_mean",
-    # LMP — Ashburn distribution (separate fit)
+    "system_energy_price_rt_cluster_mean",
+    "marginal_loss_price_rt_cluster_mean",
+    # LMP — Ashburn distribution (separate fit; total_lmp for item #4 scatter)
     "congestion_price_rt_ashburn_tx1",
     "congestion_price_rt_ashburn_tx2",
+    "total_lmp_rt_ashburn_tx1",
+    "total_lmp_rt_ashburn_tx2",
+    "system_energy_price_rt_ashburn_tx1",
+    "system_energy_price_rt_ashburn_tx2",
+    "marginal_loss_price_rt_ashburn_tx1",
+    "marginal_loss_price_rt_ashburn_tx2",
     # LMP — negative controls
     "congestion_price_rt_ox",
     "congestion_price_rt_bristers",
     "congestion_price_rt_dom_zonal",
+    "system_energy_price_rt_ox",
+    "system_energy_price_rt_bristers",
+    "system_energy_price_rt_dom_zonal",
+    "marginal_loss_price_rt_ox",
+    "marginal_loss_price_rt_bristers",
+    "marginal_loss_price_rt_dom_zonal",
     # Reserves & events
     "sync_reserve_event_active",
     "sync_reserve_event_id",

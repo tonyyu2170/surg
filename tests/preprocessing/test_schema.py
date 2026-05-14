@@ -48,6 +48,30 @@ def test_validate_panel_accepts_dataframe_with_expected_columns():
     validate_panel(df)
 
 
+def test_schema_version_bumped_to_2():
+    from surg.preprocessing.schema import SCHEMA_VERSION
+    assert SCHEMA_VERSION == 2
+
+
+def test_expected_columns_include_system_energy_and_marginal_loss():
+    from surg.preprocessing.schema import EXPECTED_COLUMNS
+    expected_new = {
+        "system_energy_price_rt_cluster_mean",
+        "marginal_loss_price_rt_cluster_mean",
+        "system_energy_price_rt_ashburn_tx1",
+        "system_energy_price_rt_ashburn_tx2",
+        "system_energy_price_rt_ox",
+        "system_energy_price_rt_bristers",
+        "system_energy_price_rt_dom_zonal",
+        "marginal_loss_price_rt_ashburn_tx1",
+        "marginal_loss_price_rt_ashburn_tx2",
+        "marginal_loss_price_rt_ox",
+        "marginal_loss_price_rt_bristers",
+        "marginal_loss_price_rt_dom_zonal",
+    }
+    assert expected_new.issubset(set(EXPECTED_COLUMNS))
+
+
 def test_validate_panel_rejects_missing_columns():
     import pandas as pd
     import pytest

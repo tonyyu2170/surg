@@ -1,9 +1,12 @@
 """Unit tests for src/surg/analysis/gpd.py — Strategy C GPD module."""
 from __future__ import annotations
 
+import json
 import math
+from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 from scipy import stats
 
@@ -194,3 +197,60 @@ def test_gpd_conditional_nested_threshold_quantile_carries_parent():
         f"low_z carries wrong threshold_quantile: {result.low_z.threshold_quantile}"
     assert result.high_z.threshold_quantile == pytest.approx(0.75), \
         f"high_z carries wrong threshold_quantile: {result.high_z.threshold_quantile}"
+
+
+from surg.analysis.gpd import run_gpd
+
+
+def test_run_gpd_writes_expected_json_schema(tmp_path: Path):
+    """run_gpd writes a JSON file with the spec-documented schema."""
+    rng = np.random.default_rng(seed=42)
+    n = 4000
+    panel = pd.DataFrame({
+        "datetime_beginning_ept": pd.date_range("2024-01-01", periods=n, freq="h"),
+        "Y_target": stats.genpareto.rvs(c=0.3, scale=2.0, size=n, random_state=rng),
+        "Z_target": rng.uniform(0, 10, size=n),
+    })
+
+    out = tmp_path / "gpd" / "test_pnode.json"
+    run_gpd(
+        panel,
+        out_path=out,
+        response_col="Y_target",
+        pnode_label="test_pnode",
+        threshold_col="Z_target",
+        sweep_quantiles=(0.50, 0.75, 0.90, 0.95),
+        conditional_threshold_quantile=0.5,
+        n_boot=50,
+        seed=0,
+    )
+
+    assert out.exists(), f"run_gpd did not write {out}"
+    payload = json.loads(out.read_text())
+
+    # Top-level shape
+    assert payload["pnode_label"] == "test_pnode"
+    assert payload["response_col"] == "Y_target"
+    assert payload["threshold_col"] == "Z_target"
+    assert payload["n_total_panel"] == n
+    assert payload["n_after_dropna"] == n
+
+    # Threshold sweep: 4 entries
+    sweep = payload["threshold_sweep"]
+    assert len(sweep) == 4
+    for entry in sweep:
+        assert set(entry.keys()) >= {
+            "threshold_quantile", "threshold_value", "n_exceedances",
+            "shape", "shape_se", "shape_bootstrap_ci_95", "scale", "scale_se",
+        }
+        assert isinstance(entry["shape_bootstrap_ci_95"], list)
+        assert len(entry["shape_bootstrap_ci_95"]) == 2
+
+    # Conditional Z
+    cond = payload["conditional_z"]
+    assert cond["threshold_quantile"] == pytest.approx(0.5)
+    assert "low_z" in cond and "high_z" in cond
+    assert set(cond["low_z"].keys()) >= {"shape", "shape_se", "n_exceedances"}
+    assert "shape_difference" in cond
+    diff_block = cond["shape_difference"]
+    assert set(diff_block.keys()) >= {"diff", "bootstrap_ci_95", "bootstrap_p_value"}

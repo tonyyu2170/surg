@@ -257,6 +257,83 @@ def gpd_conditional_on_z(
     )
 
 
+def _gpd_fit_result_to_dict(fit: GPDFitResult) -> dict:
+    return {
+        "threshold_quantile": fit.threshold_quantile,
+        "threshold_value": fit.threshold_value,
+        "n_exceedances": fit.n_exceedances,
+        "shape": fit.shape,
+        "shape_se": fit.shape_se,
+        "shape_bootstrap_ci_95": list(fit.shape_bootstrap_ci_95),
+        "scale": fit.scale,
+        "scale_se": fit.scale_se,
+    }
+
+
+def run_gpd(
+    panel: pd.DataFrame,
+    out_path: Path,
+    *,
+    response_col: str,
+    pnode_label: str,
+    threshold_col: str = "dom_load_gradient_abs_mw_per_min",
+    sweep_quantiles: tuple[float, ...] = (0.90, 0.95, 0.99, 0.995),
+    conditional_threshold_quantile: float = 0.95,
+    z_split_quantile: float = 0.5,
+    n_boot: int = 200,
+    seed: int = 0,
+) -> None:
+    """End-to-end GPD analysis on the full panel: threshold sweep + Z-conditional split.
+
+    Writes a JSON file at `out_path` matching the schema documented in
+    `docs/plans/2026-05-13-strategy-c-modules.md` § "Module: gpd.py".
+
+    Drops NaN rows in [response_col, threshold_col] only; does NOT filter by
+    `passes_proposal_filter` — Strategy C operates on the full panel.
+    """
+    n_total = len(panel)
+    subset = panel.dropna(subset=[response_col, threshold_col])
+    Y = subset[response_col].to_numpy()
+    Z = subset[threshold_col].to_numpy()
+    n_after_dropna = len(subset)
+
+    sweep_results = gpd_threshold_sweep(
+        Y, quantiles=sweep_quantiles, n_boot=n_boot, seed=seed,
+    )
+    cond_result = gpd_conditional_on_z(
+        Y, Z,
+        threshold_quantile=conditional_threshold_quantile,
+        z_split_quantile=z_split_quantile,
+        n_boot=n_boot,
+        seed=seed + 100,  # offset so sweep and conditional use disjoint bootstrap streams
+    )
+
+    payload = {
+        "pnode_label": pnode_label,
+        "response_col": response_col,
+        "threshold_col": threshold_col,
+        "n_total_panel": int(n_total),
+        "n_after_dropna": int(n_after_dropna),
+        "threshold_sweep": [_gpd_fit_result_to_dict(fit) for fit in sweep_results],
+        "conditional_z": {
+            "threshold_quantile": cond_result.threshold_quantile,
+            "threshold_value": cond_result.threshold_value,
+            "z_split_quantile": cond_result.z_split_quantile,
+            "z_split_value": cond_result.z_split_value,
+            "low_z": _gpd_fit_result_to_dict(cond_result.low_z),
+            "high_z": _gpd_fit_result_to_dict(cond_result.high_z),
+            "shape_difference": {
+                "diff": cond_result.shape_diff,
+                "bootstrap_ci_95": list(cond_result.shape_diff_bootstrap_ci_95),
+                "bootstrap_p_value": cond_result.shape_diff_bootstrap_p_value,
+            },
+        },
+    }
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(payload, indent=2))
+
+
 def gpd_threshold_sweep(
     Y: np.ndarray | pd.Series,
     *,

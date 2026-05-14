@@ -174,3 +174,23 @@ def test_gpd_conditional_validates_length_mismatch():
     Z = rng.uniform(0, 10, size=50)  # wrong length
     with pytest.raises(ValueError, match="length"):
         gpd_conditional_on_z(Y, Z, threshold_quantile=0.5, n_boot=10)
+
+
+def test_gpd_conditional_nested_threshold_quantile_carries_parent():
+    """Both nested fit results should carry the parent threshold_quantile,
+    not 0.0 (which is what fit_gpd would compute on already-filtered subsets).
+    """
+    rng = np.random.default_rng(seed=42)
+    n = 4000
+    Z = rng.uniform(0, 10, size=n)
+    Y = stats.genpareto.rvs(c=0.3, scale=2.0, size=n, random_state=rng)
+
+    result = gpd_conditional_on_z(
+        Y, Z, threshold_quantile=0.75, z_split_quantile=0.5, n_boot=50, seed=0,
+    )
+
+    assert result.threshold_quantile == pytest.approx(0.75)
+    assert result.low_z.threshold_quantile == pytest.approx(0.75), \
+        f"low_z carries wrong threshold_quantile: {result.low_z.threshold_quantile}"
+    assert result.high_z.threshold_quantile == pytest.approx(0.75), \
+        f"high_z carries wrong threshold_quantile: {result.high_z.threshold_quantile}"

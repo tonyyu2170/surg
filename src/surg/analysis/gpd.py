@@ -153,7 +153,9 @@ def gpd_conditional_on_z(
       3. z_split = empirical quantile of Z[exceedances] at `z_split_quantile`
       4. low_z subset = exceedances where Z ≤ z_split
          high_z subset = exceedances where Z > z_split
-      5. Fit GPD on each subset independently
+      5. Fit GPD on each subset independently; nested `threshold_quantile`
+         is the parent's input value (the subset arrays contain only
+         exceedances by construction, so a recomputed quantile would be 0.0)
       6. Bootstrap: resample exceedance row indices (paired Y,Z) with replacement,
          recompute z_split inside each bootstrap rep, refit both subsets, record
          shape_diff = ξ_high - ξ_low. Return 2.5%/97.5% quantiles plus one-sided
@@ -188,8 +190,28 @@ def gpd_conditional_on_z(
             f"low_z={int(low_mask.sum())}, high_z={int(high_mask.sum())} (each needs ≥10)"
         )
 
-    low_z_fit = fit_gpd(Y_exc[low_mask], threshold=threshold)
-    high_z_fit = fit_gpd(Y_exc[high_mask], threshold=threshold)
+    _low = fit_gpd(Y_exc[low_mask], threshold=threshold)
+    low_z_fit = GPDFitResult(
+        threshold_quantile=float(threshold_quantile),
+        threshold_value=_low.threshold_value,
+        shape=_low.shape,
+        shape_se=_low.shape_se,
+        shape_bootstrap_ci_95=_low.shape_bootstrap_ci_95,
+        scale=_low.scale,
+        scale_se=_low.scale_se,
+        n_exceedances=_low.n_exceedances,
+    )
+    _high = fit_gpd(Y_exc[high_mask], threshold=threshold)
+    high_z_fit = GPDFitResult(
+        threshold_quantile=float(threshold_quantile),
+        threshold_value=_high.threshold_value,
+        shape=_high.shape,
+        shape_se=_high.shape_se,
+        shape_bootstrap_ci_95=_high.shape_bootstrap_ci_95,
+        scale=_high.scale,
+        scale_se=_high.scale_se,
+        n_exceedances=_high.n_exceedances,
+    )
     shape_diff = high_z_fit.shape - low_z_fit.shape
 
     # Bootstrap on shape_diff: resample exceedance indices, recompute split,

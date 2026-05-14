@@ -14,18 +14,20 @@ def _ashburn_fixture(n_rows: int = 4000, seed: int = 0) -> pd.DataFrame:
     return pd.DataFrame({
         "datetime_beginning_ept": pd.date_range("2024-01-01", periods=n_rows, freq="h"),
         "dom_load_gradient_abs_mw_per_min": rng.uniform(0, 10, size=n_rows),
-        "total_lmp_rt_ashburn_tx1": rng.exponential(2.0, size=n_rows),
-        "total_lmp_rt_ashburn_tx2": rng.exponential(1.8, size=n_rows),
+        "congestion_price_rt_ashburn_tx1": rng.exponential(2.0, size=n_rows),
+        "congestion_price_rt_ashburn_tx2": rng.exponential(1.8, size=n_rows),
     })
 
 
 def test_loo_beta_distribution_returns_n_exc_betas():
+    import math
+
     from surg.analysis.ashburn_diagnostic import loo_beta_distribution
 
     panel = _ashburn_fixture()
     result = loo_beta_distribution(
         panel=panel,
-        response_col="total_lmp_rt_ashburn_tx1",
+        response_col="congestion_price_rt_ashburn_tx1",
         z_col="dom_load_gradient_abs_mw_per_min",
         threshold_quantile=0.95,
     )
@@ -33,6 +35,18 @@ def test_loo_beta_distribution_returns_n_exc_betas():
     assert len(result.loo_beta_1_distribution) == result.n_exc
     assert len(result.delta_beta_1_per_exceedance) == result.n_exc
     assert len(result.top5_influential_indices) == min(5, result.n_exc)
+    # Regression: the LOO uses fit_gpd_continuous_z(n_boot=0), which returns
+    # status="insufficient_bootstrap_reps" even when the MLE converged. The
+    # finite-check on shape_coefficients[1] is the correct success indicator.
+    assert math.isfinite(result.full_sample_beta_1), (
+        "full_sample_beta_1 should be a finite float on a well-behaved fixture; "
+        "got NaN — likely the convergence_status check rejected a successful MLE."
+    )
+    finite_loo = [b for b in result.loo_beta_1_distribution if math.isfinite(b)]
+    assert len(finite_loo) > result.n_exc // 2, (
+        f"expected >half of LOO fits to converge on a well-behaved fixture, "
+        f"got {len(finite_loo)}/{result.n_exc} finite"
+    )
 
 
 def test_loo_beta_distribution_top5_sorted_descending_by_delta():
@@ -41,7 +55,7 @@ def test_loo_beta_distribution_top5_sorted_descending_by_delta():
     panel = _ashburn_fixture(n_rows=2000, seed=42)
     result = loo_beta_distribution(
         panel=panel,
-        response_col="total_lmp_rt_ashburn_tx1",
+        response_col="congestion_price_rt_ashburn_tx1",
         z_col="dom_load_gradient_abs_mw_per_min",
         threshold_quantile=0.95,
     )
@@ -93,8 +107,8 @@ def test_plot_lmp_vs_z_scatter_writes_nonempty_png(tmp_path: Path):
     out_path = tmp_path / "scatter_overlay.png"
     plot_lmp_vs_z_scatter(
         panel=panel,
-        pnode_response_cols={"ashburn_tx1": "total_lmp_rt_ashburn_tx1",
-                             "ashburn_tx2": "total_lmp_rt_ashburn_tx2"},
+        pnode_response_cols={"ashburn_tx1": "congestion_price_rt_ashburn_tx1",
+                             "ashburn_tx2": "congestion_price_rt_ashburn_tx2"},
         z_col="dom_load_gradient_abs_mw_per_min",
         threshold_qs=(0.90, 0.95, 0.99, 0.995),
         out_path=out_path,

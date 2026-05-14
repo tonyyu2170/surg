@@ -63,7 +63,13 @@ def loo_beta_distribution(
     full = fit_gpd_continuous_z(
         Y=Y_exc, Z=Z_exc, threshold=0.0, form="linear", n_boot=0, seed=0,
     )
-    full_beta_1 = float(full.shape_coefficients[1]) if full.convergence_status == "converged" else float("nan")
+    # Accept either "converged" or "insufficient_bootstrap_reps" — both mean the
+    # MLE converged; only bootstrap (which we don't run with n_boot=0) didn't.
+    full_beta_1 = (
+        float(full.shape_coefficients[1])
+        if math.isfinite(full.shape_coefficients[1])
+        else float("nan")
+    )
 
     loo_beta_1: list[float] = []
     delta_beta_1: list[float] = []
@@ -75,7 +81,11 @@ def loo_beta_distribution(
                 Y=Y_exc[mask], Z=Z_exc[mask], threshold=0.0,
                 form="linear", n_boot=0, seed=0,
             )
-            b = float(r.shape_coefficients[1]) if r.convergence_status == "converged" else float("nan")
+            b = (
+                float(r.shape_coefficients[1])
+                if math.isfinite(r.shape_coefficients[1])
+                else float("nan")
+            )
         except Exception:
             b = float("nan")
         loo_beta_1.append(b)
@@ -164,7 +174,7 @@ def run_ashburn_diagnostic(
     threshold_quantiles: tuple[float, ...] = (0.90, 0.95, 0.99, 0.995),
     spec_b_results_dir: Path | None = None,
     z_col: str = "dom_load_gradient_abs_mw_per_min",
-    response_col_template: str = "total_lmp_rt_{pnode}",
+    response_col_template: str = "congestion_price_rt_{pnode}",
     seed: int = 0,
 ) -> None:
     """Orchestrator for sub-q1 closure item #4 — Ashburn diagnostic."""

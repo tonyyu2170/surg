@@ -20,6 +20,8 @@ from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
+import pandas as pd
+from scipy import optimize as _optimize
 
 from surg.analysis.gpd import fit_gpd
 
@@ -163,3 +165,176 @@ def _neg_log_likelihood_nonstationary_gpd(
     if not math.isfinite(total_nll):
         return float("inf")
     return total_nll
+
+
+def _optimize_mle(
+    Y_exc: np.ndarray,
+    Z_exc: np.ndarray,
+    form: Literal["linear", "spline"],
+) -> tuple[np.ndarray, str]:
+    """Run MLE optimization with BFGS, falling back to Nelder-Mead.
+
+    Returns (params, status) where status ∈ {"converged", "max_iter", "failed"}.
+    """
+    X_xi = _design_matrix(Z_exc, form=form)
+    X_sigma = _design_matrix(Z_exc, form=form, for_scale=True)
+    x0 = np.asarray(_initial_params(Y_exc, form=form), dtype=float)
+
+    def objective(params):
+        return _neg_log_likelihood_nonstationary_gpd(params, Y_exc, X_xi, X_sigma)
+
+    # BFGS first
+    try:
+        res = _optimize.minimize(
+            objective, x0, method="BFGS", options={"maxiter": 500, "gtol": 1e-6},
+        )
+        if res.success and np.isfinite(res.fun):
+            return (np.asarray(res.x, dtype=float), "converged")
+    except (ValueError, FloatingPointError):
+        pass
+
+    # Nelder-Mead fallback
+    try:
+        res = _optimize.minimize(
+            objective, x0, method="Nelder-Mead",
+            options={"maxiter": 2000, "xatol": 1e-5, "fatol": 1e-5},
+        )
+        if res.success and np.isfinite(res.fun):
+            return (np.asarray(res.x, dtype=float), "converged")
+    except (ValueError, FloatingPointError):
+        pass
+
+    return (np.full_like(x0, np.nan), "failed")
+
+
+def fit_gpd_continuous_z(
+    Y: np.ndarray | pd.Series,
+    Z: np.ndarray | pd.Series,
+    *,
+    threshold: float,
+    form: Literal["linear", "spline"],
+    n_boot: int = 200,
+    seed: int = 0,
+) -> GPDContinuousFitResult:
+    """Fit non-stationary GPD with covariate Z on shape and scale.
+
+    Form options:
+      "linear": ξ(Z) = β₀ + β₁·Z, log σ(Z) = σ₀ + σ₁·Z. 4 params total.
+      "spline": ξ(Z) = β₀ + β₁·Z + β₂·Z² + β₃·Z³, log σ(Z) = σ₀ + σ₁·Z. 6 params.
+
+    Pair-bootstrap on exceedance row indices, n_boot reps, refit per rep.
+    Two-sided bootstrap p-value for the headline statistic (β₁ for linear;
+    LRT-equivalent for spline — but Task 4 handles the spline LRT separately,
+    so for spline form this function reports β₁ from the linear projection).
+
+    Failure modes:
+      - Primary MLE failure → convergence_status = "failed", params = NaN
+      - Bootstrap < 100 successful reps → convergence_status = "insufficient_bootstrap_reps",
+        CIs = (NaN, NaN)
+    """
+    if form not in ("linear", "spline"):
+        raise ValueError(f"form must be 'linear' or 'spline'; got {form!r}")
+
+    Y_arr = np.asarray(Y, dtype=float)
+    Z_arr = np.asarray(Z, dtype=float)
+    if len(Y_arr) != len(Z_arr):
+        raise ValueError(
+            f"Y and Z must have equal length; got {len(Y_arr)} vs {len(Z_arr)}"
+        )
+    if not np.isfinite(threshold):
+        raise ValueError(f"threshold must be finite; got {threshold}")
+
+    exceed_mask = Y_arr > threshold
+    Y_exc = Y_arr[exceed_mask] - threshold
+    Z_exc = Z_arr[exceed_mask]
+    n_exc = len(Y_exc)
+
+    n_xi = 2 if form == "linear" else 4
+
+    # Primary fit
+    primary_params, primary_status = _optimize_mle(Y_exc, Z_exc, form=form)
+    if primary_status == "failed":
+        # All NaN result
+        nan_ci = tuple((float("nan"), float("nan")) for _ in range(n_xi))
+        return GPDContinuousFitResult(
+            form=form,
+            threshold_quantile=float(np.mean(Y_arr <= threshold)),
+            threshold_value=float(threshold),
+            n_exceedances=n_exc,
+            shape_coefficients=tuple(float("nan") for _ in range(n_xi)),
+            shape_coefficients_bootstrap_ci_95=nan_ci,
+            scale_coefficients=(float("nan"), float("nan")),
+            scale_coefficients_bootstrap_ci_95=((float("nan"), float("nan")),) * 2,
+            headline_slope_or_lrt=float("nan"),
+            headline_p_value=float("nan"),
+            convergence_status="failed",
+        )
+
+    # Bootstrap
+    rng = np.random.default_rng(seed)
+    bootstrap_xi_params: list[np.ndarray] = []
+    bootstrap_sigma_params: list[np.ndarray] = []
+    for _ in range(n_boot):
+        idx = rng.integers(0, n_exc, size=n_exc)
+        Y_b = Y_exc[idx]
+        Z_b = Z_exc[idx]
+        try:
+            boot_params, boot_status = _optimize_mle(Y_b, Z_b, form=form)
+        except (ValueError, FloatingPointError):
+            continue
+        if boot_status != "converged":
+            continue
+        bootstrap_xi_params.append(boot_params[:n_xi])
+        bootstrap_sigma_params.append(boot_params[n_xi:])
+
+    if len(bootstrap_xi_params) < 100:
+        nan_ci = tuple((float("nan"), float("nan")) for _ in range(n_xi))
+        return GPDContinuousFitResult(
+            form=form,
+            threshold_quantile=float(np.mean(Y_arr <= threshold)),
+            threshold_value=float(threshold),
+            n_exceedances=n_exc,
+            shape_coefficients=tuple(float(c) for c in primary_params[:n_xi]),
+            shape_coefficients_bootstrap_ci_95=nan_ci,
+            scale_coefficients=(float(primary_params[n_xi]), float(primary_params[n_xi + 1])),
+            scale_coefficients_bootstrap_ci_95=((float("nan"), float("nan")),) * 2,
+            headline_slope_or_lrt=float(primary_params[1]),  # β₁
+            headline_p_value=float("nan"),
+            convergence_status="insufficient_bootstrap_reps",
+        )
+
+    xi_array = np.asarray(bootstrap_xi_params)  # shape (n_succ, n_xi)
+    sigma_array = np.asarray(bootstrap_sigma_params)
+
+    xi_cis = tuple(
+        (float(np.quantile(xi_array[:, j], 0.025)),
+         float(np.quantile(xi_array[:, j], 0.975)))
+        for j in range(n_xi)
+    )
+    sigma_cis = (
+        (float(np.quantile(sigma_array[:, 0], 0.025)),
+         float(np.quantile(sigma_array[:, 0], 0.975))),
+        (float(np.quantile(sigma_array[:, 1], 0.025)),
+         float(np.quantile(sigma_array[:, 1], 0.975))),
+    )
+
+    # Two-sided bootstrap p on β₁ (regardless of form — for spline, this
+    # captures the linear-coefficient share; LRT for spline is in Task 4).
+    beta_1_boot = xi_array[:, 1]
+    p_left = float(np.mean(beta_1_boot <= 0.0))
+    p_right = float(np.mean(beta_1_boot >= 0.0))
+    p_two_sided = min(1.0, 2.0 * min(p_left, p_right))
+
+    return GPDContinuousFitResult(
+        form=form,
+        threshold_quantile=float(np.mean(Y_arr <= threshold)),
+        threshold_value=float(threshold),
+        n_exceedances=n_exc,
+        shape_coefficients=tuple(float(c) for c in primary_params[:n_xi]),
+        shape_coefficients_bootstrap_ci_95=xi_cis,
+        scale_coefficients=(float(primary_params[n_xi]), float(primary_params[n_xi + 1])),
+        scale_coefficients_bootstrap_ci_95=sigma_cis,
+        headline_slope_or_lrt=float(primary_params[1]),  # β₁
+        headline_p_value=p_two_sided,
+        convergence_status="converged",
+    )

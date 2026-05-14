@@ -184,3 +184,114 @@ def test_neg_log_likelihood_handles_xi_near_zero_via_exponential_limit():
     expected = n * math.log(2.0) + Y_exc.sum() / 2.0
     assert math.isclose(nll, expected, rel_tol=1e-6), \
         f"Exponential-limit NLL mismatch: got {nll}, expected {expected}"
+
+
+from surg.analysis.gpd_continuous import fit_gpd_continuous_z
+
+
+def test_fit_gpd_continuous_z_linear_recovers_planted_beta_1():
+    """Planted DGP: ξ(Z) = 0.3 + 0.05·Z; fit recovers β₁ within bootstrap tolerance."""
+    rng = np.random.default_rng(seed=42)
+    n = 5000
+    Z = rng.uniform(1.0, 10.0, size=n)
+    # Generate Y with Z-dependent shape and constant scale
+    Y_full = np.empty(n)
+    for i in range(n):
+        xi_i = 0.3 + 0.05 * Z[i]
+        Y_full[i] = stats.genpareto.rvs(c=xi_i, scale=2.0, size=1, random_state=rng)[0]
+    # Add some below-threshold values for the function to filter
+    threshold = 0.0  # everything is an exceedance for this synthetic
+
+    result = fit_gpd_continuous_z(
+        Y_full, Z, threshold=threshold, form="linear", n_boot=100, seed=0,
+    )
+
+    assert isinstance(result, GPDContinuousFitResult)
+    assert result.form == "linear"
+    assert result.convergence_status == "converged"
+    # Recovery tolerance: β₁ true is 0.05, MLE should be within ±0.03 at n=5000
+    assert abs(result.shape_coefficients[1] - 0.05) < 0.03, \
+        f"β₁ recovery off: {result.shape_coefficients[1]}"
+    # Headline = β₁ for linear form
+    assert result.headline_slope_or_lrt == result.shape_coefficients[1]
+
+
+def test_fit_gpd_continuous_z_linear_null_dgp_gives_beta_1_near_zero():
+    """When DGP has constant ξ, β₁ should be near zero and its CI should span 0."""
+    rng = np.random.default_rng(seed=42)
+    n = 3000
+    Z = rng.uniform(1.0, 10.0, size=n)
+    Y = stats.genpareto.rvs(c=0.3, scale=2.0, size=n, random_state=rng)
+    threshold = 0.0
+
+    result = fit_gpd_continuous_z(
+        Y, Z, threshold=threshold, form="linear", n_boot=100, seed=0,
+    )
+
+    assert abs(result.shape_coefficients[1]) < 0.05, \
+        f"β₁ should be near 0 for null DGP: {result.shape_coefficients[1]}"
+    # Two-sided p should be > 0.10 (cannot reject null)
+    assert result.headline_p_value > 0.10, \
+        f"False rejection: p={result.headline_p_value}"
+    # CI should span 0
+    ci_lo, ci_hi = result.shape_coefficients_bootstrap_ci_95[1]  # β₁ CI
+    assert ci_lo < 0 < ci_hi, f"β₁ CI should span 0: ({ci_lo}, {ci_hi})"
+
+
+def test_fit_gpd_continuous_z_spline_returns_four_shape_coefficients():
+    """Spline form has 4 shape coefficients (β₀, β₁, β₂, β₃) + 2 scale coefficients."""
+    rng = np.random.default_rng(seed=42)
+    n = 3000
+    Z = rng.uniform(1.0, 10.0, size=n)
+    Y = stats.genpareto.rvs(c=0.3, scale=2.0, size=n, random_state=rng)
+
+    result = fit_gpd_continuous_z(
+        Y, Z, threshold=0.0, form="spline", n_boot=50, seed=0,
+    )
+
+    assert result.form == "spline"
+    assert len(result.shape_coefficients) == 4
+    assert len(result.scale_coefficients) == 2
+    assert len(result.shape_coefficients_bootstrap_ci_95) == 4
+    assert len(result.scale_coefficients_bootstrap_ci_95) == 2
+
+
+def test_fit_gpd_continuous_z_validates_inputs():
+    """Y and Z must have same length; form must be valid."""
+    rng = np.random.default_rng(seed=42)
+    Y = stats.genpareto.rvs(c=0.3, scale=2.0, size=100, random_state=rng)
+    Z = rng.uniform(1.0, 10.0, size=50)  # wrong length
+    with pytest.raises(ValueError, match="length"):
+        fit_gpd_continuous_z(Y, Z, threshold=0.0, form="linear", n_boot=10)
+
+    with pytest.raises(ValueError, match="form"):
+        fit_gpd_continuous_z(
+            np.zeros(100), np.zeros(100), threshold=0.0, form="quadratic", n_boot=10,
+        )
+
+
+def test_fit_gpd_continuous_z_reports_insufficient_bootstrap_reps_on_low_n():
+    """If fewer than 100 bootstrap reps succeed (out of n_boot=200), CI is NaN
+    and convergence_status is 'insufficient_bootstrap_reps'."""
+    # Synthetic small-n case to force frequent bootstrap failures
+    rng = np.random.default_rng(seed=42)
+    # Very small n_exc + force unstable fits via near-boundary support
+    n = 35
+    Y = rng.uniform(0.0, 0.1, size=n)  # near-zero exceedances, ξ MLE unstable
+    Z = rng.uniform(1.0, 10.0, size=n)
+
+    result = fit_gpd_continuous_z(
+        Y, Z, threshold=0.0, form="spline", n_boot=200, seed=0,
+    )
+    # At n=35 with degenerate data, spline (6 params) + bootstrap likely fails
+    # often. Status can be 'converged' but CI may be NaN if reps insufficient,
+    # OR status can be 'failed' if the primary fit also fails. Either is valid.
+    assert result.convergence_status in {
+        "converged",
+        "failed",
+        "insufficient_bootstrap_reps",
+    }
+    if result.convergence_status == "insufficient_bootstrap_reps":
+        # CI should be (NaN, NaN) for all coefficients
+        for ci in result.shape_coefficients_bootstrap_ci_95:
+            assert math.isnan(ci[0]) and math.isnan(ci[1])

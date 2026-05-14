@@ -91,6 +91,11 @@ def run_all(
         n_reps=n_subsample_reps,
     )
 
+    # Note: leave_one_season_out (robustness.py) is intentionally NOT called
+    # from run_all per the plan's "Out of scope" section — the panel does not
+    # yet carry an explicit _season_id column. The function remains importable
+    # for ad-hoc use once preprocessing adds that column.
+
 
 def _build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(

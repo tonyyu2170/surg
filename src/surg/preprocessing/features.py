@@ -7,6 +7,17 @@ from __future__ import annotations
 
 import pandas as pd
 
+# Value columns that pivot_lmp_long_to_pnode_columns will pivot when present.
+# The pivot is best-effort: only columns present in the input long_df are
+# included, so legacy callers passing only congestion_price_rt and
+# total_lmp_rt still produce a valid (narrower) wide DataFrame.
+_VALUE_COLS_PIVOTED = [
+    "congestion_price_rt",
+    "total_lmp_rt",
+    "system_energy_price_rt",
+    "marginal_loss_price_rt",
+]
+
 
 def add_load_gradient_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Add hour-over-hour gradient columns to a DOM-load DataFrame.
@@ -30,21 +41,26 @@ def add_load_gradient_columns(df: pd.DataFrame) -> pd.DataFrame:
 def pivot_lmp_long_to_pnode_columns(long_df: pd.DataFrame) -> pd.DataFrame:
     """Pivot long-format LMP (one row per pnode per hour) to wide.
 
-    Output: one row per `datetime_beginning_ept`, with two columns per
-    pnode: `congestion_price_rt_<pnode_id>` and `total_lmp_rt_<pnode_id>`.
+    Output: one row per `datetime_beginning_ept`, with up to four columns
+    per pnode: `congestion_price_rt_<pnode_id>`, `total_lmp_rt_<pnode_id>`,
+    `system_energy_price_rt_<pnode_id>`, and
+    `marginal_loss_price_rt_<pnode_id>`.
+
+    The pivot is best-effort: only columns present in `long_df` are pivoted
+    (see module-level `_VALUE_COLS_PIVOTED`), so legacy callers passing only
+    `congestion_price_rt` and `total_lmp_rt` still receive a valid narrower
+    wide DataFrame.
+
     pnode_id is used in the column name (not pnode_name) because the LMP
     feed truncates pnode_name (see docs/pjm-api-constraints.md).
     """
     if long_df.empty:
         return pd.DataFrame({"datetime_beginning_ept": pd.Series(dtype="datetime64[ns]")})
 
-    _all_value_cols = [
-        "congestion_price_rt",
-        "total_lmp_rt",
-        "system_energy_price_rt",
-        "marginal_loss_price_rt",
-    ]
-    value_cols = [c for c in _all_value_cols if c in long_df.columns]
+    value_cols = [c for c in _VALUE_COLS_PIVOTED if c in long_df.columns]
+    if not value_cols:
+        return pd.DataFrame({"datetime_beginning_ept": pd.Series(dtype="datetime64[ns]")})
+
     pivoted = long_df.pivot_table(
         index="datetime_beginning_ept",
         columns="pnode_id",
@@ -59,7 +75,19 @@ def add_loudoun_cluster_columns(
     wide_df: pd.DataFrame,
     cluster_pnode_ids: tuple[int, ...],
 ) -> pd.DataFrame:
-    """Add congestion_price_rt_cluster_{mean,max} and total_lmp_rt_cluster_mean.
+    """Add Loudoun-cluster aggregate columns from per-pnode wide columns.
+
+    Adds five columns:
+    - ``congestion_price_rt_cluster_mean``
+    - ``congestion_price_rt_cluster_max``
+    - ``total_lmp_rt_cluster_mean``
+    - ``system_energy_price_rt_cluster_mean``
+    - ``marginal_loss_price_rt_cluster_mean``
+
+    Only congestion has a ``_max`` column; the other components have
+    ``_mean`` only. Column presence in ``wide_df`` is checked defensively —
+    missing pnode columns are skipped silently (matching the behaviour of
+    ``pivot_lmp_long_to_pnode_columns``).
 
     cluster_pnode_ids = the 6 Loudoun-area transmission pnodes (see
     docs/decisions.md 2026-05-10 "Lock the 11-pnode target set").

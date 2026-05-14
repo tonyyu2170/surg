@@ -14,6 +14,7 @@ from surg.analysis.qr import run_qr
 from surg.analysis.qr_full import run_qr_full
 from surg.analysis.gpd import run_gpd, run_conditional_z_robustness
 from surg.analysis.gpd_continuous import run_gpd_continuous_z
+from surg.analysis.gpd_components import run_gpd_components
 from surg.analysis.mechanism import run_mechanism
 from surg.analysis.robustness import subsample_bootstrap
 from surg.preprocessing.loaders import load_sync_reserve_events
@@ -44,6 +45,8 @@ def run_all(
     qr_full_n_boot: int = 200,
     gpd_n_boot: int = 200,
     continuous_n_boot: int = 200,
+    components_n_boot: int = 200,
+    skip_gpd_components: bool = False,
 ) -> None:
     """Run the full Phase 3 analysis pipeline.
 
@@ -143,6 +146,15 @@ def run_all(
     # Headline JSON: primary congestion @ 95th-pct linear β₁ per pre-reg
     _write_spec_b_headline(out_root / "gpd_continuous")
 
+    # Sub-q1 closure item #2: LMP-components decomposition.
+    # Pre-reg: docs/decisions.md § 2026-05-14 — Pre-registration: LMP-components decomposition.
+    if not skip_gpd_components:
+        run_gpd_components(
+            panel=panel,
+            out_dir=out_root / "gpd_components",
+            n_boot=components_n_boot,
+        )
+
     # Note: leave_one_season_out (robustness.py) is intentionally NOT called
     # from run_all per the plan's "Out of scope" section — the panel does not
     # yet carry an explicit _season_id column. The function remains importable
@@ -170,6 +182,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    help="Bootstrap reps for GPD shape CI and conditional p-value.")
     p.add_argument("--continuous-n-boot", type=int, default=200,
                    help="Bootstrap reps for Spec B continuous ξ(Z) regression.")
+    p.add_argument("--components-n-boot", type=int, default=200,
+                   help="Bootstrap reps for sub-q1 item #2 LMP-components decomposition.")
+    p.add_argument("--skip-gpd-components", action="store_true",
+                   help="Skip sub-q1 item #2 (gpd_components) orchestrator.")
     return p
 
 
@@ -189,6 +205,8 @@ def main(argv: list[str] | None = None) -> int:
         qr_full_n_boot=args.qr_full_n_boot,
         gpd_n_boot=args.gpd_n_boot,
         continuous_n_boot=args.continuous_n_boot,
+        components_n_boot=args.components_n_boot,
+        skip_gpd_components=args.skip_gpd_components,
     )
     print(f"wrote analysis outputs to {args.out_root}/")
     return 0

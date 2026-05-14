@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from scipy import stats
 
-from surg.analysis.gpd import GPDFitResult, fit_gpd
+from surg.analysis.gpd import GPDFitResult, fit_gpd, gpd_threshold_sweep
 
 
 def test_fit_gpd_recovers_planted_shape_and_scale():
@@ -82,3 +82,34 @@ def test_fit_gpd_nan_se_when_shape_below_regularity_boundary():
         # finite values (the alternative path).
         assert math.isfinite(result.shape_se)
         assert math.isfinite(result.scale_se)
+
+
+def test_gpd_threshold_sweep_returns_count_equal_to_quantile_count():
+    """Passing 4 quantiles produces exactly 4 fits."""
+    rng = np.random.default_rng(seed=42)
+    Y = stats.genpareto.rvs(c=0.3, scale=2.0, size=5000, random_state=rng)
+
+    results = gpd_threshold_sweep(
+        Y, quantiles=(0.50, 0.75, 0.90, 0.95), n_boot=50, seed=0
+    )
+
+    assert len(results) == 4
+    for fit, expected_q in zip(results, (0.50, 0.75, 0.90, 0.95), strict=True):
+        assert isinstance(fit, GPDFitResult)
+        assert fit.threshold_quantile == pytest.approx(expected_q, abs=0.01)
+        # Bootstrap CI should be non-degenerate (positive width) and finite
+        lo, hi = fit.shape_bootstrap_ci_95
+        assert math.isfinite(lo) and math.isfinite(hi), \
+            f"CI not finite at q={expected_q}: ({lo}, {hi})"
+        assert hi > lo, f"CI has zero width at q={expected_q}: ({lo}, {hi})"
+
+
+def test_gpd_threshold_sweep_seed_reproducibility():
+    """Same seed must produce identical bootstrap CIs across runs."""
+    rng = np.random.default_rng(seed=42)
+    Y = stats.genpareto.rvs(c=0.3, scale=2.0, size=2000, random_state=rng)
+
+    r1 = gpd_threshold_sweep(Y, quantiles=(0.5, 0.75), n_boot=30, seed=123)
+    r2 = gpd_threshold_sweep(Y, quantiles=(0.5, 0.75), n_boot=30, seed=123)
+    for f1, f2 in zip(r1, r2, strict=True):
+        assert f1.shape_bootstrap_ci_95 == f2.shape_bootstrap_ci_95

@@ -88,3 +88,82 @@ def fit_gpd(Y: np.ndarray | pd.Series, *, threshold: float) -> GPDFitResult:
         scale_se=float(scale_se),
         n_exceedances=n,
     )
+
+
+def _bootstrap_shape_ci(
+    Y: np.ndarray,
+    *,
+    threshold: float,
+    n_boot: int,
+    seed: int,
+) -> tuple[float, float]:
+    """Non-parametric pair-bootstrap CI on the GPD shape parameter.
+
+    Resample row indices of `Y` with replacement, refit GPD at the same
+    threshold each time, return 2.5%/97.5% quantiles of the shape estimates.
+
+    Skips bootstrap reps that result in < 10 exceedances or fail to converge.
+    Returns (nan, nan) if fewer than 20 reps succeed (CI uninformative).
+    """
+    rng = np.random.default_rng(seed)
+    n = len(Y)
+    shapes: list[float] = []
+    for _ in range(n_boot):
+        idx = rng.integers(0, n, size=n)
+        Y_boot = Y[idx]
+        try:
+            fit = fit_gpd(Y_boot, threshold=threshold)
+        except ValueError:
+            continue
+        shapes.append(fit.shape)
+    if len(shapes) < 20:
+        return (float("nan"), float("nan"))
+    arr = np.asarray(shapes)
+    return (float(np.quantile(arr, 0.025)), float(np.quantile(arr, 0.975)))
+
+
+def gpd_threshold_sweep(
+    Y: np.ndarray | pd.Series,
+    *,
+    quantiles: tuple[float, ...] = (0.90, 0.95, 0.99, 0.995),
+    n_boot: int = 200,
+    seed: int = 0,
+) -> list[GPDFitResult]:
+    """Fit GPD at each threshold quantile; report shape stability via bootstrap CI.
+
+    For each `q ∈ quantiles`:
+      1. threshold = empirical quantile of Y at q
+      2. Fit GPD at that threshold (`fit_gpd`)
+      3. Bootstrap CI on shape: pair-resample row indices of Y, refit, take
+         2.5%/97.5% quantiles of the shape estimates
+      4. Return a list of `GPDFitResult` with bootstrap CIs filled in
+
+    Quantiles must be sorted ascending and in (0, 1). Raises ValueError otherwise.
+    """
+    Y_arr = np.asarray(Y, dtype=float)
+    if not all(0.0 < q < 1.0 for q in quantiles):
+        raise ValueError(f"quantiles must be in (0, 1); got {quantiles}")
+    if list(quantiles) != sorted(quantiles):
+        raise ValueError(f"quantiles must be sorted ascending; got {quantiles}")
+
+    results: list[GPDFitResult] = []
+    for i, q in enumerate(quantiles):
+        threshold = float(np.quantile(Y_arr, q))
+        # Per-quantile seed offset so each fit uses a different bootstrap stream
+        ci_lo, ci_hi = _bootstrap_shape_ci(
+            Y_arr, threshold=threshold, n_boot=n_boot, seed=seed + i,
+        )
+        base = fit_gpd(Y_arr, threshold=threshold)
+        # Replace the (nan, nan) placeholder with the bootstrap CI
+        result = GPDFitResult(
+            threshold_quantile=base.threshold_quantile,
+            threshold_value=base.threshold_value,
+            shape=base.shape,
+            shape_se=base.shape_se,
+            shape_bootstrap_ci_95=(ci_lo, ci_hi),
+            scale=base.scale,
+            scale_se=base.scale_se,
+            n_exceedances=base.n_exceedances,
+        )
+        results.append(result)
+    return results

@@ -38,10 +38,17 @@ def pivot_lmp_long_to_pnode_columns(long_df: pd.DataFrame) -> pd.DataFrame:
     if long_df.empty:
         return pd.DataFrame({"datetime_beginning_ept": pd.Series(dtype="datetime64[ns]")})
 
+    _all_value_cols = [
+        "congestion_price_rt",
+        "total_lmp_rt",
+        "system_energy_price_rt",
+        "marginal_loss_price_rt",
+    ]
+    value_cols = [c for c in _all_value_cols if c in long_df.columns]
     pivoted = long_df.pivot_table(
         index="datetime_beginning_ept",
         columns="pnode_id",
-        values=["congestion_price_rt", "total_lmp_rt"],
+        values=value_cols,
     )
     # Flatten the (value, pnode_id) MultiIndex columns to `value_pnodeid` strings
     pivoted.columns = [f"{val}_{pid}" for val, pid in pivoted.columns]
@@ -61,11 +68,17 @@ def add_loudoun_cluster_columns(
                  if f"congestion_price_rt_{pid}" in wide_df.columns]
     total_cols = [f"total_lmp_rt_{pid}" for pid in cluster_pnode_ids
                   if f"total_lmp_rt_{pid}" in wide_df.columns]
+    sys_cols = [f"system_energy_price_rt_{pid}" for pid in cluster_pnode_ids
+                if f"system_energy_price_rt_{pid}" in wide_df.columns]
+    loss_cols = [f"marginal_loss_price_rt_{pid}" for pid in cluster_pnode_ids
+                 if f"marginal_loss_price_rt_{pid}" in wide_df.columns]
 
     out = wide_df.copy()
     out["congestion_price_rt_cluster_mean"] = out[cong_cols].mean(axis=1)
     out["congestion_price_rt_cluster_max"] = out[cong_cols].max(axis=1)
     out["total_lmp_rt_cluster_mean"] = out[total_cols].mean(axis=1)
+    out["system_energy_price_rt_cluster_mean"] = out[sys_cols].mean(axis=1)
+    out["marginal_loss_price_rt_cluster_mean"] = out[loss_cols].mean(axis=1)
     return out
 
 

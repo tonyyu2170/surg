@@ -211,3 +211,43 @@ def test_add_filter_columns_flags_spring_forward_2am_when_present():
     is currently always False for our 2-5 AM filtered subset, but we keep the column
     for forward-compatibility."""
     # No-op test; documents the rationale.
+
+
+def test_pivot_lmp_includes_system_energy_and_marginal_loss():
+    from surg.preprocessing.features import pivot_lmp_long_to_pnode_columns
+
+    long_df = pd.DataFrame({
+        "datetime_beginning_ept": pd.to_datetime(["2024-01-01 00:00", "2024-01-01 00:00"]),
+        "pnode_id": [100, 200],
+        "pnode_name": ["A", "B"],
+        "congestion_price_rt": [1.0, 2.0],
+        "total_lmp_rt": [10.0, 20.0],
+        "system_energy_price_rt": [8.0, 17.0],
+        "marginal_loss_price_rt": [1.0, 1.0],
+    })
+    wide = pivot_lmp_long_to_pnode_columns(long_df)
+    assert "congestion_price_rt_100" in wide.columns
+    assert "total_lmp_rt_100" in wide.columns
+    assert "system_energy_price_rt_100" in wide.columns
+    assert "marginal_loss_price_rt_100" in wide.columns
+    assert float(wide.loc[0, "system_energy_price_rt_200"]) == 17.0
+    assert float(wide.loc[0, "marginal_loss_price_rt_200"]) == 1.0
+
+
+def test_loudoun_cluster_columns_include_system_energy_and_marginal_loss():
+    from surg.preprocessing.features import add_loudoun_cluster_columns
+
+    wide_df = pd.DataFrame({
+        "datetime_beginning_ept": pd.to_datetime(["2024-01-01 00:00"]),
+        "congestion_price_rt_1": [1.0],
+        "congestion_price_rt_2": [3.0],
+        "total_lmp_rt_1": [10.0],
+        "total_lmp_rt_2": [12.0],
+        "system_energy_price_rt_1": [8.0],
+        "system_energy_price_rt_2": [8.0],
+        "marginal_loss_price_rt_1": [1.0],
+        "marginal_loss_price_rt_2": [1.0],
+    })
+    out = add_loudoun_cluster_columns(wide_df, cluster_pnode_ids=(1, 2))
+    assert out["system_energy_price_rt_cluster_mean"].iloc[0] == 8.0
+    assert out["marginal_loss_price_rt_cluster_mean"].iloc[0] == 1.0

@@ -133,3 +133,12 @@ def test_fit_qr_full_bootstrap_seed_reproducibility():
     r1 = fit_qr_full(Y, Z, hour, month, tau=0.5, n_boot=50, seed=123)
     r2 = fit_qr_full(Y, Z, hour, month, tau=0.5, n_boot=50, seed=123)
     assert r1.z_slope_bootstrap_ci_95 == r2.z_slope_bootstrap_ci_95
+
+
+def test_fit_qr_full_bootstrap_ci_skipped_when_n_boot_zero():
+    """n_boot=0 (the default and any n_boot < 20) produces (nan, nan) without
+    running the bootstrap loop, per the documented contract."""
+    Y, Z, hour, month = _synth_inputs(n=500, z_slope=2.0, seed=42)
+    result = fit_qr_full(Y, Z, hour, month, tau=0.5, n_boot=0, seed=0)
+    assert math.isnan(result.z_slope_bootstrap_ci_95[0])
+    assert math.isnan(result.z_slope_bootstrap_ci_95[1])

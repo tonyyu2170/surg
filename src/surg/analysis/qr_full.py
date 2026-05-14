@@ -2,8 +2,8 @@
 
 Strategy C module — operates on the full 31,536-hour analysis panel
 (no `passes_proposal_filter` filtering). Each fit produces point
-estimates and asymptotic SE; bootstrap CI is added in Task 7 of the
-implementation plan. Year-FE robustness specification is added in
+estimates with asymptotic SE and (when n_boot >= 20) a pair-bootstrap
+95% CI on the Z slope. Year-FE robustness specification is added in
 Task 8.
 """
 from __future__ import annotations
@@ -21,7 +21,9 @@ import statsmodels.api as sm
 class QRFullFitResult:
     """Single QR fit at one quantile, one specification (primary or year_fe).
 
-    `z_slope_bootstrap_ci_95` is `(nan, nan)` until Task 7 wires bootstrap.
+    `z_slope_bootstrap_ci_95` is `(nan, nan)` when `n_boot < 20` (skipped);
+    otherwise it carries the pair-bootstrap 2.5%/97.5% quantiles of the
+    z_slope sampling distribution.
     """
     tau: float
     z_slope: float
@@ -83,8 +85,14 @@ def _bootstrap_z_slope_ci(
         X_boot = np.column_stack(cols)
         try:
             m = sm.QuantReg(Y[idx], X_boot).fit(q=tau)
-            slopes.append(float(m.params[1]))
-        except Exception:
+            # statsmodels rarely raises on QR; it can also return NaN/inf
+            # params under degenerate subsets (extreme tau, collinear cols).
+            # Treat non-finite estimates as failed reps.
+            val = float(m.params[1])
+            if not np.isfinite(val):
+                continue
+            slopes.append(val)
+        except Exception:  # statsmodels failure modes vary (LinAlgError, ValueError, etc.); broad catch is intentional
             continue
     if len(slopes) < 20:
         return (float("nan"), float("nan"))

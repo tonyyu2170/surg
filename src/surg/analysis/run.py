@@ -12,7 +12,7 @@ from surg.analysis.panel import load_panel
 from surg.analysis.tar import run_tar
 from surg.analysis.qr import run_qr
 from surg.analysis.qr_full import run_qr_full
-from surg.analysis.gpd import run_gpd
+from surg.analysis.gpd import run_gpd, run_conditional_z_robustness
 from surg.analysis.mechanism import run_mechanism
 from surg.analysis.robustness import subsample_bootstrap
 from surg.preprocessing.loaders import load_sync_reserve_events
@@ -111,6 +111,19 @@ def run_all(
             pnode_label=label,
             n_boot=gpd_n_boot,
         )
+
+    # 2026-05-14 conditional-Z robustness battery (A/C/F + Holm-Bonferroni).
+    # Single battery run on the primary response (cluster total_lmp) where
+    # the original median-split rejection was found. Pre-reg:
+    # docs/decisions.md § "2026-05-14 — Pre-registration: conditional-Z
+    # robustness battery (A/C/F + gated B)".
+    run_conditional_z_robustness(
+        panel=panel,
+        out_path=out_root / "gpd" / "conditional_z_robustness.json",
+        response_col=PNODE_RESPONSES["total_lmp"],
+        pnode_label="total_lmp",
+        n_boot=gpd_n_boot,
+    )
 
     # Note: leave_one_season_out (robustness.py) is intentionally NOT called
     # from run_all per the plan's "Out of scope" section — the panel does not

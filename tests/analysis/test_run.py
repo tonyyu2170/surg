@@ -81,6 +81,8 @@ def test_run_all_writes_all_outputs(tmp_path: Path):
         out_root / "gpd" / "dom_zonal.json",
         out_root / "gpd" / "ashburn_tx1.json",
         out_root / "gpd" / "ashburn_tx2.json",
+        # NEW: conditional-Z robustness battery
+        out_root / "gpd" / "conditional_z_robustness.json",
     }
     for p in expected_paths:
         assert p.exists(), f"expected output not written: {p}"

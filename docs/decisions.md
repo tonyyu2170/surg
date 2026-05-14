@@ -1675,3 +1675,198 @@ From the 2026-05-14 production-findings entry's six open questions:
 - **Spec B (continuous ξ(Z))** triggered by both batteries' non-monotone Spec A trajectory. Spec B follow-up needs its own pre-reg + design + plan + execution. Until B runs, sub-question 1's verdict is "median-split rejection on congestion is real; higher-granularity behavior requires Spec B to characterize."
 - **The orchestrator's wiring decision** — should `run_conditional_z_robustness` run on every pnode in `PNODE_RESPONSES`, or stay at total_lmp default? This Task 4-amendment question is for advisor / user input, not unilateral implementation. For tonight, the manual one-shot on congestion is the surgical workaround.
 - **Longer historical window** to shrink CIs at higher-granularity scopes. Currently no path to extend without re-introducing the 2022-10 pre-cap break.
+
+---
+
+## 2026-05-14 — Pre-registration: Spec B continuous ξ(Z) regression (follow-up from conditional-Z battery)
+
+**Context.** The same-date conditional-Z robustness battery pre-reg
+("Pre-registration: conditional-Z robustness battery (A/C/F + gated B)")
+specified that **Spec B is triggered if Spec A returns non-monotone ξ
+trajectory or inconclusive primary CI**. The 2026-05-14
+application-of-pre-reg entry recorded that both batteries (total_lmp
+default + manual primary one-shot) produce non-monotone Spec A
+trajectories with the single Q2 spike pattern. **Spec B is therefore
+triggered.**
+
+The original conditional-Z pre-reg deferred Spec B's decision rules to
+"a follow-up dated entry before B runs." This is that entry. The Spec
+B design spec is at
+`docs/plans/2026-05-14-spec-b-continuous-xi-z-design.md`
+(commit `3753b97`). Decision rules below are locked **before any
+Spec B MLE fit runs**.
+
+This entry exists for the same reason the conditional-Z pre-reg did:
+to prevent post-hoc rationalization of decision boundaries after
+results land. Spec B is more flexible than the discrete A/C/F battery
+(continuous Z covariate on both σ and ξ), so the temptation to
+retrofit a paper claim to whichever subset of the cross-pnode × cross-
+threshold × cross-form results "tells the cleanest story" is real and
+must be pre-committed away.
+
+**Decision.** Apply the decision rules below mechanically to the
+production output once `run_gpd_continuous_z` lands and runs on the
+full panel. Any deviation requires a new dated entry explicitly
+overriding this one; the rules below are not edited post-hoc.
+
+### Rule 1 — Singular paper headline
+
+The singular paper claim from Spec B is:
+
+- **Pnode:** `primary` (Loudoun cluster congestion — `congestion_price_rt_cluster_mean`).
+- **Threshold quantile:** 0.95 (matches the conditional-Z battery's Spec A scope).
+- **Parametric form:** linear (ξ(Z) = β₀ + β₁·Z; σ(Z) = exp(σ₀ + σ₁·Z)).
+- **Statistic:** β₁ point estimate + pair-bootstrap 95% CI + two-sided
+  bootstrap p-value (= 2 × min(P(β₁ ≤ 0), P(β₁ ≥ 0)) clipped to [0,1]).
+- **Significance threshold:** two-sided p < 0.05.
+
+**All other Spec B output** (other pnodes, other thresholds, the
+spline form, the LRT statistic) is **descriptive supplementary** and
+is *not* subject to family-wise correction. The supplementary results
+inform the paper's discussion but are not interpreted as
+hypothesis-test rejections.
+
+This singular-headline framing is itself the multiple-testing
+mitigation: by pre-committing one test as the inferential claim, we
+avoid the dimensionality (7 pnodes × 4 thresholds × 2 forms = 56
+candidate tests) that would otherwise drive any α correction to be
+either uninterpretable or so conservative as to be unrejectable.
+
+### Rule 2 — Paper claim table
+
+The decision-rule table maps the headline statistic to paper language:
+
+| β₁ point estimate | β₁ bootstrap CI 95% | LRT spline-vs-linear (bootstrap p) | Paper claim |
+|---|---|---|---|
+| < 0 | upper bound < 0 (excludes 0) | not significant (p ≥ 0.10) | "Continuous fit confirms the median-split direction at α = 0.05: ξ decreases linearly with Z at rate β₁ = [value], bootstrap CI [...]. Median-split rejection (95th-pct, congestion) is sharpened." |
+| < 0 | upper bound < 0 (excludes 0) | significant (p < 0.10) | "Continuous fit confirms direction (β₁ < 0) but the smooth ξ(Z) is non-linear (LRT p = [value]). Spline characterization shows [paragraph describing the shape]." |
+| > 0 | lower bound > 0 (excludes 0) | n/a | "Continuous fit **CONTRADICTS** the median-split direction: β₁ > 0 implies heavier tail at higher Z, consistent with the proposal's original hypothesis. Headline reframes — median-split's negative shape_diff was scope- or sample-specific. This is the most paper-shaking outcome and requires careful additional sensitivity analysis before any narrative shift." |
+| spans 0 | CI includes 0 | n/a | "Continuous fit is **underpowered** on this 3.6y window: β₁ = [value], bootstrap CI [...] (spans 0). The median-split rejection at 95th-pct is the strongest evidence the data supports; Spec B does not sharpen the conclusion. Paper acknowledges the power ceiling explicitly." |
+
+The "contradicts" row is the paper-shaking outcome and is
+pre-committed to require additional sensitivity analysis (re-running
+with different MLE initial values, alternative bootstrap protocols,
+profile-likelihood CI) before any narrative shift. The pre-reg locks
+that any contradiction triggers extra scrutiny rather than an
+immediate paper-narrative pivot.
+
+### Rule 3 — Spline form interpretation
+
+The 3-knot natural cubic spline fit produces a per-Z-grid evaluation
+of ξ̂(Z) with bootstrap CI bands. This is reported descriptively even
+when it does not enter the headline:
+
+- If linear β₁ excludes 0 AND LRT not significant → "the linear
+  approximation is adequate; the spline is reported for transparency
+  but does not change the paper's claim."
+- If linear β₁ excludes 0 AND LRT significant → "the headline
+  direction holds but the smooth shape is informative; the spline
+  visualization is the natural figure for the paper."
+- If LRT significant AND linear β₁ spans 0 → "the headline test is
+  underpowered, but the spline reveals non-monotonicity worth
+  reporting. Headline reads 'inconclusive at the linear scope; spline
+  characterization suggests [pattern]'."
+
+### Rule 4 — Cross-pnode supplementary
+
+All 7 pnodes' Spec B linear β₁ + CIs are reported descriptively. **No
+family-wise correction across pnodes.** The cross-pnode comparison
+informs paper narrative (does the rejection direction hold across
+controls? distribution-side?) without itself being a hypothesis test.
+
+The conditional-Z battery's per-pnode `shape_diff` already established
+the cross-pnode pattern (primary rejects; controls trend negative but
+spans 0; total_lmp inconclusive). Spec B's per-pnode linear β₁
+supplements that with the smooth-fit version of the same comparison.
+
+### Rule 5 — Threshold sweep supplementary
+
+For each pnode, the 4 thresholds (90/95/99/99.5) are reported
+descriptively. **No family-wise correction across thresholds.** The
+threshold sweep tests whether the headline finding (at 95th-pct) is
+artifactual at that threshold.
+
+Pre-commit: convergence failures (MLE doesn't converge under BFGS +
+Nelder-Mead fallback, or fewer than 100 successful bootstrap reps
+remain) are reported as `convergence_status: "failed"` /
+`"insufficient_bootstrap_reps"`. Not retried with different
+initialization, not dropped from output. The honest reporting of
+failures at small n is itself a paper-worthy methodological point.
+
+### Convergence failure handling — pre-commit
+
+| Failure mode | Pre-committed behavior |
+|---|---|
+| MLE doesn't converge (both BFGS and Nelder-Mead fail) | Mark `convergence_status: "failed"`, report fit parameters as NaN. No retry with different initial values. |
+| Convergence succeeds but bootstrap has < 100 successful reps (out of 200) | Mark `convergence_status: "insufficient_bootstrap_reps"`, report CIs as (NaN, NaN). |
+| `σ(Z) < 1e-6` or `(1 + ξ(Z) · u/σ(Z)) ≤ 0` for any exceedance during MLE | Log-likelihood returns +inf (MLE rejects). No ad-hoc clipping or transformation. |
+| LRT statistic is negative (numerical issue) | Mark as NaN, do not interpret. |
+
+The honest reporting of "failed" cells is preferable to opaque
+retries. If 99.5th-pct headline fits fail across multiple pnodes,
+that's a methodologically interesting finding (high-tail Spec B is
+not estimable at our n).
+
+### Open questions explicitly *not* in scope of this pre-reg
+
+The Spec B design's "Open implementation questions to resolve in the
+plan" section lists tactical decisions deferred to plan-writing
+(initial value strategy, knot placement, Z-grid for spline curve
+evaluation, numerical safeguards). These are tactical defaults and do
+not affect the pre-reg's decision rules. They are documented in the
+implementation plan, not here.
+
+The following sub-q1 closure questions are *not* what Spec B tests;
+they get their own work tracks (see
+`docs/plans/2026-05-14-sub-question-1-closure-roadmap.md`):
+
+- **Response-variable sensitivity** (why congestion rejects, total_lmp
+  doesn't) — separate diagnostic after Spec B's results.
+- **τ=0.99 secular sign flip** — independent year-FE investigation.
+- **Ashburn TX1 negative point estimate** — separate diagnostic.
+- **Multiple-testing correction across the conditional-Z battery +
+  Spec B family** — the singular-headline framing is the
+  pre-committed answer; if a reviewer pushes back, a separate entry
+  documents the rationale.
+- **Profile-likelihood CIs as a robustness check** — deferred unless
+  reviewers request.
+
+### Rationale
+
+The conditional-Z battery's pre-reg established the value of locking
+decision rules before fits run: it prevents the combinatorics of
+"which subset to feature" from becoming a post-hoc choice. Spec B's
+result space (56 cross-pnode × cross-threshold × cross-form cells) is
+larger than the conditional-Z battery's (3 cells in A/C/F), making
+the post-hoc selection risk proportionally larger.
+
+The singular-headline framing (Rule 1) is the principled response:
+one test pre-committed as inferential; all other tests descriptive.
+This is defensible to peer review because the headline is locked
+before fit and is on the proposal's stated response at the
+methodology-spec-default scope.
+
+The decision table (Rule 2) covers all four mutually exclusive paper
+claims, including the paper-shaking "contradicts" outcome.
+Pre-committing the *response* to a contradicting result (extra
+sensitivity analysis, not immediate narrative pivot) is the locking
+move — without it, a positive β₁ could be retrofit to support the
+proposal's original hypothesis without due diligence.
+
+### Revisit when
+
+- After Spec B runs on the production panel, a follow-up dated
+  application-of-pre-reg entry records mechanical rule application
+  (paralleling the 2026-05-14 conditional-Z application entry's
+  pattern).
+- If any "contradicts" outcome emerges, the pre-committed
+  extra-sensitivity analyses get their own pre-reg in a separate
+  dated entry.
+- If the advisor meeting (Prof Wei / Lihui) produces guidance that
+  changes Spec B's spec list (e.g., recommends profile-likelihood
+  CIs as primary, or a different parametric form), a new dated
+  entry overrides this one. The rules above are not edited post-hoc.
+- If the implementation hits a regularity issue not anticipated above
+  (e.g., MLE fails on all 7 pnodes at 99.5th-pct), an
+  implementation-note entry documents what changed; the decision
+  rules stand unless the spec itself becomes uncomputable.

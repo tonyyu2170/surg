@@ -1541,3 +1541,137 @@ outcomes is an asymmetric pre-reg.
   battery, not just on a sparse subset), an implementation-note entry
   documents what changed, but the decision rules above stand unless
   the spec itself becomes uncomputable.
+
+---
+
+## 2026-05-14 — Application of pre-reg: conditional-Z robustness battery verdict + correction to prior production-findings entry's pnode labeling
+
+**Context.** The same-date pre-registration entry locked decision rules for an A/C/F conditional-Z robustness battery before any new GPD fits ran. This entry records (a) a correction to the prior 2026-05-14 production-findings entry's pnode labeling, (b) mechanical application of the pre-reg's decision rules to the battery's production output on two responses (`total_lmp_rt_cluster_mean` via the orchestrator default; `congestion_price_rt_cluster_mean` via a manual one-shot), and (c) the verdict on sub-question 1.
+
+**Production-run config.**
+- Analysis panel: `data/interim/analysis_panel.parquet` (mtime 2026-05-12 23:09). 31,536 hourly rows, 2022-10-02 → 2026-05-07.
+- Z (threshold variable): `dom_load_gradient_abs_mw_per_min`.
+- Filter for Spec F: `passes_proposal_filter` (shoulder × 2–5 AM), n = 2,027 rows (6.43% of panel).
+- Bootstrap: 200 reps per spec. Seeds: 0 (Spec A + per-pnode `run_gpd`), +100 (Spec C in orchestrator), +200 (Spec F in orchestrator).
+- Code: `feature/conditional-z-robustness` branch — FF-merged into main after this entry.
+
+### Correction to prior 2026-05-14 production-findings entry — pnode labeling
+
+The prior 2026-05-14 production-findings entry's "Finding 6 — GPD conditional Z-split mechanism test" section prose specified `threshold = 95th percentile of cluster total_lmp_rt`, and reported `low-Z 789 / 0.788; high-Z 788 / 0.609; shape_diff = −0.180; CI [−0.371, −0.044]; one-sided p = 0.99`.
+
+Re-running the deterministic per-pnode `run_gpd` calls tonight shows those numbers are an exact match for **primary (`congestion_price_rt_cluster_mean`)**, not for total_lmp. Cross-pnode evidence from `outputs/gpd/*.json`:
+
+| pnode | response_col | shape_diff (high − low) | bootstrap CI 95% | one-sided p | CI excludes 0? |
+|---|---|---|---|---|---|
+| **primary** | congestion_price_rt_cluster_mean | **−0.1796** | **[−0.371, −0.044]** | 0.99 | **yes** |
+| total_lmp | total_lmp_rt_cluster_mean | −0.0934 | [−0.236, +0.071] | 0.86 | no |
+| ox | congestion_price_rt_ox | −0.1565 | [−0.309, +0.008] | 0.96 | no (barely) |
+| bristers | congestion_price_rt_bristers | −0.1184 | [−0.269, +0.016] | 0.94 | no |
+| dom_zonal | congestion_price_rt_dom_zonal | −0.0470 | [−0.161, +0.080] | 0.76 | no |
+
+Per the decisions.md "don't edit the old entry — write a new one and reference the prior by date and title" convention, the prior entry remains in git history unchanged. This entry corrects the pnode labeling: the prior entry's numerical verdict (rejection at CI [−0.371, −0.044]) is **right for congestion (primary), the proposal's stated response**, not for total_lmp.
+
+This correction is consequential: my Task 4 orchestrator wiring targets total_lmp per the prior entry's prose, so the default battery (`outputs/gpd/conditional_z_robustness.json`) tests the **inconclusive** variant (total_lmp), not the **rejected** variant (primary). A manual one-shot call ran the orchestrator on primary too, producing `outputs/gpd/conditional_z_robustness_primary.json`. Both batteries' numbers are below.
+
+### Per-spec battery results
+
+**Battery A/C/F on `total_lmp_rt_cluster_mean` (orchestrator default).**
+
+Spec A (quartile-split at 95th-pct LMP, full panel, n_exceedances = 1,577):
+
+| Quartile | Z edge | n | ξ |
+|---|---|---|---|
+| Q1 (lowest Z) | Z ≤ 2.72 | 395 | 0.6559 |
+| Q2 | 2.72 < Z ≤ 5.70 | 394 | 0.6971 |
+| Q3 | 5.70 < Z ≤ 10.17 | 394 | 0.5589 |
+| Q4 (highest Z) | Z > 10.17 | 394 | 0.6025 |
+
+Extreme contrast (Q4 − Q1) = **−0.0534**, bootstrap 95% CI **[−0.236, +0.127]**, two-sided p = **0.49**. CI spans 0. **ξ trajectory is non-monotone** (Q1 < Q2 > Q3 < Q4 — single Q2 spike).
+
+Spec C (median-split at 99th-pct LMP, full panel, n_exceedances = 316):
+- ξ_low = 0.4184 (n = 158), ξ_high = 0.3699 (n = 158).
+- shape_diff = **−0.0485**, CI **[−0.339, +0.247]**, two-sided p = **0.83**. CI spans 0.
+
+Spec F (median-split within filter, n_after_filter = 2,027, within-filter 95th-pct):
+- ξ_low = 0.0444 (n = 51), ξ_high = 0.0829 (n = 51).
+- shape_diff = **+0.0386** (**sign reversal direction**), CI **[−0.608, +0.601]** (very wide), two-sided p = **0.66**.
+
+Holm-Bonferroni (sorted: spec_a 0.49, spec_f 0.66, spec_c 0.83):
+- All p-values exceed their adjusted thresholds (α/3 = 0.0167, α/2 = 0.025, α = 0.05).
+- **Family-wise rejection: False.**
+
+**Battery A/C/F on `congestion_price_rt_cluster_mean` (manual one-shot — the proposal's stated response).**
+
+Spec A (quartile-split at 95th-pct LMP, full panel, n_exceedances = 1,577):
+
+| Quartile | n | ξ |
+|---|---|---|
+| Q1 (lowest Z) | 395 | 0.7377 |
+| Q2 | 394 | **0.8396** (Q2 spike) |
+| Q3 | 394 | 0.6071 |
+| Q4 (highest Z) | 394 | 0.6035 |
+
+Extreme contrast (Q4 − Q1) = **−0.1341**, bootstrap 95% CI **[−0.324, +0.064]**, two-sided p = **0.24**. CI spans 0. **ξ trajectory is non-monotone** (same Q2 spike pattern as total_lmp).
+
+Spec C (median-split at 99th-pct LMP, full panel):
+- ξ_low = 0.3462 (n = 158), ξ_high = 0.1434 (n = 158).
+- shape_diff = **−0.2028** (negative direction, larger magnitude than median-split's −0.18), CI **[−0.458, +0.053]**, two-sided p = **0.21**. CI just barely spans 0.
+
+Spec F (median-split within filter):
+- ξ_low = 0.1088 (n = 51), ξ_high = −0.0246 (n = 51).
+- shape_diff = **−0.1334** (negative direction), CI **[−0.639, +0.261]** (wide), two-sided p = **0.54**.
+
+Holm-Bonferroni (sorted: spec_c 0.21, spec_a 0.24, spec_f 0.54):
+- All p-values exceed their adjusted thresholds.
+- **Family-wise rejection: False.**
+
+### Per-spec verdicts and pre-reg roll-up
+
+**Both batteries:** Spec A returns **non-monotone** ξ trajectories with primary CI spanning 0. Per pre-reg's Spec A secondary criterion ("Non-monotone → trigger Spec B to characterize the smooth shape"), **Spec B is triggered**. Spec C and Spec F are independently inconclusive on both batteries (CIs span 0 at family-wise α).
+
+**For total_lmp:** the battery's verdict is consistent with the median-split's inconclusiveness on this response (median-split shape_diff = −0.093, CI [−0.236, +0.071]). The proposal's tail-shape prediction is **not testable at α = 0.05** on total_lmp at any of the four scopes (median + A/C/F).
+
+**For primary (congestion, proposal's stated response):** the battery is **power-limited at the extension scopes** (Spec A's quartile split halves n per group; Spec C's 99th-pct halves it further; Spec F's filter cuts to ~50/half). The **median-split rejection from `outputs/gpd/primary.json` stands** at its own scope (n = 789/half, shape_diff = −0.180, CI excludes 0). The battery's extensions cannot sharpen or generalize this rejection because of power loss; they cannot reverse it either.
+
+**Pre-reg roll-up verdict.** The pre-reg's roll-up table maps clean A/C/F triples to verdicts; tonight's outcome (A: spans 0 + non-monotone; C: spans 0; F: spans 0) is closest to the "Non-monotone → Spec B triggered" row, which **defers paper-level verdict** to Spec B for the smooth characterization. The "extreme contrast spans 0" outcome on both batteries also matches the pre-reg's "spans 0 → inconclusive on the extreme contrast" branch — power-limited at this resolution.
+
+### Verdict on sub-question 1 — "where does the response shift"
+
+The proposal's first sub-question asked: *"What is the critical volatility threshold of data center load variance that triggers a non-linear phase transition in Dominion Zone congestion pricing?"*
+
+The answer, after the cumulative analysis:
+
+1. **There is no single MW/min threshold.** Smooth-curve diagnosis (2026-05-13) established that the load-volatility → reserve-scarcity step is probabilistic, and the composite LMP-vs-Z relationship is smooth and monotonic, not piecewise. TAR's `ĉ` is filter-/resolution-/Z-variable-sensitive.
+
+2. **The conditional mean-quantile response is positive and robust at moderate quantiles** (QR-full slopes z_slope = 0.39 / 0.58 / 0.36 at τ = 0.90 / 0.95 / 0.99 on the Loudoun-cluster congestion response, with the τ = 0.99 CI crossing 0). `total_lmp` z_slope is ~4× the congestion z_slope — direct support for the ORDC mechanism in the system-energy LMP component.
+
+3. **On the proposal's stated response (Loudoun-cluster congestion), the conditional-Z mechanism test rejects the heavier-tail-at-high-Z hypothesis** at median-split, 95th-pct LMP threshold: shape_diff = −0.180, CI [−0.371, −0.044] (excludes 0). The high-load-volatility subset of LMP exceedances has a *lighter* GPD tail than the low-load-volatility subset — opposite to what the proposal predicted. The cross-pnode pattern is consistent: OX, BRISTERS, DOM_zonal all trend negative (lighter tail at high Z) but with CIs spanning 0 at their per-pnode n's.
+
+4. **The robustness battery's higher-granularity extensions are underpowered** to either confirm or generalize the rejection. Spec A's quartile split halves n per group → CI [−0.324, +0.064] spans 0. Spec C at 99th-pct (n = 158/half) → CI [−0.458, +0.053]. Spec F within the filter (n = 51/half) → CI [−0.639, +0.261]. **The ξ trajectory across quartiles is non-monotone** on both batteries (single Q2 spike, then drop in Q3, flat to Q4) — per pre-reg, this **triggers Spec B (continuous ξ(Z) regression)** as a follow-up plan.
+
+5. **The mechanism test is response-variable-sensitive.** On the same Loudoun cluster but total_lmp (not congestion), the median-split test is inconclusive (CI spans 0). The proposal's tail-shape prediction is rejected for congestion (the proposal's variable) and not testable-at-this-power for total_lmp. Methodologically, the choice of response variable is a load-bearing decision for this test — the paper should report both and discuss.
+
+**Implication for the paper's headline.** Sub-question 1 has a real answer combining positive and negative findings:
+- POSITIVE: moderate-quantile response is robust; ORDC mechanism is supported via `total_lmp` ≈ 4× congestion at τ = 0.95.
+- NEGATIVE: the proposal's specific tail-shape mechanism prediction (on its own stated congestion response) is rejected at the median-split scope.
+- METHODOLOGICAL: the tail-shape rejection is response-variable-specific; the higher-granularity robustness extensions are underpowered; Spec B (continuous ξ(Z)) is the natural next characterization step.
+
+The paper's narrative: "the proposal's specific MW/min threshold framing is the wrong question for this data (smooth-curve diagnosis), but the proposal's mechanism prediction on its stated response is empirically rejected at median granularity, with the tail-heaviness *decreasing* with load volatility rather than increasing. Strategy C's QR-full slopes characterize the positive moderate-quantile response and the strong `total_lmp` differential supports the ORDC mechanism."
+
+### Open methodology questions — status after this entry
+
+From the 2026-05-14 production-findings entry's six open questions:
+
+1. **"Conditional-Z rejection — true negative or median-split artifact?"** → **PARTIALLY RESOLVED.** On congestion, the median-split rejection is real (CI excludes 0); the quartile-split (Spec A) is underpowered to sharpen it but trends in the same direction. On total_lmp, the "rejection" was a pnode-labeling error; the actual median-split is inconclusive there.
+2. **"τ = 0.99 secular sign flip."** → **STILL OPEN.** Independent investigation.
+3. **"Ashburn TX1 negative point estimate."** → **STILL OPEN.** Side-pnode question.
+4. **"GPD threshold choice for conditional-Z test."** → **PARTIALLY RESOLVED.** Spec C at 99th-pct on primary gives shape_diff = −0.20, CI [−0.46, +0.05] (just barely spans 0) — the negative direction generalizes to deeper threshold, but n = 158/half is power-limited. On total_lmp, Spec C is uninformative (CI [−0.34, +0.25]).
+5. **"Multiple-testing correction."** → **RESOLVED** for both responses (Holm–Bonferroni two-sided at α = 0.05).
+6. **"Mechanism-validation framing for paper."** → **REFRAMED.** With the corrected pnode labeling, the mechanism story is bifurcated: congestion shows the rejected tail-shape mechanism; total_lmp doesn't. Paper section should present both and treat the response-variable sensitivity as a methodologically interesting finding.
+
+### Revisit when
+
+- **Advisor input (Prof Wei / Lihui)** materially shifts the framing. Agenda at `docs/plans/2026-05-14-advisor-meeting-agenda.md`. Item 1's original framing options (clean negative / refinement / mechanism-substitution) are **back on the table** for the *congestion* result; the 2026-05-14 late-night reframe (commit `0a7239d`) is partially reversed by this entry.
+- **Spec B (continuous ξ(Z))** triggered by both batteries' non-monotone Spec A trajectory. Spec B follow-up needs its own pre-reg + design + plan + execution. Until B runs, sub-question 1's verdict is "median-split rejection on congestion is real; higher-granularity behavior requires Spec B to characterize."
+- **The orchestrator's wiring decision** — should `run_conditional_z_robustness` run on every pnode in `PNODE_RESPONSES`, or stay at total_lmp default? This Task 4-amendment question is for advisor / user input, not unilateral implementation. For tonight, the manual one-shot on congestion is the surgical workaround.
+- **Longer historical window** to shrink CIs at higher-granularity scopes. Currently no path to extend without re-introducing the 2022-10 pre-cap break.

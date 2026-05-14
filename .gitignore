@@ -59,12 +59,12 @@ data/processed/*
 !data/interim/.gitkeep
 !data/processed/.gitkeep
 
-# Generated outputs
-outputs/figures/*
-outputs/tables/*
-outputs/*.json
-outputs/robustness/
+# Generated outputs (one rule: ignore everything in outputs/ except the
+# two .gitkeep files that anchor the figures/ and tables/ subdirs)
+outputs/
+!outputs/figures/
 !outputs/figures/.gitkeep
+!outputs/tables/
 !outputs/tables/.gitkeep
 
 # Exploratory / alternative-window analysis outputs (regeneratable from

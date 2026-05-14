@@ -49,14 +49,17 @@ def test_run_all_writes_all_outputs(tmp_path: Path):
         n_boot=30,  # fast
         n_subsample_reps=10,
     )
-    assert (out_root / "tar_fit_primary.json").exists()
-    # Secondary fit (total LMP, Loudoun cluster) — per plan §15
-    assert (out_root / "tar_fit_total_lmp.json").exists()
-    # At least one control fit emitted
-    control_outputs = list(out_root.glob("tar_fit_ashburn*.json")) + \
-                      list(out_root.glob("tar_fit_ox.json")) + \
-                      list(out_root.glob("tar_fit_bristers.json"))
-    assert len(control_outputs) >= 1
-    assert (out_root / "qr_fit.json").exists()
-    assert (out_root / "mechanism_validation.json").exists()
-    assert (out_root / "robustness" / "subsample_bootstrap.parquet").exists()
+    expected_paths = {
+        out_root / "tar" / "primary.json",
+        out_root / "tar" / "total_lmp.json",
+        out_root / "tar" / "ox.json",
+        out_root / "tar" / "bristers.json",
+        out_root / "tar" / "dom_zonal.json",
+        out_root / "tar" / "ashburn_tx1.json",
+        out_root / "tar" / "ashburn_tx2.json",
+        out_root / "qr" / "filtered_at_tar_c.json",
+        out_root / "mechanism" / "validation.json",
+        out_root / "robustness" / "subsample_bootstrap.parquet",
+    }
+    for p in expected_paths:
+        assert p.exists(), f"expected output not written: {p}"

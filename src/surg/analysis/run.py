@@ -16,22 +16,19 @@ from surg.analysis.robustness import subsample_bootstrap
 from surg.preprocessing.loaders import load_sync_reserve_events
 
 
-_SECONDARY_RESPONSE_COLS: tuple[str, ...] = (
-    # Same Loudoun cluster pooled, but total LMP — cleaner ORDC mechanism test
-    # (penalty lands in system energy LMP, not in congestion component directly).
-    "total_lmp_rt_cluster_mean",
-)
-
-_CONTROL_RESPONSE_COLS: tuple[str, ...] = (
-    # Ashburn distribution — separate fit (different physics per
-    # decisions.md 2026-05-10 lock-in)
-    "congestion_price_rt_ashburn_tx1",
-    "congestion_price_rt_ashburn_tx2",
-    # Negative controls — outside the Loudoun cluster
-    "congestion_price_rt_ox",
-    "congestion_price_rt_bristers",
-    "congestion_price_rt_dom_zonal",
-)
+PNODE_RESPONSES: dict[str, str] = {
+    # Primary: pooled Loudoun cluster (6 transmission pnodes), congestion price
+    "primary":     "congestion_price_rt_cluster_mean",
+    # Secondary: same cluster, total LMP (cleaner ORDC mechanism test)
+    "total_lmp":   "total_lmp_rt_cluster_mean",
+    # Negative controls: outside-cluster transmission pnodes
+    "ox":          "congestion_price_rt_ox",
+    "bristers":    "congestion_price_rt_bristers",
+    "dom_zonal":   "congestion_price_rt_dom_zonal",
+    # Complementary primary fits: distribution-level pnodes at Ashburn
+    "ashburn_tx1": "congestion_price_rt_ashburn_tx1",
+    "ashburn_tx2": "congestion_price_rt_ashburn_tx2",
+}
 
 
 def run_all(
@@ -44,54 +41,48 @@ def run_all(
 ) -> None:
     """Run the full Phase 3 analysis pipeline.
 
-    Produces:
-      - tar_fit_primary.json: TAR on the Loudoun cluster mean congestion price
-      - tar_fit_<col>.json: TAR on each secondary + control response variable
-      - qr_fit.json: quantile regression robustness on the PRIMARY response
-      - mechanism_validation.json: dual-regime mechanism JSON
-      - robustness/subsample_bootstrap.parquet: subsample c_hat samples
+    Output layout (per-method subdirectories):
+      - outputs/tar/<pnode_label>.json
+      - outputs/qr/filtered_at_tar_c.json   (filtered subset, at TAR's primary c_hat)
+      - outputs/mechanism/validation.json
+      - outputs/robustness/subsample_bootstrap.parquet
+
+    Future Strategy C methods (qr_full, gpd) wire in here after the existing
+    fits land. They are added in subsequent tasks; this function currently
+    only covers the reorganization of the existing pipeline.
     """
     out_root.mkdir(parents=True, exist_ok=True)
 
     primary = run_tar(
         panel=panel,
-        out_path=out_root / "tar_fit_primary.json",
-        response_col="congestion_price_rt_cluster_mean",
+        out_path=out_root / "tar" / "primary.json",
+        response_col=PNODE_RESPONSES["primary"],
         n_boot=n_boot,
     )
 
-    for col in _SECONDARY_RESPONSE_COLS:
-        if panel[col].dropna().empty:
+    for label, col in PNODE_RESPONSES.items():
+        if label == "primary":
             continue
-        slug = col.replace("_rt_cluster_mean", "").replace("_rt_", "_")
-        run_tar(
-            panel=panel,
-            out_path=out_root / f"tar_fit_{slug}.json",
-            response_col=col,
-            n_boot=n_boot,
-        )
-
-    for col in _CONTROL_RESPONSE_COLS:
-        slug = col.replace("congestion_price_rt_", "")
         if panel[col].dropna().empty:
             continue
         run_tar(
             panel=panel,
-            out_path=out_root / f"tar_fit_{slug}.json",
+            out_path=out_root / "tar" / f"{label}.json",
             response_col=col,
             n_boot=n_boot,
         )
 
     run_qr(
         panel=panel,
-        out_path=out_root / "qr_fit.json",
+        out_path=out_root / "qr" / "filtered_at_tar_c.json",
         c_for_threshold_dummy=primary.c_hat,
     )
 
     run_mechanism(
-        panel=panel, events=events,
+        panel=panel,
+        events=events,
         threshold=primary.c_hat,
-        out_path=out_root / "mechanism_validation.json",
+        out_path=out_root / "mechanism" / "validation.json",
     )
 
     subsample_bootstrap(
@@ -99,11 +90,6 @@ def run_all(
         out_path=out_root / "robustness" / "subsample_bootstrap.parquet",
         n_reps=n_subsample_reps,
     )
-
-    # Note: leave_one_season_out (robustness.py) is intentionally NOT called
-    # from run_all per the plan's "Out of scope" section — the panel does not
-    # yet carry an explicit _season_id column. The function remains importable
-    # for ad-hoc use once preprocessing adds that column.
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:

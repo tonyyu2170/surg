@@ -68,6 +68,8 @@ def test_expected_columns_include_system_energy_and_marginal_loss():
         "marginal_loss_price_rt_ox",
         "marginal_loss_price_rt_bristers",
         "marginal_loss_price_rt_dom_zonal",
+        "total_lmp_rt_ashburn_tx1",
+        "total_lmp_rt_ashburn_tx2",
     }
     assert expected_new.issubset(set(EXPECTED_COLUMNS))
 

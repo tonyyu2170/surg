@@ -117,6 +117,10 @@ def test_build_renames_system_energy_and_marginal_loss_for_labeled_pnodes(tmp_pa
         )
     assert "system_energy_price_rt_cluster_mean" in panel.columns
     assert "marginal_loss_price_rt_cluster_mean" in panel.columns
+    # Also verify the new Ashburn total_lmp renames (added in this task for
+    # item #4's scatter diagnostic).
+    assert "total_lmp_rt_ashburn_tx1" in panel.columns
+    assert "total_lmp_rt_ashburn_tx2" in panel.columns
 
 
 def test_build_analysis_panel_clips_to_analysis_window(tmp_path: Path):

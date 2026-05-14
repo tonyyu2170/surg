@@ -290,3 +290,146 @@ def test_run_gpd_serializes_nan_as_null(tmp_path: Path):
             v = entry[key]
             # Either a finite number or None — never NaN or inf
             assert v is None or (isinstance(v, (int, float)) and math.isfinite(v))
+
+
+# ─── gpd_quantile_split_on_z (Spec A engine) ──────────────────────────────────
+
+from surg.analysis.gpd import GPDQuantileSplitResult, gpd_quantile_split_on_z
+
+
+def test_gpd_quantile_split_detects_monotone_shape():
+    """When DGP has monotonically increasing GPD shape across Z quartiles,
+    gpd_quantile_split_on_z should detect a positive extreme_contrast
+    (ξ_Q4 − ξ_Q1) and a two-sided bootstrap p < 0.05."""
+    rng = np.random.default_rng(seed=42)
+    n = 12000
+    Z = rng.uniform(0, 10, size=n)
+    # Z-dependent GPD shape: Q1 → 0.1, Q2 → 0.3, Q3 → 0.5, Q4 → 0.7
+    Y = np.empty(n)
+    z_quartile_edges = np.quantile(Z, [0.25, 0.5, 0.75])
+    shape_by_q = [0.1, 0.3, 0.5, 0.7]
+    for i in range(4):
+        if i == 0:
+            mask = Z <= z_quartile_edges[0]
+        elif i == 3:
+            mask = Z > z_quartile_edges[2]
+        else:
+            mask = (Z > z_quartile_edges[i - 1]) & (Z <= z_quartile_edges[i])
+        n_i = int(mask.sum())
+        Y[mask] = stats.genpareto.rvs(
+            c=shape_by_q[i], scale=2.0, size=n_i, random_state=rng
+        )
+
+    result = gpd_quantile_split_on_z(
+        Y, Z,
+        threshold_quantile=0.5,
+        split_quantiles=(0.25, 0.5, 0.75),
+        n_boot=100,
+        seed=0,
+    )
+
+    assert isinstance(result, GPDQuantileSplitResult)
+    assert len(result.quantile_fits) == 4
+    assert len(result.quantile_edges) == 3
+    assert tuple(result.split_quantiles) == (0.25, 0.5, 0.75)
+
+    # ξ trajectory should be roughly monotonically increasing
+    shapes = [fit.shape for fit in result.quantile_fits]
+    assert shapes[3] > shapes[0], f"Q4 ξ not > Q1 ξ: {shapes}"
+    # extreme_contrast (Q4 − Q1) should be clearly positive
+    assert result.extreme_contrast > 0.3, \
+        f"extreme_contrast too small: {result.extreme_contrast}"
+    # Two-sided p-value should reject H0
+    assert result.extreme_contrast_bootstrap_p_value < 0.05, \
+        f"failed to detect quartile-monotone shape: p={result.extreme_contrast_bootstrap_p_value}"
+
+
+def test_gpd_quantile_split_n2_matches_median_split_shape_diff():
+    """gpd_quantile_split_on_z with split_quantiles=(0.5,) should reproduce
+    the same per-subset shape estimates as gpd_conditional_on_z with
+    z_split_quantile=0.5. The bootstrap CI on extreme_contrast may differ
+    slightly because of independent RNG streams, but the point estimates
+    must match exactly."""
+    rng = np.random.default_rng(seed=42)
+    n = 4000
+    Z = rng.uniform(0, 10, size=n)
+    Y = stats.genpareto.rvs(c=0.3, scale=2.0, size=n, random_state=rng)
+
+    n_way = gpd_quantile_split_on_z(
+        Y, Z, threshold_quantile=0.5, split_quantiles=(0.5,),
+        n_boot=50, seed=0,
+    )
+    two_way = gpd_conditional_on_z(
+        Y, Z, threshold_quantile=0.5, z_split_quantile=0.5,
+        n_boot=50, seed=0,
+    )
+
+    assert len(n_way.quantile_fits) == 2
+    # First quantile fit corresponds to low-Z; second to high-Z
+    assert n_way.quantile_fits[0].shape == pytest.approx(two_way.low_z.shape)
+    assert n_way.quantile_fits[1].shape == pytest.approx(two_way.high_z.shape)
+    # extreme_contrast (last - first) == shape_diff (high - low) for N=2
+    assert n_way.extreme_contrast == pytest.approx(two_way.shape_diff)
+
+
+def test_gpd_quantile_split_validates_split_quantiles_sorted_in_range():
+    """split_quantiles must be strictly ascending and in (0, 1)."""
+    rng = np.random.default_rng(seed=42)
+    n = 1000
+    Y = rng.exponential(scale=5.0, size=n)
+    Z = rng.uniform(0, 10, size=n)
+
+    with pytest.raises(ValueError, match="split_quantiles"):
+        gpd_quantile_split_on_z(Y, Z, split_quantiles=(0.5, 0.25), n_boot=10)
+    with pytest.raises(ValueError, match="split_quantiles"):
+        gpd_quantile_split_on_z(Y, Z, split_quantiles=(0.0, 0.5), n_boot=10)
+    with pytest.raises(ValueError, match="split_quantiles"):
+        gpd_quantile_split_on_z(Y, Z, split_quantiles=(0.5, 1.0), n_boot=10)
+
+
+def test_gpd_quantile_split_raises_on_small_quartile():
+    """If a quartile subset has fewer than 10 exceedances, the fit cannot
+    proceed and the function raises ValueError (no silent partial result).
+
+    Constructed deterministically: 25 large values + 475 small values, with
+    threshold_quantile=0.95 capturing exactly the 25 large ones. Quartile
+    split → ~6 per quartile, failing the per-subset n≥10 check while
+    comfortably passing the overall n_exc≥20 check.
+    """
+    rng = np.random.default_rng(seed=42)
+    large = rng.uniform(100, 200, size=25)
+    small = rng.uniform(1, 10, size=475)
+    Y = np.concatenate([large, small])
+    Z = rng.uniform(0, 10, size=500)  # uniform Z so quartiles are balanced
+
+    with pytest.raises(ValueError, match="too few exceedances per subset"):
+        gpd_quantile_split_on_z(
+            Y, Z, threshold_quantile=0.95, split_quantiles=(0.25, 0.5, 0.75),
+            n_boot=10, seed=0,
+        )
+
+
+def test_gpd_quantile_split_validates_length_mismatch():
+    """Y and Z must have the same length."""
+    rng = np.random.default_rng(seed=42)
+    Y = rng.exponential(scale=5.0, size=100)
+    Z = rng.uniform(0, 10, size=50)
+    with pytest.raises(ValueError, match="length"):
+        gpd_quantile_split_on_z(Y, Z, split_quantiles=(0.5,), n_boot=10)
+
+
+def test_gpd_quantile_split_two_sided_p_value_for_null_dgp():
+    """When DGP is Z-independent, the two-sided p-value should be non-tiny
+    (broad null check, not exact)."""
+    rng = np.random.default_rng(seed=42)
+    n = 4000
+    Z = rng.uniform(0, 10, size=n)
+    Y = stats.genpareto.rvs(c=0.3, scale=2.0, size=n, random_state=rng)
+
+    result = gpd_quantile_split_on_z(
+        Y, Z, threshold_quantile=0.5, split_quantiles=(0.25, 0.5, 0.75),
+        n_boot=100, seed=0,
+    )
+
+    assert result.extreme_contrast_bootstrap_p_value > 0.10, \
+        f"false-positive quartile-dependence: p={result.extreme_contrast_bootstrap_p_value}"

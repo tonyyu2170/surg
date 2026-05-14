@@ -304,6 +304,173 @@ def gpd_conditional_on_z(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class GPDQuantileSplitResult:
+    """N-way Z-quantile split of GPD fits on exceedances of a fixed threshold.
+
+    `quantile_fits` has length `len(split_quantiles) + 1` (N+1 groups for N
+    split points). `quantile_edges` are the empirical Z values at each
+    `split_quantile` computed within the exceedance set. `extreme_contrast`
+    is the (last − first) shape contrast — for quartile split this is the
+    headline Q4 − Q1.
+
+    The two-sided bootstrap p-value tests H0: extreme_contrast = 0 against
+    a two-sided alternative; the sign of the CI determines the direction
+    of any rejection. Bootstrap protocol: resample exceedance row indices
+    (paired Y,Z), recompute quantile edges inside each rep, refit all N+1
+    GPDs per rep.
+    """
+    threshold_quantile: float
+    threshold_value: float
+    split_quantiles: tuple[float, ...]
+    quantile_edges: tuple[float, ...]
+    quantile_fits: tuple[GPDFitResult, ...]
+    extreme_contrast: float                                    # ξ_last − ξ_first
+    extreme_contrast_bootstrap_ci_95: tuple[float, float]
+    extreme_contrast_bootstrap_p_value: float                  # two-sided
+
+
+def gpd_quantile_split_on_z(
+    Y: np.ndarray | pd.Series,
+    Z: np.ndarray | pd.Series,
+    *,
+    threshold_quantile: float = 0.95,
+    split_quantiles: tuple[float, ...] = (0.25, 0.5, 0.75),
+    n_boot: int = 200,
+    seed: int = 0,
+) -> GPDQuantileSplitResult:
+    """N-way GPD fit conditional on Z-quantile groups within exceedances of Y.
+
+    Generalizes `gpd_conditional_on_z` (which is fixed at N=2). Procedure:
+      1. threshold = empirical quantile of Y at `threshold_quantile`
+      2. exceedances = rows where Y > threshold
+      3. quantile_edges = empirical quantile of Z[exceedances] at each
+         `split_quantile` — yields N edges for N+1 groups
+      4. Fit GPD on each of the N+1 groups independently (each carries the
+         parent `threshold_quantile`, same convention as `gpd_conditional_on_z`)
+      5. Bootstrap: resample exceedance row indices, recompute edges per rep,
+         refit all groups, record extreme_contrast = ξ_last − ξ_first. Report
+         empirical 2.5%/97.5% quantiles of resampled contrasts as the 95% CI,
+         and two-sided bootstrap p-value = 2 * min(P(contrast ≤ 0), P(contrast ≥ 0)).
+
+    Note on p-value semantics: the returned two-sided p-value is an empirical
+    bootstrap "achieved significance level" (2 * min(P(arr ≤ 0), P(arr ≥ 0))),
+    matching the heuristic convention used by `gpd_conditional_on_z`. It is
+    not a formal hypothesis-test p-value; Holm–Bonferroni corrections applied
+    downstream inherit this heuristic status.
+
+    Raises:
+      ValueError if length(Y) ≠ length(Z), if `split_quantiles` is unsorted /
+      out-of-range, if too few exceedances overall (< 20), or if any quantile
+      group ends up with < 10 exceedances (fit too noisy).
+    """
+    Y_arr = np.asarray(Y, dtype=float)
+    Z_arr = np.asarray(Z, dtype=float)
+    if len(Y_arr) != len(Z_arr):
+        raise ValueError(f"Y and Z must have equal length; got {len(Y_arr)} vs {len(Z_arr)}")
+    if not 0.0 < threshold_quantile < 1.0:
+        raise ValueError(f"threshold_quantile must be in (0,1); got {threshold_quantile}")
+    if len(split_quantiles) == 0:
+        raise ValueError("split_quantiles must have at least one entry")
+    if not all(0.0 < q < 1.0 for q in split_quantiles):
+        raise ValueError(f"split_quantiles must be in (0,1); got {split_quantiles}")
+    if list(split_quantiles) != sorted(set(split_quantiles)):
+        raise ValueError(
+            f"split_quantiles must be strictly ascending and unique; got {split_quantiles}"
+        )
+
+    threshold = float(np.quantile(Y_arr, threshold_quantile))
+    exceed_mask = Y_arr > threshold
+    Y_exc = Y_arr[exceed_mask]
+    Z_exc = Z_arr[exceed_mask]
+    if len(Y_exc) < 20:
+        raise ValueError(
+            f"too few exceedances ({len(Y_exc)}) above threshold_quantile={threshold_quantile} "
+            f"for an N-way Z-split test (need ≥20)"
+        )
+
+    # N edges → N+1 groups indexed 0..N
+    edges = tuple(float(np.quantile(Z_exc, q)) for q in split_quantiles)
+    group_masks = _assign_groups(Z_exc, edges)
+    counts = tuple(int(m.sum()) for m in group_masks)
+    if any(c < 10 for c in counts):
+        raise ValueError(
+            f"too few exceedances per subset at split_quantiles={split_quantiles}: "
+            f"counts={counts} (each needs ≥10)"
+        )
+
+    fits: list[GPDFitResult] = []
+    for mask in group_masks:
+        _base = fit_gpd(Y_exc[mask], threshold=threshold)
+        fits.append(GPDFitResult(
+            threshold_quantile=float(threshold_quantile),
+            threshold_value=_base.threshold_value,
+            shape=_base.shape,
+            shape_se=_base.shape_se,
+            shape_bootstrap_ci_95=_base.shape_bootstrap_ci_95,
+            scale=_base.scale,
+            scale_se=_base.scale_se,
+            n_exceedances=_base.n_exceedances,
+        ))
+    extreme_contrast = fits[-1].shape - fits[0].shape
+
+    # Bootstrap: pair-resample exceedance indices, recompute edges per rep,
+    # refit all groups. Skip reps where any group ends up with < 10 obs.
+    rng = np.random.default_rng(seed)
+    n_exc = len(Y_exc)
+    contrasts: list[float] = []
+    for _ in range(n_boot):
+        idx = rng.integers(0, n_exc, size=n_exc)
+        Y_b = Y_exc[idx]
+        Z_b = Z_exc[idx]
+        edges_b = tuple(float(np.quantile(Z_b, q)) for q in split_quantiles)
+        masks_b = _assign_groups(Z_b, edges_b)
+        if any(m.sum() < 10 for m in masks_b):
+            continue
+        try:
+            shapes_b = [fit_gpd(Y_b[m], threshold=threshold).shape for m in masks_b]
+        except ValueError:
+            continue
+        contrasts.append(shapes_b[-1] - shapes_b[0])
+
+    if len(contrasts) < 20:
+        ci: tuple[float, float] = (float("nan"), float("nan"))
+        p_two_sided = float("nan")
+    else:
+        arr = np.asarray(contrasts)
+        ci = (float(np.quantile(arr, 0.025)), float(np.quantile(arr, 0.975)))
+        p_left = float(np.mean(arr <= 0.0))
+        p_right = float(np.mean(arr >= 0.0))
+        p_two_sided = min(1.0, 2.0 * min(p_left, p_right))
+
+    return GPDQuantileSplitResult(
+        threshold_quantile=float(threshold_quantile),
+        threshold_value=threshold,
+        split_quantiles=tuple(float(q) for q in split_quantiles),
+        quantile_edges=edges,
+        quantile_fits=tuple(fits),
+        extreme_contrast=float(extreme_contrast),
+        extreme_contrast_bootstrap_ci_95=ci,
+        extreme_contrast_bootstrap_p_value=p_two_sided,
+    )
+
+
+def _assign_groups(Z: np.ndarray, edges: tuple[float, ...]) -> list[np.ndarray]:
+    """Return a list of boolean masks partitioning Z into len(edges)+1 groups.
+
+    Group i contains rows where edges[i-1] < Z <= edges[i], with edges[-1] = -inf
+    for the first group and edges[len(edges)] = +inf for the last. Edges should
+    be sorted ascending; behavior on unsorted edges is undefined.
+    """
+    masks: list[np.ndarray] = []
+    prev = -np.inf
+    for edge in edges:
+        masks.append((Z > prev) & (Z <= edge))
+        prev = edge
+    masks.append(Z > prev)
+    return masks
+
+
 def _nan_to_none(obj):
     """Recursively replace float NaN/inf with None for JSON serialization."""
     if isinstance(obj, float):

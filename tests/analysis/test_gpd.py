@@ -12,6 +12,7 @@ from scipy import stats
 
 from surg.analysis.gpd import GPDFitResult, fit_gpd, gpd_threshold_sweep
 from surg.analysis.gpd import GPDConditionalResult, gpd_conditional_on_z
+from surg.analysis.gpd import run_gpd
 
 
 def test_fit_gpd_recovers_planted_shape_and_scale():
@@ -199,9 +200,6 @@ def test_gpd_conditional_nested_threshold_quantile_carries_parent():
         f"high_z carries wrong threshold_quantile: {result.high_z.threshold_quantile}"
 
 
-from surg.analysis.gpd import run_gpd
-
-
 def test_run_gpd_writes_expected_json_schema(tmp_path: Path):
     """run_gpd writes a JSON file with the spec-documented schema."""
     rng = np.random.default_rng(seed=42)
@@ -254,3 +252,41 @@ def test_run_gpd_writes_expected_json_schema(tmp_path: Path):
     assert "shape_difference" in cond
     diff_block = cond["shape_difference"]
     assert set(diff_block.keys()) >= {"diff", "bootstrap_ci_95", "bootstrap_p_value"}
+
+
+def test_run_gpd_serializes_nan_as_null(tmp_path: Path):
+    """When fit returns NaN (e.g. on bounded data forcing shape <= -0.5),
+    run_gpd's JSON output should contain `null`, not the non-RFC `NaN` token."""
+    rng = np.random.default_rng(seed=42)
+    n = 2000
+    panel = pd.DataFrame({
+        "datetime_beginning_ept": pd.date_range("2024-01-01", periods=n, freq="h"),
+        # Bounded uniform → scipy fits with strongly negative shape → NaN SEs
+        "Y_bounded": rng.uniform(0.0, 1.0, size=n),
+        "Z_target": rng.uniform(0, 10, size=n),
+    })
+
+    out = tmp_path / "gpd" / "bounded.json"
+    run_gpd(
+        panel,
+        out_path=out,
+        response_col="Y_bounded",
+        pnode_label="bounded",
+        threshold_col="Z_target",
+        sweep_quantiles=(0.50, 0.75),
+        conditional_threshold_quantile=0.5,
+        n_boot=30,
+        seed=0,
+    )
+
+    text = out.read_text()
+    assert "NaN" not in text, "JSON output contains literal NaN token (not RFC-valid)"
+    payload = json.loads(text)  # strict json.loads would fail on NaN
+    # At least one of the SEs in the sweep should be None (the bounded data
+    # triggers the shape <= -0.5 branch). If scipy returns a less extreme
+    # shape than expected, this assertion is vacuous but harmless.
+    for entry in payload["threshold_sweep"]:
+        for key in ("shape_se", "scale_se"):
+            v = entry[key]
+            # Either a finite number or None — never NaN or inf
+            assert v is None or (isinstance(v, (int, float)) and math.isfinite(v))

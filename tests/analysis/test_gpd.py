@@ -14,6 +14,7 @@ from surg.analysis.gpd import GPDFitResult, fit_gpd, gpd_threshold_sweep
 from surg.analysis.gpd import GPDConditionalResult, gpd_conditional_on_z
 from surg.analysis.gpd import run_gpd
 from surg.analysis.gpd import GPDQuantileSplitResult, gpd_quantile_split_on_z
+from surg.analysis.gpd import holm_bonferroni_two_sided
 
 
 def test_fit_gpd_recovers_planted_shape_and_scale():
@@ -453,3 +454,83 @@ def test_gpd_quantile_split_seed_reproducibility():
 
     assert r1.extreme_contrast_bootstrap_ci_95 == r2.extreme_contrast_bootstrap_ci_95
     assert r1.extreme_contrast_bootstrap_p_value == r2.extreme_contrast_bootstrap_p_value
+
+
+# ─── holm_bonferroni_two_sided (family-wise correction utility) ───────────────
+
+
+def test_holm_all_significant():
+    """All p-values below α/k threshold → all rejected, family-wise rejection."""
+    result = holm_bonferroni_two_sided(
+        labeled_p_values={"a": 0.001, "b": 0.005, "c": 0.012},
+        alpha=0.05,
+    )
+    assert result["rejections"] == {"a": True, "b": True, "c": True}
+    assert result["family_wise_rejection"] is True
+    assert result["alpha"] == 0.05
+    # sorted_order: ascending p-values; first rank gets α/3, next α/2, last α/1
+    assert result["sorted_order"] == ["a", "b", "c"]
+    # Adjusted thresholds returned for downstream reporting
+    assert result["adjusted_thresholds"]["a"] == pytest.approx(0.05 / 3, rel=1e-9)
+    assert result["adjusted_thresholds"]["b"] == pytest.approx(0.05 / 2, rel=1e-9)
+    assert result["adjusted_thresholds"]["c"] == pytest.approx(0.05 / 1, rel=1e-9)
+
+
+def test_holm_stops_at_first_non_rejection():
+    """Holm is sequential: the first failure halts the procedure for all
+    higher-ranked p-values, even if those would individually pass at their
+    own adjusted thresholds (a=0.05 won't be considered if b at α/2 failed)."""
+    result = holm_bonferroni_two_sided(
+        labeled_p_values={"a": 0.001, "b": 0.030, "c": 0.045},
+        alpha=0.05,
+    )
+    # a: 0.001 < 0.05/3=0.0167 → reject
+    # b: 0.030 > 0.05/2=0.025 → stop, do not reject b OR c
+    assert result["rejections"] == {"a": True, "b": False, "c": False}
+    assert result["family_wise_rejection"] is False
+
+
+def test_holm_first_p_above_alpha_over_k_rejects_nothing():
+    """If the smallest p-value already fails its α/k threshold, nothing is
+    rejected and family-wise rejection is False."""
+    result = holm_bonferroni_two_sided(
+        labeled_p_values={"a": 0.02, "b": 0.03, "c": 0.04},
+        alpha=0.05,
+    )
+    # smallest = 0.02 > 0.05/3 = 0.0167 → reject nothing
+    assert result["rejections"] == {"a": False, "b": False, "c": False}
+    assert result["family_wise_rejection"] is False
+
+
+def test_holm_handles_nan_p_value_as_non_rejection():
+    """An inconclusive spec (NaN p-value) is treated as 'cannot reject' —
+    it is sorted to the end (with p=+inf) and is never rejected, but does
+    not affect whether earlier specs in the order can be rejected at their
+    own adjusted thresholds."""
+    result = holm_bonferroni_two_sided(
+        labeled_p_values={"a": 0.005, "b": float("nan"), "c": 0.020},
+        alpha=0.05,
+    )
+    # a: 0.005 < 0.05/3 = 0.0167 → reject
+    # c: 0.020 < 0.05/2 = 0.025 → reject (c is now rank 2)
+    # b: NaN → never rejected
+    assert result["rejections"] == {"a": True, "b": False, "c": True}
+    # b cannot be rejected → family-wise is False (not all rejected)
+    assert result["family_wise_rejection"] is False
+    assert result["sorted_order"] == ["a", "c", "b"]
+
+
+def test_holm_validates_alpha_in_open_unit_interval():
+    """α must be in (0, 1)."""
+    with pytest.raises(ValueError, match="alpha"):
+        holm_bonferroni_two_sided({"a": 0.01}, alpha=0.0)
+    with pytest.raises(ValueError, match="alpha"):
+        holm_bonferroni_two_sided({"a": 0.01}, alpha=1.0)
+
+
+def test_holm_validates_p_value_range():
+    """p-values must be in [0, 1] or NaN; values outside this range raise."""
+    with pytest.raises(ValueError, match="p-value"):
+        holm_bonferroni_two_sided({"a": -0.01}, alpha=0.05)
+    with pytest.raises(ValueError, match="p-value"):
+        holm_bonferroni_two_sided({"a": 1.01}, alpha=0.05)

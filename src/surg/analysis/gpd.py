@@ -476,6 +476,71 @@ def gpd_quantile_split_on_z(
     )
 
 
+def holm_bonferroni_two_sided(
+    labeled_p_values: dict[str, float],
+    *,
+    alpha: float = 0.05,
+) -> dict:
+    """Apply Holm–Bonferroni step-down correction to a family of two-sided p-values.
+
+    Procedure (Holm 1979):
+      1. Sort p-values ascending. NaN p-values (inconclusive specs) sort to
+         the end (treated as p = +inf for ranking; never rejected).
+      2. Test the smallest at α/k where k is the family size, the next at
+         α/(k-1), … , the largest at α/1.
+      3. Stop at the first non-rejection: all p-values not yet considered
+         remain non-rejected, regardless of their value.
+
+    Returns a dict with:
+      - "alpha": the input α
+      - "sorted_order": list of input labels in ascending-p order (NaNs last)
+      - "adjusted_thresholds": dict mapping each label to its α/(k-rank) threshold
+      - "rejections": dict mapping each label to a bool
+      - "family_wise_rejection": True iff every input was rejected (i.e., the
+        family-wise inferential statement is supported)
+
+    Raises:
+      ValueError if α ∉ (0, 1) or any p-value falls outside [0, 1] (NaN is allowed).
+    """
+    if not 0.0 < alpha < 1.0:
+        raise ValueError(f"alpha must be in (0, 1); got {alpha}")
+    for label, p in labeled_p_values.items():
+        if math.isnan(p):
+            continue
+        if not 0.0 <= p <= 1.0:
+            raise ValueError(f"p-value for {label!r} must be in [0, 1] or NaN; got {p}")
+
+    k = len(labeled_p_values)
+    # Sort ascending; NaN goes last
+    def _sort_key(item: tuple[str, float]) -> tuple[int, float]:
+        label, p = item
+        if math.isnan(p):
+            return (1, 0.0)  # NaN bucket — order within doesn't matter for the alg
+        return (0, p)
+
+    sorted_items = sorted(labeled_p_values.items(), key=_sort_key)
+    sorted_order = [label for label, _ in sorted_items]
+    adjusted_thresholds: dict[str, float] = {}
+    rejections: dict[str, bool] = {}
+    stopped = False
+    for rank, (label, p) in enumerate(sorted_items):
+        threshold = alpha / (k - rank)
+        adjusted_thresholds[label] = threshold
+        if stopped or math.isnan(p) or p > threshold:
+            rejections[label] = False
+            stopped = True
+        else:
+            rejections[label] = True
+
+    return {
+        "alpha": alpha,
+        "sorted_order": sorted_order,
+        "adjusted_thresholds": adjusted_thresholds,
+        "rejections": rejections,
+        "family_wise_rejection": all(rejections.values()),
+    }
+
+
 def _nan_to_none(obj):
     """Recursively replace float NaN/inf with None for JSON serialization."""
     if isinstance(obj, float):

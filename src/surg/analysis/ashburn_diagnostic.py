@@ -133,3 +133,54 @@ def extract_threshold_sweep_summary(
         "response_col": payload.get("response_col"),
         "entries": entries,
     }
+
+
+def plot_lmp_vs_z_scatter(
+    panel: pd.DataFrame,
+    *,
+    pnode_response_cols: dict[str, str],   # pnode_label -> response_col
+    z_col: str,
+    threshold_qs: tuple[float, ...],
+    out_path: Path,
+    fitted_slopes: dict[str, dict[float, float]] | None = None,
+    figsize: tuple[float, float] = (14, 10),
+) -> None:
+    """4-panel overlay scatter of LMP vs Z at each threshold quantile.
+
+    Marker shape distinguishes pnodes. Color encodes year.
+    """
+    import matplotlib.pyplot as plt
+
+    fig, axes = plt.subplots(2, 2, figsize=figsize, sharex=False, sharey=False)
+    axes_flat = axes.flatten()
+
+    markers = {"ashburn_tx1": "o", "ashburn_tx2": "^"}
+
+    for ax_i, q in enumerate(threshold_qs):
+        ax = axes_flat[ax_i]
+        for pnode, col in pnode_response_cols.items():
+            sub = panel.dropna(subset=[col, z_col]).copy()
+            sub["__year"] = pd.to_datetime(sub["datetime_beginning_ept"]).dt.year
+            threshold = float(np.quantile(sub[col].to_numpy(), q))
+            exc = sub[sub[col] > threshold]
+            ax.scatter(
+                exc[z_col], exc[col],
+                marker=markers.get(pnode, "x"),
+                c=exc["__year"], cmap="viridis",
+                alpha=0.6, s=20, label=pnode,
+            )
+            if fitted_slopes and pnode in fitted_slopes and q in fitted_slopes[pnode]:
+                slope = fitted_slopes[pnode][q]
+                z_line = np.linspace(exc[z_col].min(), exc[z_col].max(), 50)
+                # Linear shape parameter visualization, NOT the LMP value — purely indicative.
+                ax.plot(z_line, threshold + slope * z_line * (exc[col].max() - threshold),
+                        linestyle="--", linewidth=1, alpha=0.7, label=f"{pnode} slope={slope:.3f}")
+        ax.set_title(f"Threshold quantile = {q}")
+        ax.set_xlabel(z_col)
+        ax.set_ylabel("LMP")
+        ax.legend(loc="upper right", fontsize=8)
+    fig.suptitle("Ashburn TX1 vs TX2 — exceedances at each threshold")
+    fig.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=120)
+    plt.close(fig)

@@ -84,3 +84,22 @@ def test_extract_threshold_sweep_summary_parses_spec_b_json(tmp_path: Path):
     entry_99 = next(e for e in summary["entries"] if e["threshold_quantile"] == 0.99)
     assert entry_99["beta_1"] == 0.09
     assert entry_99["beta_1_ci_95"] == [0.01, 0.17]
+
+
+def test_plot_lmp_vs_z_scatter_writes_nonempty_png(tmp_path: Path):
+    from surg.analysis.ashburn_diagnostic import plot_lmp_vs_z_scatter
+
+    panel = _ashburn_fixture(n_rows=3000, seed=7)
+    out_path = tmp_path / "scatter_overlay.png"
+    plot_lmp_vs_z_scatter(
+        panel=panel,
+        pnode_response_cols={"ashburn_tx1": "total_lmp_rt_ashburn_tx1",
+                             "ashburn_tx2": "total_lmp_rt_ashburn_tx2"},
+        z_col="dom_load_gradient_abs_mw_per_min",
+        threshold_qs=(0.90, 0.95, 0.99, 0.995),
+        out_path=out_path,
+        fitted_slopes={"ashburn_tx1": {0.95: -0.025, 0.99: 0.093},
+                       "ashburn_tx2": {0.95: -0.012, 0.99: -0.008}},
+    )
+    assert out_path.exists()
+    assert out_path.stat().st_size > 0

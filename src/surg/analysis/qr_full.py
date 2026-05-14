@@ -106,24 +106,30 @@ def fit_qr_full(
     hour: np.ndarray | pd.Series,
     month: np.ndarray | pd.Series,
     *,
+    year: np.ndarray | pd.Series | None = None,
     tau: float = 0.99,
     n_boot: int = 0,
     seed: int = 0,
 ) -> QRFullFitResult:
-    """Fit Q_τ(Y | Z, sin/cos(hour), sin/cos(month)).
+    """Fit Q_τ(Y | Z, sin/cos(hour), sin/cos(month) [, year dummies]).
 
-    All four arrays must have equal length and contain no NaN. (Caller drops
-    NaN rows before passing.) `n_boot=0` skips bootstrap CI and returns
-    `(nan, nan)` for `z_slope_bootstrap_ci_95`; pass `n_boot >= 20` to
-    get a pair-bootstrap 95% CI via `_bootstrap_z_slope_ci`.
+    Primary spec (year is None): design matrix is [1, Z, hour_sin, hour_cos,
+    month_sin, month_cos]. Z slope captures contemporaneous + secular response.
+
+    Year-FE spec (year is provided): same design matrix plus K-1 year dummies
+    (earliest year as baseline). Z slope captures contemporaneous response only.
+
+    All input arrays must have equal length and contain no NaN. Caller drops
+    NaN rows first.
 
     Notes:
         The returned asymptotic `z_slope_se` and `z_slope_p_value` come from
         statsmodels' Koenker-Bassett sandwich estimator. This is reliable at
         central quantiles (τ ≈ 0.5) but is known to underperform at high τ
-        (≥ 0.99) on autocorrelated time-series data. The pair-bootstrap CI
-        on `z_slope` is the more honest interval at the tail quantiles used
-        in the production analysis.
+        (≥ 0.99) on autocorrelated time-series data. Task 7 of the Strategy
+        C implementation plan adds a pair-bootstrap CI on `z_slope` that is
+        the more honest interval at the tail quantiles used in the
+        production analysis.
     """
     Y_arr = np.asarray(Y, dtype=float)
     Z_arr = np.asarray(Z, dtype=float)
@@ -147,14 +153,39 @@ def fit_qr_full(
         )
 
     basis = _build_periodic_basis(hour_arr, month_arr)
-    X = np.column_stack([
-        np.ones(n),                  # intercept
-        Z_arr,                       # primary regressor
-        basis["hour_sin"],
-        basis["hour_cos"],
-        basis["month_sin"],
-        basis["month_cos"],
-    ])
+    base_cols = [
+        np.ones(n),
+        Z_arr,
+        basis["hour_sin"], basis["hour_cos"],
+        basis["month_sin"], basis["month_cos"],
+    ]
+    covariate_names = ["hour_sin", "hour_cos", "month_sin", "month_cos"]
+
+    if year is None:
+        spec = "primary"
+        X = np.column_stack(base_cols)
+        extra_X_for_boot: np.ndarray | None = None
+    else:
+        spec = "year_fe"
+        year_arr = np.asarray(year, dtype=int)
+        if len(year_arr) != n:
+            raise ValueError(
+                f"year length {len(year_arr)} != Y length {n}"
+            )
+        distinct_years = sorted(np.unique(year_arr).tolist())
+        if len(distinct_years) < 2:
+            raise ValueError(
+                f"year_fe spec requires ≥2 distinct years; got {distinct_years}"
+            )
+        year_dummy_cols: list[np.ndarray] = []
+        year_dummy_names: list[str] = []
+        for y in distinct_years[1:]:
+            year_dummy_cols.append((year_arr == y).astype(float))
+            year_dummy_names.append(f"year_{y}")
+        extra_X_for_boot = np.column_stack(year_dummy_cols)
+        X = np.column_stack(base_cols + year_dummy_cols)
+        covariate_names = covariate_names + year_dummy_names
+
     model = sm.QuantReg(Y_arr, X).fit(q=tau)
     z_slope = float(model.params[1])
     z_slope_se = float(model.bse[1])
@@ -163,12 +194,13 @@ def fit_qr_full(
 
     covariate_coefs = {
         name: float(model.params[i + 2])  # +2 to skip [intercept, Z]
-        for i, name in enumerate(("hour_sin", "hour_cos", "month_sin", "month_cos"))
+        for i, name in enumerate(covariate_names)
     }
 
     ci: tuple[float, float] = _bootstrap_z_slope_ci(
         Y=Y_arr, Z=Z_arr, hour=hour_arr, month=month_arr,
         tau=tau, n_boot=n_boot, seed=seed,
+        extra_X=extra_X_for_boot,
     )
 
     return QRFullFitResult(
@@ -179,6 +211,6 @@ def fit_qr_full(
         z_slope_bootstrap_ci_95=ci,
         intercept=intercept,
         covariate_coefs=covariate_coefs,
-        spec="primary",
+        spec=spec,
         n=n,
     )

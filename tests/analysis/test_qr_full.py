@@ -142,3 +142,61 @@ def test_fit_qr_full_bootstrap_ci_skipped_when_n_boot_zero():
     result = fit_qr_full(Y, Z, hour, month, tau=0.5, n_boot=0, seed=0)
     assert math.isnan(result.z_slope_bootstrap_ci_95[0])
     assert math.isnan(result.z_slope_bootstrap_ci_95[1])
+
+
+def test_fit_qr_full_year_fe_adds_year_dummies():
+    """When year is passed, covariate_coefs contains year_* keys (one per
+    distinct year, excluding the earliest as baseline) and spec == 'year_fe'."""
+    rng = np.random.default_rng(seed=42)
+    n = 3000
+    Z = rng.uniform(0, 10, size=n)
+    hour = rng.integers(0, 24, size=n)
+    month = rng.integers(1, 13, size=n)
+    year = rng.choice([2022, 2023, 2024, 2025], size=n)
+    Y = 5.0 + 2.0 * Z + 0.3 * (year - 2022) + rng.normal(0, 1, size=n)
+
+    result = fit_qr_full(
+        Y, Z, hour, month, year=year, tau=0.5, n_boot=0, seed=0,
+    )
+
+    assert result.spec == "year_fe"
+    # Year dummies for 2023, 2024, 2025 (2022 is baseline)
+    year_keys = [k for k in result.covariate_coefs if k.startswith("year_")]
+    assert sorted(year_keys) == ["year_2023", "year_2024", "year_2025"]
+
+
+def test_fit_qr_full_year_fe_isolates_contemporaneous_response():
+    """When the DGP has a year-trend in Y that is correlated with Z's mean
+    by year, year_fe should give a different (smaller) Z slope than primary.
+
+    Construct Z such that mean Z is higher in later years; Y has a strong
+    year trend independent of within-year Z.
+    """
+    rng = np.random.default_rng(seed=42)
+    n_per_year = 1500
+    years_list = [2022, 2023, 2024, 2025]
+    Z_blocks = []
+    Y_blocks = []
+    year_arr = []
+    for i, y in enumerate(years_list):
+        Z_y = rng.normal(loc=i * 2.0, scale=1.0, size=n_per_year)  # mean shifts up by year
+        # Y has a year-shift of 4 * year_index AND a true within-year Z slope of 1
+        Y_y = 5.0 + 4.0 * i + 1.0 * Z_y + rng.normal(0, 0.5, size=n_per_year)
+        Z_blocks.append(Z_y)
+        Y_blocks.append(Y_y)
+        year_arr.extend([y] * n_per_year)
+    Z = np.concatenate(Z_blocks)
+    Y = np.concatenate(Y_blocks)
+    year = np.array(year_arr)
+    hour = rng.integers(0, 24, size=len(Y))
+    month = rng.integers(1, 13, size=len(Y))
+
+    primary = fit_qr_full(Y, Z, hour, month, tau=0.5, n_boot=0, seed=0)
+    year_fe = fit_qr_full(Y, Z, hour, month, year=year, tau=0.5, n_boot=0, seed=0)
+
+    # Primary picks up both the year trend AND the within-year slope → biased high
+    # Year-FE isolates the within-year slope ≈ 1.0
+    assert year_fe.z_slope == pytest.approx(1.0, abs=0.2), \
+        f"year_fe z_slope too far from 1.0: {year_fe.z_slope}"
+    assert primary.z_slope > year_fe.z_slope, \
+        f"primary slope ({primary.z_slope}) should exceed year_fe slope ({year_fe.z_slope})"

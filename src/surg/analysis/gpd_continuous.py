@@ -99,3 +99,67 @@ def _initial_params(
     if form == "spline":
         return (shape_init, 0.0, 0.0, 0.0, log_scale_init, 0.0)
     raise ValueError(f"form must be 'linear' or 'spline'; got {form!r}")
+
+
+def _neg_log_likelihood_nonstationary_gpd(
+    params: np.ndarray,
+    Y_exc: np.ndarray,
+    X_xi: np.ndarray,
+    X_sigma: np.ndarray,
+) -> float:
+    """Negative log-likelihood for non-stationary GPD with covariates Z.
+
+    Y_exc[i] is exceedance over threshold (already shifted), modeled as
+    GPD(σ(Z_i), ξ(Z_i)) where:
+      log σ(Z) = X_sigma @ params_sigma  (last 2 params)
+      ξ(Z)    = X_xi   @ params_xi      (first len(X_xi[0]) params)
+
+    Returns +inf if any of the following invariant violations occurs:
+      - σ(Z_i) ≤ 1e-10 for any i (numerical underflow)
+      - 1 + ξ(Z_i) * Y_exc[i] / σ(Z_i) ≤ 0 for any i (support violation)
+      - Y_exc[i] < 0 for any i (negative exceedance — input invariant violated)
+
+    For ξ(Z_i) near 0 (|ξ| < 1e-8), uses the exponential log-density limit:
+      log f(y; σ, ξ→0) = -log σ - y/σ
+    """
+    n_xi = X_xi.shape[1]
+    params_xi = params[:n_xi]
+    params_sigma = params[n_xi:]
+    if len(params_sigma) != X_sigma.shape[1]:
+        return float("inf")
+
+    Y_arr = np.asarray(Y_exc, dtype=float)
+    if (Y_arr < 0).any():
+        return float("inf")
+
+    log_sigma = X_sigma @ params_sigma
+    sigma = np.exp(log_sigma)
+    if (sigma <= 1e-10).any() or not np.isfinite(sigma).all():
+        return float("inf")
+
+    xi = X_xi @ params_xi
+    if not np.isfinite(xi).all():
+        return float("inf")
+
+    # Support: 1 + ξ * y / σ > 0 for all observations
+    inner = 1.0 + xi * Y_arr / sigma
+    if (inner <= 0).any():
+        return float("inf")
+
+    # Two branches: |ξ| > 1e-8 (regular GPD log-density) and |ξ| ≤ 1e-8 (exponential limit)
+    # For numerical stability, treat each observation by its xi value.
+    near_zero = np.abs(xi) < 1e-8
+    nll_terms = np.empty_like(Y_arr)
+    # Regular branch
+    reg_mask = ~near_zero
+    nll_terms[reg_mask] = (
+        log_sigma[reg_mask]
+        + (1.0 + 1.0 / xi[reg_mask]) * np.log(inner[reg_mask])
+    )
+    # Exponential limit branch
+    nll_terms[near_zero] = log_sigma[near_zero] + Y_arr[near_zero] / sigma[near_zero]
+
+    total_nll = float(np.sum(nll_terms))
+    if not math.isfinite(total_nll):
+        return float("inf")
+    return total_nll

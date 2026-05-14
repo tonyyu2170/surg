@@ -11,6 +11,7 @@ from surg.analysis.gpd_continuous import (
     GPDContinuousFitResult,
     _design_matrix,
     _initial_params,
+    _neg_log_likelihood_nonstationary_gpd,
 )
 
 
@@ -117,3 +118,69 @@ def test_initial_params_spline_returns_six_params():
     # Last 2 are scale (σ₀ log, σ₁) — σ₀ exact from log(fit_gpd.scale)
     assert init[4] == math.log(base.scale)
     assert init[5] == 0.0
+
+
+def test_neg_log_likelihood_finite_on_valid_params():
+    """For valid parameters, the negative log-likelihood returns a finite float."""
+    rng = np.random.default_rng(seed=42)
+    Y_exc = stats.genpareto.rvs(c=0.3, scale=2.0, size=200, random_state=rng)
+    Z_exc = rng.uniform(1.0, 10.0, size=200)
+    X_xi = _design_matrix(Z_exc, form="linear")
+    X_sigma = _design_matrix(Z_exc, form="linear", for_scale=True)
+    # Reasonable params: shape ≈ 0.3, scale ≈ 2.0
+    params = np.array([0.3, 0.0, math.log(2.0), 0.0])  # β₀, β₁, σ₀_log, σ₁
+    nll = _neg_log_likelihood_nonstationary_gpd(params, Y_exc, X_xi, X_sigma)
+    assert math.isfinite(nll), f"NLL not finite: {nll}"
+    assert nll > 0, f"NLL should be > 0 for positive sample: {nll}"
+
+
+def test_neg_log_likelihood_returns_inf_on_negative_scale_implied():
+    """If σ(Z) implied is non-positive for any observation, NLL returns +inf.
+
+    Constructed: σ₀ = log(0.1), σ₁ = very negative → at high Z, σ(Z) underflows.
+    Actually since we use exp(σ₀ + σ₁·Z), σ(Z) is always positive — this test
+    instead probes the support violation: 1 + ξ(Z) * Y_exc / σ(Z) <= 0.
+    """
+    Y_exc = np.array([100.0, 200.0, 50.0])  # large exceedances
+    Z_exc = np.array([1.0, 2.0, 3.0])
+    X_xi = _design_matrix(Z_exc, form="linear")
+    X_sigma = _design_matrix(Z_exc, form="linear", for_scale=True)
+    # Force ξ(Z) very negative such that 1 + ξ·u/σ ≤ 0 for at least one obs
+    params = np.array([-1.0, -0.5, math.log(1.0), 0.0])  # β₀=-1, β₁=-0.5 → ξ(3) = -2.5
+    nll = _neg_log_likelihood_nonstationary_gpd(params, Y_exc, X_xi, X_sigma)
+    assert math.isinf(nll) and nll > 0, f"Expected +inf for support violation; got {nll}"
+
+
+def test_neg_log_likelihood_matches_stationary_genpareto_when_z_terms_zero():
+    """When β₁ = σ₁ = 0 (stationary special case), the non-stationary NLL
+    matches scipy.stats.genpareto's log-pdf sum."""
+    rng = np.random.default_rng(seed=42)
+    true_shape, true_scale = 0.3, 2.0
+    Y_exc = stats.genpareto.rvs(c=true_shape, scale=true_scale, size=300, random_state=rng)
+    Z_exc = rng.uniform(1.0, 10.0, size=300)  # Z doesn't matter for stationary case
+    X_xi = _design_matrix(Z_exc, form="linear")
+    X_sigma = _design_matrix(Z_exc, form="linear", for_scale=True)
+    params = np.array([true_shape, 0.0, math.log(true_scale), 0.0])
+
+    nll_ours = _neg_log_likelihood_nonstationary_gpd(params, Y_exc, X_xi, X_sigma)
+    nll_scipy = -np.sum(stats.genpareto.logpdf(Y_exc, c=true_shape, loc=0.0, scale=true_scale))
+
+    assert math.isclose(nll_ours, nll_scipy, rel_tol=1e-6), \
+        f"Stationary NLL mismatch: ours={nll_ours}, scipy={nll_scipy}"
+
+
+def test_neg_log_likelihood_handles_xi_near_zero_via_exponential_limit():
+    """When ξ(Z) ≈ 0 for all Z (exponential tail), NLL uses the exponential
+    log-density limit, not the genpareto formula (which would have 1/0 issues)."""
+    Y_exc = np.array([1.0, 2.0, 3.0, 0.5, 4.0])
+    Z_exc = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    X_xi = _design_matrix(Z_exc, form="linear")
+    X_sigma = _design_matrix(Z_exc, form="linear", for_scale=True)
+    # ξ exactly 0 at intercept, β₁=0 → ξ(Z) = 0 for all
+    params = np.array([0.0, 0.0, math.log(2.0), 0.0])
+    nll = _neg_log_likelihood_nonstationary_gpd(params, Y_exc, X_xi, X_sigma)
+    # Expected exponential NLL: sum(log σ + Y/σ) = n*log(2) + sum(Y)/2
+    n = len(Y_exc)
+    expected = n * math.log(2.0) + Y_exc.sum() / 2.0
+    assert math.isclose(nll, expected, rel_tol=1e-6), \
+        f"Exponential-limit NLL mismatch: got {nll}, expected {expected}"

@@ -541,6 +541,226 @@ def holm_bonferroni_two_sided(
     }
 
 
+def _gpd_quantile_split_result_to_dict(result: GPDQuantileSplitResult) -> dict:
+    return {
+        "threshold_quantile": result.threshold_quantile,
+        "threshold_value": result.threshold_value,
+        "split_quantiles": list(result.split_quantiles),
+        "quantile_edges": list(result.quantile_edges),
+        "quantile_fits": [_gpd_fit_result_to_dict(f) for f in result.quantile_fits],
+        "extreme_contrast": result.extreme_contrast,
+        "extreme_contrast_bootstrap_ci_95": list(result.extreme_contrast_bootstrap_ci_95),
+        "extreme_contrast_bootstrap_p_value": result.extreme_contrast_bootstrap_p_value,
+    }
+
+
+def _gpd_conditional_result_to_dict_with_two_sided(result: GPDConditionalResult) -> dict:
+    """Serialize a GPDConditionalResult and add a two-sided p-value derived from
+    the existing one-sided field. Two-sided = 2 * min(p_one, 1 - p_one), clipped
+    to [0, 1]. NaN propagates."""
+    p_one = result.shape_diff_bootstrap_p_value
+    if math.isnan(p_one):
+        p_two = float("nan")
+    else:
+        p_two = min(1.0, 2.0 * min(p_one, 1.0 - p_one))
+    return {
+        "threshold_quantile": result.threshold_quantile,
+        "threshold_value": result.threshold_value,
+        "z_split_quantile": result.z_split_quantile,
+        "z_split_value": result.z_split_value,
+        "low_z": _gpd_fit_result_to_dict(result.low_z),
+        "high_z": _gpd_fit_result_to_dict(result.high_z),
+        "shape_diff": result.shape_diff,
+        "shape_diff_bootstrap_ci_95": list(result.shape_diff_bootstrap_ci_95),
+        "one_sided_p_value": p_one,
+        "two_sided_p_value": p_two,
+    }
+
+
+def run_conditional_z_robustness(
+    panel: pd.DataFrame,
+    out_path: Path,
+    *,
+    response_col: str,
+    pnode_label: str,
+    threshold_col: str = "dom_load_gradient_abs_mw_per_min",
+    filter_col: str = "passes_proposal_filter",
+    n_boot: int = 200,
+    seed: int = 0,
+) -> None:
+    """Run the 2026-05-14 pre-registered conditional-Z robustness battery (A/C/F).
+
+    Spec A — quartile-split at 95th-pct LMP threshold, full panel.
+    Spec C — median-split at 99th-pct LMP threshold, full panel.
+    Spec F — median-split at within-filter 95th-pct LMP threshold, on the
+             subset where `panel[filter_col]` is True.
+
+    For each spec, computes a two-sided bootstrap p-value (Spec A uses the
+    GPDQuantileSplitResult's native two-sided p; Specs C and F convert
+    `gpd_conditional_on_z`'s one-sided field via 2*min(p, 1-p)). Each spec's
+    fit-failure due to power (ValueError from underlying functions) is caught
+    and marked `status="inconclusive"` with a human-readable `reason`.
+
+    Applies Holm-Bonferroni at alpha=0.05 across the three two-sided p-values
+    (NaN counts as "cannot reject" and sorts to the end of the family).
+
+    Writes a JSON file at `out_path` with per-spec result blocks plus a
+    `holm_bonferroni` block. Schema documented inline below. NaN values
+    serialize to JSON `null` (RFC-compliant).
+    """
+    n_total = len(panel)
+    base_subset = panel.dropna(subset=[response_col, threshold_col])
+    Y_full = base_subset[response_col].to_numpy()
+    Z_full = base_subset[threshold_col].to_numpy()
+
+    # --- Spec A: quartile-split at 95th-pct, full panel ---
+    spec_a: dict
+    try:
+        a_result = gpd_quantile_split_on_z(
+            Y_full, Z_full,
+            threshold_quantile=0.95,
+            split_quantiles=(0.25, 0.5, 0.75),
+            n_boot=n_boot,
+            seed=seed,
+        )
+        spec_a = {
+            "status": "fit",
+            "scope": "full_panel",
+            "threshold_quantile": 0.95,
+            "n_panel_after_dropna": int(len(Y_full)),
+            "reason": None,
+            "result": _gpd_quantile_split_result_to_dict(a_result),
+        }
+        p_a = a_result.extreme_contrast_bootstrap_p_value
+    except ValueError as exc:
+        spec_a = {
+            "status": "inconclusive",
+            "scope": "full_panel",
+            "threshold_quantile": 0.95,
+            "n_panel_after_dropna": int(len(Y_full)),
+            "reason": str(exc),
+            "result": None,
+        }
+        p_a = float("nan")
+
+    # --- Spec C: median-split at 99th-pct, full panel ---
+    spec_c: dict
+    try:
+        c_result = gpd_conditional_on_z(
+            Y_full, Z_full,
+            threshold_quantile=0.99,
+            z_split_quantile=0.5,
+            n_boot=n_boot,
+            seed=seed + 100,
+        )
+        c_dict = _gpd_conditional_result_to_dict_with_two_sided(c_result)
+        spec_c = {
+            "status": "fit",
+            "scope": "full_panel",
+            "threshold_quantile": 0.99,
+            "n_panel_after_dropna": int(len(Y_full)),
+            "reason": None,
+            "result": c_dict,
+        }
+        p_c = c_dict["two_sided_p_value"]
+    except ValueError as exc:
+        spec_c = {
+            "status": "inconclusive",
+            "scope": "full_panel",
+            "threshold_quantile": 0.99,
+            "n_panel_after_dropna": int(len(Y_full)),
+            "reason": str(exc),
+            "result": None,
+        }
+        p_c = float("nan")
+
+    # --- Spec F: median-split at within-filter 95th-pct, filtered subset ---
+    if filter_col not in panel.columns:
+        raise KeyError(
+            f"filter_col {filter_col!r} not in panel columns; cannot run Spec F"
+        )
+    filter_mask = panel[filter_col].fillna(False).astype(bool)
+    # Boolean numpy array aligned with base_subset's row order — avoids
+    # pandas .loc-with-boolean-Series alignment subtleties.
+    keep_in_filter = filter_mask.reindex(base_subset.index, fill_value=False).to_numpy()
+    f_subset = base_subset[keep_in_filter]
+    Y_filt = f_subset[response_col].to_numpy()
+    Z_filt = f_subset[threshold_col].to_numpy()
+    n_after_filter = int(len(Y_filt))
+
+    spec_f: dict
+    if n_after_filter < 20:
+        spec_f = {
+            "status": "inconclusive",
+            "scope": "filtered_subset",
+            "filter_col": filter_col,
+            "threshold_quantile": 0.95,
+            "n_after_filter": n_after_filter,
+            "reason": f"too few rows after filter (n={n_after_filter}; need ≥20 for exceedance set)",
+            "result": None,
+        }
+        p_f = float("nan")
+    else:
+        try:
+            f_result = gpd_conditional_on_z(
+                Y_filt, Z_filt,
+                threshold_quantile=0.95,
+                z_split_quantile=0.5,
+                n_boot=n_boot,
+                seed=seed + 200,
+            )
+            f_dict = _gpd_conditional_result_to_dict_with_two_sided(f_result)
+            spec_f = {
+                "status": "fit",
+                "scope": "filtered_subset",
+                "filter_col": filter_col,
+                "threshold_quantile": 0.95,
+                "n_after_filter": n_after_filter,
+                "reason": None,
+                "result": f_dict,
+            }
+            p_f = f_dict["two_sided_p_value"]
+        except ValueError as exc:
+            spec_f = {
+                "status": "inconclusive",
+                "scope": "filtered_subset",
+                "filter_col": filter_col,
+                "threshold_quantile": 0.95,
+                "n_after_filter": n_after_filter,
+                "reason": str(exc),
+                "result": None,
+            }
+            p_f = float("nan")
+
+    # --- Holm-Bonferroni across the three two-sided p-values ---
+    holm = holm_bonferroni_two_sided(
+        {"spec_a": p_a, "spec_c": p_c, "spec_f": p_f},
+        alpha=0.05,
+    )
+
+    payload = {
+        "pnode_label": pnode_label,
+        "response_col": response_col,
+        "threshold_col": threshold_col,
+        "filter_col": filter_col,
+        "n_total_panel": int(n_total),
+        "spec_a_quartile_split": spec_a,
+        "spec_c_99th_pct": spec_c,
+        "spec_f_within_filter": spec_f,
+        "holm_bonferroni": {
+            "alpha": holm["alpha"],
+            "sorted_order": holm["sorted_order"],
+            "adjusted_thresholds": holm["adjusted_thresholds"],
+            "two_sided_p_values": {"spec_a": p_a, "spec_c": p_c, "spec_f": p_f},
+            "rejections": holm["rejections"],
+            "family_wise_rejection": holm["family_wise_rejection"],
+        },
+    }
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(_nan_to_none(payload), indent=2))
+
+
 def _nan_to_none(obj):
     """Recursively replace float NaN/inf with None for JSON serialization."""
     if isinstance(obj, float):

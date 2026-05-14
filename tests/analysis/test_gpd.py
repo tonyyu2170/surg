@@ -15,6 +15,7 @@ from surg.analysis.gpd import GPDConditionalResult, gpd_conditional_on_z
 from surg.analysis.gpd import run_gpd
 from surg.analysis.gpd import GPDQuantileSplitResult, gpd_quantile_split_on_z
 from surg.analysis.gpd import holm_bonferroni_two_sided
+from surg.analysis.gpd import run_conditional_z_robustness
 
 
 def test_fit_gpd_recovers_planted_shape_and_scale():
@@ -534,3 +535,173 @@ def test_holm_validates_p_value_range():
         holm_bonferroni_two_sided({"a": -0.01}, alpha=0.05)
     with pytest.raises(ValueError, match="p-value"):
         holm_bonferroni_two_sided({"a": 1.01}, alpha=0.05)
+
+
+# ─── run_conditional_z_robustness (orchestrator) ──────────────────────────────
+
+
+def _synthetic_battery_panel(n: int, seed: int) -> pd.DataFrame:
+    """Build a synthetic panel matching the columns run_conditional_z_robustness
+    consumes: response (Y), threshold variable (Z), filter mask.
+
+    Generates a Z-dependent GPD where high-Z exceedances have lighter tails
+    than low-Z (matching the actual 2026-05-14 production finding's
+    direction). The filter mask retains a fraction of rows.
+    """
+    rng = np.random.default_rng(seed=seed)
+    Z = rng.uniform(0, 10, size=n)
+    Y = np.empty(n)
+    # Median-split: shape=0.5 below, shape=0.2 above (matches production finding)
+    high_z = Z > 5.0
+    Y[~high_z] = stats.genpareto.rvs(c=0.5, scale=2.0, size=int((~high_z).sum()), random_state=rng)
+    Y[high_z] = stats.genpareto.rvs(c=0.2, scale=2.0, size=int(high_z.sum()), random_state=rng)
+
+    # Filter: keep ~6% of rows (matches the proposal's 2-5 AM × shoulder share)
+    filter_mask = rng.random(size=n) < 0.064
+    return pd.DataFrame({
+        "datetime_beginning_ept": pd.date_range("2024-01-01", periods=n, freq="h"),
+        "Y_target": Y,
+        "Z_target": Z,
+        "passes_proposal_filter": filter_mask,
+    })
+
+
+def test_run_conditional_z_robustness_writes_expected_json(tmp_path: Path):
+    """End-to-end: run_conditional_z_robustness writes a JSON file with the
+    expected schema (per-spec blocks for A/C/F + a holm_bonferroni block)."""
+    panel = _synthetic_battery_panel(n=12000, seed=42)
+    out = tmp_path / "gpd" / "conditional_z_robustness.json"
+
+    run_conditional_z_robustness(
+        panel,
+        out_path=out,
+        response_col="Y_target",
+        pnode_label="test",
+        threshold_col="Z_target",
+        filter_col="passes_proposal_filter",
+        n_boot=50,
+        seed=0,
+    )
+
+    assert out.exists(), f"orchestrator did not write {out}"
+    payload = json.loads(out.read_text())
+
+    # Top-level shape
+    assert payload["pnode_label"] == "test"
+    assert payload["response_col"] == "Y_target"
+    assert payload["threshold_col"] == "Z_target"
+    assert payload["filter_col"] == "passes_proposal_filter"
+    assert payload["n_total_panel"] == 12000
+
+    # Spec A: quartile split, full panel
+    spec_a = payload["spec_a_quartile_split"]
+    assert spec_a["status"] == "fit"
+    assert spec_a["scope"] == "full_panel"
+    assert spec_a["threshold_quantile"] == pytest.approx(0.95)
+    a_result = spec_a["result"]
+    assert tuple(a_result["split_quantiles"]) == (0.25, 0.5, 0.75)
+    assert len(a_result["quantile_fits"]) == 4
+    assert "extreme_contrast" in a_result
+    assert "extreme_contrast_bootstrap_ci_95" in a_result
+    assert "extreme_contrast_bootstrap_p_value" in a_result
+
+    # Spec C: median-split at 99th-pct, full panel
+    spec_c = payload["spec_c_99th_pct"]
+    assert spec_c["scope"] == "full_panel"
+    assert spec_c["threshold_quantile"] == pytest.approx(0.99)
+    # Status may be "fit" or "inconclusive" depending on synthetic n;
+    # both are valid outcomes for this test (we only check the schema).
+    assert spec_c["status"] in {"fit", "inconclusive"}
+    if spec_c["status"] == "fit":
+        assert "shape_diff" in spec_c["result"]
+        assert "two_sided_p_value" in spec_c["result"]
+
+    # Spec F: within-filter median-split at 95th
+    spec_f = payload["spec_f_within_filter"]
+    assert spec_f["scope"] == "filtered_subset"
+    assert spec_f["filter_col"] == "passes_proposal_filter"
+    assert spec_f["threshold_quantile"] == pytest.approx(0.95)
+    assert spec_f["status"] in {"fit", "inconclusive"}
+
+    # Holm-Bonferroni roll-up
+    holm = payload["holm_bonferroni"]
+    assert holm["alpha"] == pytest.approx(0.05)
+    assert set(holm["two_sided_p_values"].keys()) == {"spec_a", "spec_c", "spec_f"}
+    assert set(holm["rejections"].keys()) == {"spec_a", "spec_c", "spec_f"}
+    assert isinstance(holm["family_wise_rejection"], bool)
+
+
+def test_run_conditional_z_robustness_handles_spec_c_fit_failure(tmp_path: Path):
+    """When the 99th-pct threshold leaves too few exceedances per Z-half,
+    Spec C must be reported as 'inconclusive' (status string), not crash
+    the orchestrator. The other specs still run; Holm sees NaN for C."""
+    rng = np.random.default_rng(seed=42)
+    n = 800  # at 99th-pct: ~8 exceedances total, far below the n=20 floor
+    panel = pd.DataFrame({
+        "datetime_beginning_ept": pd.date_range("2024-01-01", periods=n, freq="h"),
+        "Y_target": stats.genpareto.rvs(c=0.3, scale=2.0, size=n, random_state=rng),
+        "Z_target": rng.uniform(0, 10, size=n),
+        "passes_proposal_filter": np.zeros(n, dtype=bool),
+    })
+
+    out = tmp_path / "gpd" / "small_n.json"
+    run_conditional_z_robustness(
+        panel, out_path=out,
+        response_col="Y_target", pnode_label="small",
+        threshold_col="Z_target", filter_col="passes_proposal_filter",
+        n_boot=30, seed=0,
+    )
+
+    payload = json.loads(out.read_text())
+    assert payload["spec_c_99th_pct"]["status"] == "inconclusive"
+    assert payload["spec_c_99th_pct"]["reason"] is not None  # human-readable explanation
+    assert payload["spec_c_99th_pct"]["result"] is None
+    # Holm should record NaN for spec_c (which serializes to null)
+    assert payload["holm_bonferroni"]["two_sided_p_values"]["spec_c"] is None
+    # Spec C cannot be rejected
+    assert payload["holm_bonferroni"]["rejections"]["spec_c"] is False
+
+
+def test_run_conditional_z_robustness_handles_spec_f_filter_empty(tmp_path: Path):
+    """When the filter mask is all-False, Spec F has no data → inconclusive."""
+    rng = np.random.default_rng(seed=42)
+    n = 8000
+    panel = pd.DataFrame({
+        "datetime_beginning_ept": pd.date_range("2024-01-01", periods=n, freq="h"),
+        "Y_target": stats.genpareto.rvs(c=0.3, scale=2.0, size=n, random_state=rng),
+        "Z_target": rng.uniform(0, 10, size=n),
+        "passes_proposal_filter": np.zeros(n, dtype=bool),
+    })
+
+    out = tmp_path / "gpd" / "empty_filter.json"
+    run_conditional_z_robustness(
+        panel, out_path=out,
+        response_col="Y_target", pnode_label="empty",
+        threshold_col="Z_target", filter_col="passes_proposal_filter",
+        n_boot=30, seed=0,
+    )
+
+    payload = json.loads(out.read_text())
+    assert payload["spec_f_within_filter"]["status"] == "inconclusive"
+    assert payload["spec_f_within_filter"]["reason"] is not None
+    assert payload["spec_f_within_filter"]["n_after_filter"] == 0
+
+
+def test_run_conditional_z_robustness_serializes_nan_as_null(tmp_path: Path):
+    """If any bootstrap CI or p-value is NaN, JSON output uses null, not NaN."""
+    panel = _synthetic_battery_panel(n=4000, seed=0)
+    out = tmp_path / "gpd" / "nan_check.json"
+    run_conditional_z_robustness(
+        panel, out_path=out,
+        response_col="Y_target", pnode_label="nan_test",
+        threshold_col="Z_target", filter_col="passes_proposal_filter",
+        n_boot=20, seed=0,
+    )
+    text = out.read_text()
+    assert "NaN" not in text, "JSON output contains literal NaN token"
+    # strict json.loads validates RFC-compliance
+    payload = json.loads(text)
+    # If any p-value field is null, it must be None on parse (not NaN)
+    for spec_key in ("spec_a", "spec_c", "spec_f"):
+        p = payload["holm_bonferroni"]["two_sided_p_values"][spec_key]
+        assert p is None or (isinstance(p, (int, float)) and math.isfinite(p))

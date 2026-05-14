@@ -77,16 +77,21 @@ def add_loudoun_cluster_columns(
 ) -> pd.DataFrame:
     """Add Loudoun-cluster aggregate columns from per-pnode wide columns.
 
-    Adds five columns:
+    Adds up to five columns (some may be absent — see below):
     - ``congestion_price_rt_cluster_mean``
     - ``congestion_price_rt_cluster_max``
     - ``total_lmp_rt_cluster_mean``
-    - ``system_energy_price_rt_cluster_mean``
-    - ``marginal_loss_price_rt_cluster_mean``
+    - ``system_energy_price_rt_cluster_mean``  (only if at least one matching pnode column is present)
+    - ``marginal_loss_price_rt_cluster_mean``  (only if at least one matching pnode column is present)
 
     Only congestion has a ``_max`` column; the other components have
-    ``_mean`` only. Column presence in ``wide_df`` is checked defensively —
-    missing pnode columns are skipped silently (matching the behaviour of
+    ``_mean`` only.
+
+    Column presence in ``wide_df`` is checked defensively per component:
+    components whose per-pnode columns are all absent from ``wide_df`` are
+    **omitted from the output entirely** — the cluster_mean column for that
+    component does not appear. Components with at least one matching per-pnode
+    column produce a mean over the available ones (matching the behaviour of
     ``pivot_lmp_long_to_pnode_columns``).
 
     cluster_pnode_ids = the 6 Loudoun-area transmission pnodes (see
@@ -105,8 +110,10 @@ def add_loudoun_cluster_columns(
     out["congestion_price_rt_cluster_mean"] = out[cong_cols].mean(axis=1)
     out["congestion_price_rt_cluster_max"] = out[cong_cols].max(axis=1)
     out["total_lmp_rt_cluster_mean"] = out[total_cols].mean(axis=1)
-    out["system_energy_price_rt_cluster_mean"] = out[sys_cols].mean(axis=1)
-    out["marginal_loss_price_rt_cluster_mean"] = out[loss_cols].mean(axis=1)
+    if sys_cols:
+        out["system_energy_price_rt_cluster_mean"] = out[sys_cols].mean(axis=1)
+    if loss_cols:
+        out["marginal_loss_price_rt_cluster_mean"] = out[loss_cols].mean(axis=1)
     return out
 
 

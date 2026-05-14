@@ -257,6 +257,30 @@ def test_loudoun_cluster_columns_include_system_energy_and_marginal_loss():
     assert out["marginal_loss_price_rt_cluster_mean"].iloc[0] == pytest.approx(1.0)
 
 
+def test_loudoun_cluster_columns_omits_components_with_no_matching_pnodes():
+    """Components whose per-pnode columns are all absent from wide_df must
+    not produce an all-NaN cluster_mean column in the output."""
+    from surg.preprocessing.features import add_loudoun_cluster_columns
+
+    # Only congestion + total_lmp columns — no system_energy, no marginal_loss
+    wide_df = pd.DataFrame({
+        "datetime_beginning_ept": pd.to_datetime(["2024-01-01 00:00"]),
+        "congestion_price_rt_1": [2.0],
+        "congestion_price_rt_2": [4.0],
+        "total_lmp_rt_1": [10.0],
+        "total_lmp_rt_2": [12.0],
+    })
+
+    out = add_loudoun_cluster_columns(wide_df, cluster_pnode_ids=(1, 2))
+
+    # congestion cluster column should be present (matching pnode columns exist)
+    assert "congestion_price_rt_cluster_mean" in out.columns
+
+    # system_energy and marginal_loss have no matching pnode columns → must be absent
+    assert "system_energy_price_rt_cluster_mean" not in out.columns
+    assert "marginal_loss_price_rt_cluster_mean" not in out.columns
+
+
 def test_pivot_lmp_with_only_two_value_columns_omits_unsupplied():
     """Legacy callers that pass only congestion_price_rt and total_lmp_rt
     should get a valid wide DataFrame containing only those two value families;

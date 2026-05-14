@@ -90,36 +90,49 @@ the JLARC report's Figure 3-3 (1.95× / 2.62× / 2.90× by 2040).
 
 ## Agenda items
 
-### Item 1 — Framing the rejected-mechanism finding (HIGH PRIORITY)
+### Item 1 — Headline framing (HIGH PRIORITY — REVISED 2026-05-14 late-night)
 
-The proposal predicted heavier LMP tails at high load volatility.
-This is empirically rejected on our window. How should the paper
-position this?
+**Update:** The original framing options here were built on the prior
+2026-05-14 production-findings entry's reported conditional-Z
+rejection (`shape_diff = -0.18, CI [-0.371, -0.044]`). On the **actual
+current panel + code**, that rejection does NOT reproduce — the
+deterministic re-run produces `shape_diff = -0.09, CI [-0.249, +0.047]`
+(CI straddles 0). The conditional-Z robustness battery's verdict is
+**not a rejection** but an inconclusive at all three tested scopes
+(see the 2026-05-14 application-of-pre-reg entry in decisions.md for
+the correction + full battery results).
 
-**Three candidate framings:**
+The framing question changes accordingly. The proposal's tail-shape
+prediction is neither confirmed nor rejected; the conditional-Z
+mechanism test is **underpowered to discriminate** at α=0.05 on this
+window. **Two candidate framings now:**
 
-A. **Clean negative result.** The paper presents the rejection as
-   the central finding. "We tested the proposal's prediction and
-   found the opposite direction." Defensible if the rejection is
-   robust across the battery's variants.
+A'. **Positive findings carry the paper.** QR-full z_slopes at
+   moderate τ (z_slope = 0.39, 0.58 at τ=0.90, 0.95 — robust to
+   bootstrap) and `total_lmp` ≈ 4× congestion at τ=0.95 (direct
+   ORDC mechanism support) are the headline. The conditional-Z
+   tail-shape test is reported as a methodologically-honest "we
+   tried this specific test and it's underpowered to discriminate
+   at the available sample sizes" — not a finding either way.
+   Defensible because the positive findings ARE robust and stand
+   on their own.
 
-B. **Refinement to the proposal's framing.** The rejection at the
-   95th-pct LMP threshold is real; deeper tail behavior (99th-pct
-   threshold) is underpowered to determine. The paper can argue
-   "moderate-tail heaviness decreases with volatility, but
-   ORDC-trigger-level rare events may behave differently." Less
-   clean but more aligned with the proposal's original hypothesis
-   spirit.
+B'. **Reframe the central question.** The proposal's specific
+   tail-shape prediction is the wrong question for this data; the
+   composite LMP-vs-Z response is smooth, so a tail-shape mechanism
+   test is testing the wrong feature of the relationship. The
+   paper's central claim shifts to *"moderate-quantile response ×
+   ORDC mechanism × distribution shift under projected growth"* —
+   which centers QR-full + sub-question 2's JLARC projection layer
+   as the paper's contribution. The conditional-Z test result
+   becomes a discarded methodology that further evidenced why the
+   smooth-curve framing is appropriate.
 
-C. **Mechanism-substitution.** The conditional-Z test isolates one
-   slice of the ORDC mechanism (Z → tail shape at fixed quantile).
-   The `total_lmp` ≈ 4× congestion finding is a different slice
-   (Z → mean LMP at high quantile). The paper could feature the
-   latter as the "headline mechanism confirmation" while the
-   conditional-Z rejection becomes a methodological footnote.
-
-**What we need from the advisor:** which framing is most
-publishable / defensible? Are there mid-options we're missing?
+**What we need from the advisor:** Pick A' or B' (or propose a
+hybrid). A' is conservative — keeps the paper close to what we have.
+B' is bolder — pivots the paper's contribution toward the projection
+layer, which would put sub-question 2's JLARC work in the
+critical path for the paper rather than as a follow-up.
 
 ### Item 2 — Bootstrap p-value semantics + Holm correction defensibility (METHODOLOGY)
 

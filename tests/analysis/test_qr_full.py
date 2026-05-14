@@ -106,3 +106,30 @@ def test_fit_qr_full_validates_month_out_of_range():
     month[5] = 0  # 0-indexed bug
     with pytest.raises(ValueError, match="month in"):
         fit_qr_full(Y, Z, hour, month, tau=0.5)
+
+
+def test_fit_qr_full_bootstrap_ci_is_non_degenerate():
+    """With n_boot > 0, the bootstrap CI is finite, has positive width,
+    and brackets the point estimate.
+
+    Full coverage-rate testing would require many simulations and is too slow
+    for unit tests; an end-to-end coverage study can be a separate validation
+    script if reviewer requests.
+    """
+    Y, Z, hour, month = _synth_inputs(n=2000, z_slope=2.0, seed=42)
+    result = fit_qr_full(Y, Z, hour, month, tau=0.5, n_boot=100, seed=0)
+
+    lo, hi = result.z_slope_bootstrap_ci_95
+    assert math.isfinite(lo) and math.isfinite(hi)
+    assert hi > lo
+    # The point estimate should sit inside the CI on a well-specified DGP
+    assert lo <= result.z_slope <= hi, \
+        f"point estimate {result.z_slope:.4f} outside CI [{lo:.4f}, {hi:.4f}]"
+
+
+def test_fit_qr_full_bootstrap_seed_reproducibility():
+    """Same seed gives identical bootstrap CI across runs."""
+    Y, Z, hour, month = _synth_inputs(n=2000, z_slope=2.0, seed=42)
+    r1 = fit_qr_full(Y, Z, hour, month, tau=0.5, n_boot=50, seed=123)
+    r2 = fit_qr_full(Y, Z, hour, month, tau=0.5, n_boot=50, seed=123)
+    assert r1.z_slope_bootstrap_ci_95 == r2.z_slope_bootstrap_ci_95

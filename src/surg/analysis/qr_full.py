@@ -44,6 +44,54 @@ def _build_periodic_basis(hour: np.ndarray, month: np.ndarray) -> dict[str, np.n
     }
 
 
+def _bootstrap_z_slope_ci(
+    Y: np.ndarray,
+    Z: np.ndarray,
+    hour: np.ndarray,
+    month: np.ndarray,
+    *,
+    tau: float,
+    n_boot: int,
+    seed: int,
+    extra_X: np.ndarray | None = None,
+) -> tuple[float, float]:
+    """Pair-bootstrap 95% CI on the Z slope coefficient in fit_qr_full.
+
+    Resamples row indices with replacement, refits QR each time, returns
+    2.5%/97.5% quantiles of the Z-slope sampling distribution. Returns
+    (nan, nan) if n_boot < 20 or fewer than 20 reps converge.
+
+    `extra_X` is an optional matrix of additional design columns (used by
+    the year-FE spec in Task 8). When None, only the sin/cos basis is used.
+    """
+    if n_boot < 20:
+        return (float("nan"), float("nan"))
+    rng = np.random.default_rng(seed)
+    n = len(Y)
+    slopes: list[float] = []
+    for _ in range(n_boot):
+        idx = rng.integers(0, n, size=n)
+        basis = _build_periodic_basis(hour[idx], month[idx])
+        cols = [
+            np.ones(n),
+            Z[idx],
+            basis["hour_sin"], basis["hour_cos"],
+            basis["month_sin"], basis["month_cos"],
+        ]
+        if extra_X is not None:
+            cols.append(extra_X[idx])
+        X_boot = np.column_stack(cols)
+        try:
+            m = sm.QuantReg(Y[idx], X_boot).fit(q=tau)
+            slopes.append(float(m.params[1]))
+        except Exception:
+            continue
+    if len(slopes) < 20:
+        return (float("nan"), float("nan"))
+    arr = np.asarray(slopes)
+    return (float(np.quantile(arr, 0.025)), float(np.quantile(arr, 0.975)))
+
+
 def fit_qr_full(
     Y: np.ndarray | pd.Series,
     Z: np.ndarray | pd.Series,
@@ -58,17 +106,16 @@ def fit_qr_full(
 
     All four arrays must have equal length and contain no NaN. (Caller drops
     NaN rows before passing.) `n_boot=0` skips bootstrap CI and returns
-    `(nan, nan)` for `z_slope_bootstrap_ci_95`; non-zero `n_boot` will be
-    wired in a subsequent task.
+    `(nan, nan)` for `z_slope_bootstrap_ci_95`; pass `n_boot >= 20` to
+    get a pair-bootstrap 95% CI via `_bootstrap_z_slope_ci`.
 
     Notes:
         The returned asymptotic `z_slope_se` and `z_slope_p_value` come from
         statsmodels' Koenker-Bassett sandwich estimator. This is reliable at
         central quantiles (τ ≈ 0.5) but is known to underperform at high τ
-        (≥ 0.99) on autocorrelated time-series data. Task 7 of the Strategy
-        C implementation plan adds a pair-bootstrap CI on `z_slope` that is
-        the more honest interval at the tail quantiles used in the
-        production analysis.
+        (≥ 0.99) on autocorrelated time-series data. The pair-bootstrap CI
+        on `z_slope` is the more honest interval at the tail quantiles used
+        in the production analysis.
     """
     Y_arr = np.asarray(Y, dtype=float)
     Z_arr = np.asarray(Z, dtype=float)
@@ -111,8 +158,10 @@ def fit_qr_full(
         for i, name in enumerate(("hour_sin", "hour_cos", "month_sin", "month_cos"))
     }
 
-    # Bootstrap CI is wired in Task 7; for now return placeholder
-    ci: tuple[float, float] = (float("nan"), float("nan"))
+    ci: tuple[float, float] = _bootstrap_z_slope_ci(
+        Y=Y_arr, Z=Z_arr, hour=hour_arr, month=month_arr,
+        tau=tau, n_boot=n_boot, seed=seed,
+    )
 
     return QRFullFitResult(
         tau=float(tau),

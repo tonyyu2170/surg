@@ -109,3 +109,43 @@ def test_fit_single_component_median_split_low_power_emits_insufficient():
         seed=0,
     )
     assert result.rule_2_outcome == "insufficient_sample"
+
+
+def _make_panel_for_orchestrator(n_rows: int = 8000) -> pd.DataFrame:
+    rng = np.random.default_rng(0)
+    Z = rng.uniform(0, 10, size=n_rows)
+    panel = pd.DataFrame({
+        "datetime_beginning_ept": pd.date_range("2024-01-01", periods=n_rows, freq="h"),
+        "dom_load_gradient_abs_mw_per_min": Z,
+        "system_energy_price_rt_cluster_mean": rng.exponential(1.0 + 0.1 * Z),
+        "congestion_price_rt_cluster_mean": rng.exponential(1.0 + 0.2 * Z),
+        "marginal_loss_price_rt_cluster_mean": rng.exponential(0.5 + 0.05 * Z),
+        "passes_proposal_filter": rng.random(n_rows) > 0.7,  # ~30% pass
+    })
+    return panel
+
+
+def test_run_gpd_components_writes_four_outputs(tmp_path: Path):
+    from surg.analysis.gpd_components import run_gpd_components
+
+    panel = _make_panel_for_orchestrator()
+    out_dir = tmp_path / "gpd_components"
+
+    run_gpd_components(
+        panel=panel,
+        out_dir=out_dir,
+        n_boot=30,
+        seed=0,
+    )
+
+    assert (out_dir / "headline.json").exists()
+    assert (out_dir / "primary_cluster_supplementary.json").exists()
+    assert (out_dir / "cross_pnode.json").exists()
+    assert (out_dir / "threshold_sweep.json").exists()
+
+    headline = json.loads((out_dir / "headline.json").read_text())
+    assert headline["component"] == "system_energy"
+    assert headline["pnode_label"] == "primary_cluster"
+    assert headline["threshold_quantile"] == 0.95
+    assert "rule_2_outcome" in headline
+    assert "paper_claim" in headline

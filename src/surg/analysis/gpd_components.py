@@ -176,3 +176,151 @@ def _insufficient(
             ci_95=(float("nan"), float("nan")), n_per_half=n_per_half,
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator
+# ---------------------------------------------------------------------------
+
+# Per-pnode response-column templates per component. Labeled pnodes only.
+LABELED_PNODES = ("ashburn_tx1", "ashburn_tx2", "ox", "bristers", "dom_zonal")
+CLUSTER_RESPONSE_COLS = {
+    "system_energy": "system_energy_price_rt_cluster_mean",
+    "congestion":    "congestion_price_rt_cluster_mean",
+    "marginal_loss": "marginal_loss_price_rt_cluster_mean",
+}
+CROSS_PNODE_RESPONSE_COLS = {
+    "system_energy": {p: f"system_energy_price_rt_{p}" for p in LABELED_PNODES},
+    "congestion":    {p: f"congestion_price_rt_{p}"    for p in LABELED_PNODES},
+    "marginal_loss": {p: f"marginal_loss_price_rt_{p}" for p in LABELED_PNODES},
+}
+
+
+def _result_to_dict(r: ComponentsHeadlineResult) -> dict:
+    return {
+        "component": r.component,
+        "pnode_label": r.pnode_label,
+        "threshold_quantile": r.threshold_quantile,
+        "n_exc": r.n_exc,
+        "shape_diff": _nan_to_none(r.shape_diff),
+        "shape_diff_ci_95": [_nan_to_none(r.shape_diff_ci_95[0]),
+                             _nan_to_none(r.shape_diff_ci_95[1])],
+        "rule_2_outcome": r.rule_2_outcome,
+        "paper_claim": r.paper_claim,
+    }
+
+
+def _nan_to_none(x: float) -> float | None:
+    if isinstance(x, float) and (math.isnan(x) or math.isinf(x)):
+        return None
+    return x
+
+
+def run_gpd_components(
+    panel: pd.DataFrame,
+    out_dir: Path,
+    *,
+    z_col: str = "dom_load_gradient_abs_mw_per_min",
+    filter_col: str = "passes_proposal_filter",
+    headline_threshold_q: float = 0.95,
+    threshold_sweep_qs: tuple[float, ...] = (0.90, 0.95, 0.99),
+    n_boot: int = 200,
+    seed: int = 0,
+) -> None:
+    """End-to-end orchestrator for sub-q1 closure item #2.
+
+    Writes four JSON files under `out_dir`:
+      - headline.json: system_energy @ headline_threshold_q on primary cluster.
+      - primary_cluster_supplementary.json: congestion + marginal_loss on primary cluster.
+      - cross_pnode.json: 3 components × 5 labeled pnodes × headline_threshold_q.
+      - threshold_sweep.json: 3 components × primary cluster × threshold_sweep_qs.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Headline: system_energy @ p95 on primary cluster.
+    headline = fit_single_component_median_split(
+        panel=panel,
+        response_col=CLUSTER_RESPONSE_COLS["system_energy"],
+        z_col=z_col,
+        component="system_energy",
+        pnode_label="primary_cluster",
+        threshold_quantile=headline_threshold_q,
+        n_boot=n_boot,
+        seed=seed,
+        filter_col=filter_col,
+    )
+    headline_payload = _result_to_dict(headline)
+    headline_payload["rule_1_singular_headline"] = (
+        f"system_energy_price_rt_cluster_mean median-split @ "
+        f"p{int(headline_threshold_q*100)} LMP, Loudoun cluster, filtered subset"
+    )
+    headline_payload["pre_reg_reference"] = (
+        "docs/decisions.md § 2026-05-14 — Pre-registration: LMP-components decomposition"
+    )
+    (out_dir / "headline.json").write_text(json.dumps(headline_payload, indent=2))
+
+    # Primary cluster supplementary: congestion + marginal_loss @ p95.
+    primary_supp = []
+    for comp in ("congestion", "marginal_loss"):
+        r = fit_single_component_median_split(
+            panel=panel,
+            response_col=CLUSTER_RESPONSE_COLS[comp],
+            z_col=z_col,
+            component=comp,
+            pnode_label="primary_cluster",
+            threshold_quantile=headline_threshold_q,
+            n_boot=n_boot,
+            seed=seed + 1,
+            filter_col=filter_col,
+        )
+        primary_supp.append(_result_to_dict(r))
+    (out_dir / "primary_cluster_supplementary.json").write_text(
+        json.dumps({"results": primary_supp, "scope": "descriptive (no MT correction)"}, indent=2)
+    )
+
+    # Cross-pnode: 3 components × 5 labeled pnodes @ p95.
+    cross_pnode_results = []
+    seed_idx = 2
+    for comp in ("system_energy", "congestion", "marginal_loss"):
+        for label, col in CROSS_PNODE_RESPONSE_COLS[comp].items():
+            if col not in panel.columns or panel[col].dropna().empty:
+                continue
+            r = fit_single_component_median_split(
+                panel=panel,
+                response_col=col,
+                z_col=z_col,
+                component=comp,
+                pnode_label=label,
+                threshold_quantile=headline_threshold_q,
+                n_boot=n_boot,
+                seed=seed + seed_idx,
+                filter_col=filter_col,
+            )
+            cross_pnode_results.append(_result_to_dict(r))
+            seed_idx += 1
+    (out_dir / "cross_pnode.json").write_text(
+        json.dumps({"results": cross_pnode_results,
+                    "scope": "descriptive (no MT correction)"}, indent=2)
+    )
+
+    # Threshold sweep: 3 components × primary cluster × multiple thresholds.
+    sweep_results = []
+    for comp in ("system_energy", "congestion", "marginal_loss"):
+        for q in threshold_sweep_qs:
+            r = fit_single_component_median_split(
+                panel=panel,
+                response_col=CLUSTER_RESPONSE_COLS[comp],
+                z_col=z_col,
+                component=comp,
+                pnode_label="primary_cluster",
+                threshold_quantile=q,
+                n_boot=n_boot,
+                seed=seed + seed_idx,
+                filter_col=filter_col,
+            )
+            sweep_results.append(_result_to_dict(r))
+            seed_idx += 1
+    (out_dir / "threshold_sweep.json").write_text(
+        json.dumps({"results": sweep_results,
+                    "scope": "descriptive (no MT correction)"}, indent=2)
+    )

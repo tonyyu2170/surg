@@ -111,21 +111,23 @@ def project_z_distribution(
     """Return a projected Z distribution under the named scaling assumption."""
 ```
 
-**Proportional scaling.** If DC load doubles, then Z (load gradient) doubles:
-```
-Z_projected = growth_factor × Z_current
-```
+**[REVISED 2026-05-14 after advisor pass — flipping primary and conservative-simplification roles.]**
 
-This is the simplest defensible model. It treats Z as fully attributable to DC growth — overstates volatility growth if non-DC load contributes to Z.
-
-**DC-attributed scaling (robustness only).** Treats current Z as `Z_dc + Z_other`. Assumes `Z_dc` scales with DC growth, `Z_other` stays constant.
+**DC-attributed scaling (primary if `dc_share_of_load` is available).** Treats current Z as `Z_dc + Z_other`. Assumes `Z_dc` scales with DC growth, `Z_other` stays constant.
 ```
 Z_dc_current = Z_current × dc_share_of_load
 Z_other = Z_current × (1 − dc_share_of_load)
 Z_projected = growth_factor × Z_dc_current + Z_other
 ```
 
-Requires `dc_share_of_load` (e.g., 0.30 if DC is currently 30% of DOM load). Source: JLARC + PJM load decomposition. **[DEFAULT — user may override]** If this number isn't readily available, the dc_attributed robustness path is skipped; only proportional runs.
+Requires `dc_share_of_load` (e.g., 0.30 if DC is currently 30% of DOM load). Source: JLARC Rpt598-2 + PJM load decomposition. This is the more defensible model — it explicitly says "DC growth scales the DC-attributed fraction of Z, not all of Z."
+
+**Proportional scaling (conservative simplification — used as primary fallback if `dc_share_of_load` is unavailable).** Treats Z as fully attributable to DC growth:
+```
+Z_projected = growth_factor × Z_current
+```
+
+This is the *strong* claim — it assumes non-DC sources contribute zero to current Z, which is empirically false (residential / commercial load gradients exist even at 2-5 AM, just smaller). Use as primary only when `dc_share_of_load` is unobtainable, with an explicit caveat in `method_notes` of the output JSON: "primary model overstates DC contribution to load-gradient growth; treat as upper-bound trajectory."
 
 ### `exceedance.py`
 
@@ -169,9 +171,15 @@ def quantile_shift_year(
     """
 ```
 
-**[DEFAULT — user may override]** Source/target quantiles for `quantile_shift_year`: 0.95 → 0.50 is the metric the 2026-05-13 entry mentioned by name ("When does the historical 95th percentile of Z become the new 50th percentile?"). Defensible. User may prefer 0.90 → 0.50 or 0.95 → 0.10.
+**[REVISED 2026-05-14 after advisor pass — primary/secondary metric priority swapped.]**
 
-**[DEFAULT — user may override]** `benchmark_lmp` for exceedance: defaults to a parameter; we'll need the user to pick a number. Reasonable starting point: the 99th-pct of historical LMP (matches the QR-full τ=0.99 quantile we already fit).
+**Primary metric: `exceedance_hours_per_year` above an externally-anchored LMP benchmark.** This number is interpretable to a policymaker without further context: "by year Y, the grid spends N hours/year above $850 (the ORDC first-step penalty level)." External policy anchoring beats internal distribution-shape diagnostics for paper headline.
+
+**[DEFAULT — user may override]** `benchmark_lmp`: defaults to **$850/MWh** (ORDC first-step penalty level — externally documented in PJM's 2023 *Formation of LMP under Reserve Shortage Events* paper, cited in proposal). Alternative anchors the user might pick: $300 (PR second-step), $3700 (post-2022-10 cap level). A pure quantile-based anchor (e.g., historical 99th-pct of total_lmp) is also valid but less policy-meaningful.
+
+**Secondary metric: `quantile_shift_year`** (the "95th-pct becomes new 50th-pct" framing). Useful as a distribution-shape diagnostic — answers "how compressed has the projected Z distribution become at the historical extremes?" — but not a policy-interpretable headline. Reported alongside the exceedance number, not as the headline.
+
+**[DEFAULT — user may override]** Source/target quantiles for `quantile_shift_year`: 0.95 → 0.50, matching the 2026-05-13 entry's framing. User may prefer 0.90 → 0.50 or 0.95 → 0.10.
 
 ### `run.py`
 
@@ -247,19 +255,31 @@ Each module gets its own test file under `tests/projection/`. Synthetic data; no
 
 ## Open questions for user review
 
-1. **Source/target quantiles for the headline metric.** I defaulted to 0.95→0.50 per the 2026-05-13 entry's framing. The proposal language ("permanently exceed the grid's stability threshold") could read instead as 0.99→0.95 (the current rare event becomes the new "5% of hours" level) or some other choice. Worth picking deliberately before plan-writing.
-2. **Benchmark LMP for exceedance.** A specific dollar value (e.g., $268 = historical 99th-pct of total_lmp_cluster_mean) or a quantile-based reference (e.g., "current 99th-pct" rolled forward). I'd default to a dollar value the user picks based on what's policy-meaningful — perhaps $850 (the ORDC first-step penalty level) which has external policy meaning. **[DEFAULT — flagged for user]**
-3. **Whether to include DC-attributed scaling.** Depends on whether the user can readily extract `dc_share_of_load` from JLARC/PJM data. If yes, robustness check; if no, drop with a one-line caveat in `method_notes`.
-4. **Growth-curve shape.** Linear interpolation between 2025 and 2040 anchors vs. exponential (CAGR). JLARC reports a 2040 doubling figure; the curve between is not specified. Either is defensible. Linear is simpler and conservative for early years.
-5. **Reference year.** I defaulted to 2025 because the analysis panel ends 2026-05; a 2025-anchored reference uses the full panel as historical baseline. Could instead use 2026 (panel end) or "panel median date".
-6. **Output location.** Per existing convention, `outputs/projection/trajectories.json`. Could split into per-scenario files instead. Single file is simpler to interpret.
+1. **Primary headline framing.** Confirm: primary metric is `exceedance_hours_per_year` above $850/MWh (ORDC first-step penalty level), secondary is the 0.95→0.50 quantile-shift year. (Default updated 2026-05-14 after advisor pass — was previously quantile-shift primary.)
+2. **Benchmark LMP value.** Default $850 (ORDC first-step). User may prefer $300 (PR penalty), $3700 (post-2022-10 cap), or a quantile-based anchor (e.g., historical 99th-pct).
+3. **Whether DC-attributed scaling is primary or fallback.** Depends on availability of `dc_share_of_load`. The user's extraction work from JLARC Rpt598-2 + PJM data determines this.
+4. **Growth-curve shape between 2025 and 2040 anchors.** Linear vs exponential (CAGR). JLARC reports anchor points; the path between is not specified. Linear is simpler and conservative for early years; exponential matches a constant-growth-rate hypothesis.
+5. **Reference year for the historical baseline.** Default 2025 (uses full panel as baseline). Alternative: 2026 (panel end), or "panel median date."
+6. **Output location.** Per existing convention, `outputs/projection/trajectories.json`. Single file is simpler to interpret than per-scenario splits.
+7. **Source/target quantiles for the secondary `quantile_shift_year`.** Default 0.95→0.50. User may prefer 0.90→0.50 or 0.95→0.10 depending on what "permanently past" reads as.
+8. **Extrapolation factor threshold for the warning flag.** Default 2.0. Trajectories with `Z_max(year) / Z_max(historical) > 2.0` get marked `extrapolation_warning: true`. Threshold could be tighter (1.5) or looser (3.0).
+
+## Load-bearing assumptions
+
+Surfaced after advisor pass as the design's *central* analytical claims (not "caveats to footnote"). The paper must justify or qualify each one.
+
+1. **QR-full response curves are linear in Z out to projected extrapolation distances.** The slopes `z_slope_τ` from the existing fit characterize the marginal response within the *historical* Z range. Projecting Z to 2× or 3× its historical max requires extrapolating those slopes into never-observed territory. The actual response curve may bend (saturate, accelerate, or change sign) outside the fitted range. Mitigation in code: every projected trajectory entry in the output JSON carries an `extrapolation_factor` field (= projected `Z_max(year)` / historical `Z_max`); if this exceeds **2.0**, the entry's `extrapolation_warning` flag is set `true` and a `caveats` array gets the entry "extrapolation factor > 2 — projected LMP_τ is outside the fitted slope's validity range; treat as suggestive, not predictive."
+
+2. **DC growth is the dominant driver of load-gradient growth.** Both scaling models (proportional and DC-attributed) rest on this assumption — proportional in the strong form ("DC is the *only* driver"), DC-attributed in the weak form ("DC drives growth in the DC-attributable fraction"). If non-DC sources of load volatility also grow (e.g., electrification of heating, residential EV charging at scale), both models understate future Z growth. Out of scope to model; document as a known limitation.
+
+3. **The QR-full fit's z_slope CIs at τ=0.99 cross zero on the production data.** This was the central Strategy C finding 2026-05-14: bootstrap CI `[-0.075, 1.194]` at τ=0.99 on the Loudoun-cluster congestion response. The projection layer at τ=0.99 inherits this uncertainty. Mitigation in code: at τ=0.99, the JSON output flags `slope_significant_at_95pct: false` for any pnode whose CI crosses 0, and the corresponding projection trajectory is marked `low_confidence: true`.
 
 ## How this design depends on the 2026-05-14 conditional-Z battery outcomes
 
 The projection layer relies on the **QR-full response curves** (`outputs/qr_full/*.json`), NOT on the GPD conditional-Z mechanism test. Therefore:
 
 - If the conditional-Z battery confirms the median-split rejection: the projection layer still works using QR-full slopes. The interpretive narrative changes (paper would say "even though the tail-heaviness mechanism is rejected, the moderate-quantile response is positive and projected growth still pushes the grid toward chronic high-LMP regime"), but the code is unaffected.
-- If the conditional-Z battery's Spec A triggers Spec B (continuous ξ(Z) regression): the projection layer is still independent. Spec B's outputs would inform a future enhancement (e.g., projecting the *shape* of the LMP tail forward, not just the quantile level), but that's deferred.
+- If the conditional-Z battery's Spec A triggers Spec B (continuous ξ(Z) regression): the projection layer's *level* projection (LMP_τ trajectories) is still independent. **Spec B becomes load-bearing for projection IF AND ONLY IF Spec B's continuous slope β₁ is significantly different from zero** — in that case, a follow-up enhancement could project tail-heaviness forward (ξ as a function of projected Z), not just quantile levels. That enhancement is explicitly out of scope here; it would be its own design + plan once Spec B numbers are in. If Spec B never triggers or returns a null slope, no follow-up is needed.
 
 Either way, the projection layer can be built and run before the conditional-Z application-of-pre-reg entry is written.
 
@@ -269,9 +289,10 @@ Either way, the projection layer can be built and run before the conditional-Z a
 
 ## Risks
 
-- **Linear extrapolation of QR-full slopes is fragile at large extrapolation distances.** The current Z distribution is the only data we have; projecting Z 2-3× beyond its historical max means trusting the response curve in regions never observed. The method_notes section in the output JSON flags this explicitly. Mitigation: report projected LMP_τ values alongside the "effective extrapolation factor" so reviewers can judge.
 - **Growth-rate input uncertainty dwarfs modeling uncertainty.** A single low/base/high scenario sweep captures the dominant uncertainty source, but a single 2040 anchor point from JLARC is itself a forecast with its own ranges. Acceptable for v1; document the limitation.
-- **Proportional scaling may overstate near-term volatility.** Non-DC load contributes to Z today, but the proportional model attributes all of Z's growth to DC. DC-attributed scaling (if user provides `dc_share_of_load`) addresses this directly.
+- **`exceedance_hours_per_year` interpretation requires a consistent comparison baseline.** Reporting "Y hours/year above $850 in 2040" is only meaningful relative to a current baseline. The output JSON should report the *historical* exceedance hours at the same benchmark alongside the projected values; otherwise the magnitude is uninterpretable.
+
+(The "extrapolation distance" and "proportional vs DC-attributed" concerns previously here have been promoted to first-class **Load-bearing assumptions** above per advisor pass — they are claims the paper must justify, not caveats to footnote.)
 
 ## Implementation plan
 

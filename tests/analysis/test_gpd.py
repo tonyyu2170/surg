@@ -705,3 +705,48 @@ def test_run_conditional_z_robustness_serializes_nan_as_null(tmp_path: Path):
     for spec_key in ("spec_a", "spec_c", "spec_f"):
         p = payload["holm_bonferroni"]["two_sided_p_values"][spec_key]
         assert p is None or (isinstance(p, (int, float)) and math.isfinite(p))
+
+
+def test_run_conditional_z_robustness_filter_alignment_with_nan_rows(tmp_path: Path):
+    """Reindex idiom must correctly align filter mask after dropna removes rows.
+
+    Regression guard: a naive `panel[filter_col].fillna(False).to_numpy()[:len(base_subset)]`
+    would mis-align when NaN rows are scattered (not all at the end) because the
+    truncation does not respect which original-panel rows survived dropna. This
+    matters at production: the real analysis panel has NaN at the start of the
+    load-gradient column (no prior hour to diff against).
+    """
+    rng = np.random.default_rng(seed=42)
+    n = 5000
+    Y = stats.genpareto.rvs(c=0.3, scale=2.0, size=n, random_state=rng)
+    Z = rng.uniform(0, 10, size=n)
+    # Insert NaN at scattered positions so base_subset != panel
+    Y[10] = float("nan")
+    Y[200] = float("nan")
+    Y[1500] = float("nan")
+    # Mark rows in the filter: two will be dropped by dropna, one survives
+    f_mask = np.zeros(n, dtype=bool)
+    f_mask[10] = True   # dropped (NaN Y) — must NOT count in f_subset
+    f_mask[200] = True  # dropped (NaN Y) — must NOT count in f_subset
+    f_mask[100] = True  # kept, survives both dropna and filter — counts as 1
+    panel = pd.DataFrame({
+        "datetime_beginning_ept": pd.date_range("2024-01-01", periods=n, freq="h"),
+        "Y": Y,
+        "Z": Z,
+        "passes_proposal_filter": f_mask,
+    })
+    out = tmp_path / "gpd" / "align.json"
+    run_conditional_z_robustness(
+        panel, out_path=out,
+        response_col="Y", pnode_label="align_test",
+        threshold_col="Z", filter_col="passes_proposal_filter",
+        n_boot=30, seed=0,
+    )
+    payload = json.loads(out.read_text())
+    # Only row 100 survives both dropna AND filter → n_after_filter == 1
+    assert payload["spec_f_within_filter"]["n_after_filter"] == 1, (
+        f"alignment broken: expected n_after_filter=1, "
+        f"got {payload['spec_f_within_filter']['n_after_filter']}"
+    )
+    # n=1 is far below the orchestrator's 20-row floor → inconclusive
+    assert payload["spec_f_within_filter"]["status"] == "inconclusive"

@@ -56,3 +56,56 @@ def test_outcome_from_shape_diff_ci_underpowered_pos():
 def test_outcome_from_shape_diff_ci_insufficient_sample():
     # n_per_half below threshold of 50
     assert outcome_from_shape_diff_ci(0.0, (-1.0, 1.0), n_per_half=40) == "insufficient_sample"
+
+
+def test_fit_single_component_median_split_returns_result():
+    from surg.analysis.gpd_components import fit_single_component_median_split
+
+    rng = np.random.default_rng(0)
+    n = 8000
+    Z = rng.uniform(0, 10, size=n)
+    Y = rng.exponential(scale=1.0 + 0.2 * Z, size=n)
+    panel = pd.DataFrame({"Y": Y, "Z": Z})
+
+    result = fit_single_component_median_split(
+        panel=panel,
+        response_col="Y",
+        z_col="Z",
+        component="system_energy",
+        pnode_label="primary_cluster",
+        threshold_quantile=0.95,
+        n_boot=50,
+        seed=0,
+    )
+    assert isinstance(result, ComponentsHeadlineResult)
+    assert result.component == "system_energy"
+    assert result.pnode_label == "primary_cluster"
+    assert result.threshold_quantile == 0.95
+    assert result.n_exc > 0
+    assert result.rule_2_outcome in {
+        "cancellation_supported",
+        "ordc_rejected_broader",
+        "underpowered_neg_direction",
+        "underpowered_pos_direction",
+        "insufficient_sample",
+    }
+
+
+def test_fit_single_component_median_split_low_power_emits_insufficient():
+    # 80 obs → ~4 exceedances at 95th-pct → n_per_half < 50.
+    # The wrapper should catch this BEFORE calling gpd_quantile_split_on_z
+    # (which would otherwise raise on <20 exceedances).
+    from surg.analysis.gpd_components import fit_single_component_median_split
+
+    panel = pd.DataFrame({"Y": np.arange(80, dtype=float), "Z": np.arange(80, dtype=float)})
+    result = fit_single_component_median_split(
+        panel=panel,
+        response_col="Y",
+        z_col="Z",
+        component="system_energy",
+        pnode_label="primary_cluster",
+        threshold_quantile=0.95,
+        n_boot=50,
+        seed=0,
+    )
+    assert result.rule_2_outcome == "insufficient_sample"

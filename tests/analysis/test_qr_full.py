@@ -165,6 +165,20 @@ def test_fit_qr_full_year_fe_adds_year_dummies():
     assert sorted(year_keys) == ["year_2023", "year_2024", "year_2025"]
 
 
+def test_fit_qr_full_year_fe_validates_single_year():
+    """year_fe spec requires ≥2 distinct years; passing a single-year array
+    raises ValueError."""
+    rng = np.random.default_rng(seed=42)
+    n = 200
+    Y = rng.normal(size=n)
+    Z = rng.normal(size=n)
+    hour = rng.integers(0, 24, size=n)
+    month = rng.integers(1, 13, size=n)
+    year = np.full(n, 2024)  # all the same year
+    with pytest.raises(ValueError, match="≥2 distinct years"):
+        fit_qr_full(Y, Z, hour, month, year=year, tau=0.5)
+
+
 def test_fit_qr_full_year_fe_isolates_contemporaneous_response():
     """When the DGP has a year-trend in Y that is correlated with Z's mean
     by year, year_fe should give a different (smaller) Z slope than primary.

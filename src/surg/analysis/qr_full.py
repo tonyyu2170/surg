@@ -126,10 +126,10 @@ def fit_qr_full(
         The returned asymptotic `z_slope_se` and `z_slope_p_value` come from
         statsmodels' Koenker-Bassett sandwich estimator. This is reliable at
         central quantiles (τ ≈ 0.5) but is known to underperform at high τ
-        (≥ 0.99) on autocorrelated time-series data. Task 7 of the Strategy
-        C implementation plan adds a pair-bootstrap CI on `z_slope` that is
-        the more honest interval at the tail quantiles used in the
-        production analysis.
+        (≥ 0.99) on autocorrelated time-series data. The pair-bootstrap CI on
+        `z_slope` (returned in `z_slope_bootstrap_ci_95` when `n_boot >= 20`)
+        is the more reliable interval at tail quantiles (≥ 0.99) on
+        autocorrelated data.
     """
     Y_arr = np.asarray(Y, dtype=float)
     Z_arr = np.asarray(Z, dtype=float)
@@ -177,6 +177,7 @@ def fit_qr_full(
             raise ValueError(
                 f"year_fe spec requires ≥2 distinct years; got {distinct_years}"
             )
+        baseline_year = distinct_years[0]  # dropped baseline; the intercept absorbs it
         year_dummy_cols: list[np.ndarray] = []
         year_dummy_names: list[str] = []
         for y in distinct_years[1:]:

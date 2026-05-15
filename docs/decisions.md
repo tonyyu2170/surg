@@ -2508,3 +2508,248 @@ The unlocks are sequential because:
   #6) materially changes the sub-q2 / sub-q3 framing.
 - The user pivots priorities (e.g., decides event correlation
   should happen before JLARC projection).
+
+## 2026-05-15 — Sub-q1 item #6: Direct Z → LMP tail-risk characterization (descriptive)
+
+**Context.** Item #6 produces the direct descriptive answer to the user's
+sub-q1 framing — *"what range of load variance causes LMP to essentially
+go crazy"* — via binned exceedance-probability characterization. Design
+spec at `docs/plans/2026-05-14-z-lmp-tail-risk-characterization-design.md`
+(commit `6c7ebbb`); implementation plan at
+`docs/plans/2026-05-14-z-lmp-tail-risk-characterization-implementation.md`
+(commit `53a26b6`); module + tests on feature branch
+`feature/sub-q1-item-6-tail-risk-curves` (10 commits through `0106294`).
+
+Items #1-4 (mechanism work) stay as supporting evidence; this entry
+records what the descriptive analysis found — including a substantive
+methodological observation that affects how the user's stated question
+can be answered.
+
+**Headline.** Within the proposal-filter scope (shoulder seasons +
+2-5 AM, n_total_filtered = 2,027 hourly observations), **exceedance
+probability is 0.000 for $250 / $500 / $1000 / $2000 thresholds across
+all 10 Z deciles and all 4 plotted pnodes**, and is bounded between
+0.000 and 0.015 at the $100 threshold. The filter scope's LMP
+distribution does not reach the chosen $-thresholds at any Z range.
+The "crazy LMP region" question, as the user framed it, **is not
+answerable within this filter scope at these threshold choices** — the
+filter excludes the extreme-price events by design.
+
+This is descriptive evidence in its own right, but it is not the
+"high-Z makes LMP cross $500 with probability P" curve the design
+spec targeted. See "Implication" sections below for what this means
+for the paper + follow-up work.
+
+**Production-run config.**
+- Code: `feature/sub-q1-item-6-tail-risk-curves` worktree (FF-merged
+  into main after this entry's commit). 15 module tests + 1 integration
+  test passing pre-run.
+- Filter: `passes_proposal_filter == True` (Mar-May + Sep-Nov shoulder
+  seasons, 02:00-05:00 EPT). n_total_filtered = 2,027.
+- 10 equal-count Z deciles on `dom_load_gradient_abs_mw_per_min`.
+- 5 $-thresholds: $100, $250, $500, $1000, $2000.
+- 2 response variables: `total_lmp_rt_*` + `congestion_price_rt_*`.
+- 4 plotted pnodes (primary cluster, dom_zonal, ashburn_tx1, ashburn_tx2)
+  + 3 additional in cross-pnode summary (total_lmp, ox, bristers) =
+  7 pnodes total.
+- Pair-bootstrap n_boot=200 for the CIs.
+- Production wall time: ~47 min (legacy modules) + <1 min (tail_risk_curves itself).
+
+### Z decile structure (primary Loudoun cluster)
+
+From `outputs/tail_risk_curves/primary.json`. 10 equal-count quantile
+bins of Z on the filtered subset:
+
+| Decile | Z range (MW/min) | n_obs |
+|---|---|---|
+| 1 | [0.003, 0.504] | 203 |
+| 2 | [0.504, 0.947] | 203 |
+| 3 | [0.947, 1.409] | 202 |
+| 4 | [1.409, 1.805] | 203 |
+| 5 | [1.805, 2.291] | 203 |
+| 6 | [2.291, 2.852] | 202 |
+| 7 | [2.852, 3.507] | 203 |
+| 8 | [3.507, 4.387] | 202 |
+| 9 | [4.387, 5.653] | 203 |
+| 10 | [5.653, 16.170] | 203 |
+
+Decile 10's top range ([5.65, 16.17] MW/min) corresponds to the
+high-volatility regime the proposal's mode-of-failure framing
+invoked. The data-center growth scenarios in sub-q2 (JLARC) projection
+would shift the right tail of this distribution upward.
+
+### Threshold percentiles in the filtered panel
+
+From `outputs/tail_risk_curves/primary.json` (`threshold_percentiles`):
+
+| $ threshold | total_lmp pct | congestion pct |
+|---|---|---|
+| $100 | 0.9951 | 1.0000 |
+| $250 | 1.0000 | 1.0000 |
+| $500 | 1.0000 | 1.0000 |
+| $1000 | 1.0000 | 1.0000 |
+| $2000 | 1.0000 | 1.0000 |
+
+(Percentile = P(LMP ≤ threshold) in the filtered subset.)
+
+**Reading.** $100 sits at the 99.5th percentile of `total_lmp_rt_cluster_mean`
+within the filtered subset; only ~10 of the 2,027 observations exceed
+it. $250 and above are above the maximum observed LMP — the filtered
+subset literally never reaches those values. Congestion is even
+tighter: $100 already sits above the maximum filtered congestion
+value.
+
+### Top-decile exceedance probabilities (primary Loudoun cluster, decile 10: Z ∈ [5.65, 16.17] MW/min)
+
+| Threshold | total_lmp P(LMP > $X) [CI] | congestion P(LMP > $X) [CI] |
+|---|---|---|
+| $100 | 0.0000 [0.000, 0.019] | 0.0000 [0.000, 0.019] |
+| $250 | 0.0000 [0.000, 0.019] | 0.0000 [0.000, 0.019] |
+| $500 | 0.0000 [0.000, 0.019] | 0.0000 [0.000, 0.019] |
+| $1000 | 0.0000 [0.000, 0.019] | 0.0000 [0.000, 0.019] |
+| $2000 | 0.0000 [0.000, 0.019] | 0.0000 [0.000, 0.019] |
+
+(CIs from Wilson exact upper bound for the n_exc=0 case;
+n_top_decile=203.)
+
+### Per-decile $100 exceedance pattern on total_lmp (the only threshold with any signal)
+
+| Decile | Z range (MW/min) | n_exc at $100 | P($100) |
+|---|---|---|---|
+| 1 | [0.003, 0.504] | 0 | 0.000 |
+| 2 | [0.504, 0.947] | 1 | 0.005 |
+| 3 | [0.947, 1.409] | 0 | 0.000 |
+| 4 | [1.409, 1.805] | 0 | 0.000 |
+| 5 | [1.805, 2.291] | 3 | 0.015 |
+| 6 | [2.291, 2.852] | 2 | 0.010 |
+| 7 | [2.852, 3.507] | 0 | 0.000 |
+| 8 | [3.507, 4.387] | 2 | 0.010 |
+| 9 | [4.387, 5.653] | 2 | 0.010 |
+| 10 | [5.653, 16.170] | 0 | 0.000 |
+
+Total exceedances at $100 across the full filtered panel: 10 of 2,027
+observations (0.49%). Distribution is roughly uniform across moderate
+deciles (5, 6, 8, 9) — no monotonic trend with Z. **The top decile (10)
+has zero exceedances**, against the design spec's prediction that
+high Z would push toward higher exceedance probability.
+
+### Cross-pnode top-decile comparison
+
+From `outputs/tail_risk_curves/cross_pnode_summary.csv`. All 7 pnodes
+at decile 10:
+
+| Pnode | Z top decile (MW/min) | n_top | total_lmp P($100) | congestion P($100) |
+|---|---|---|---|---|
+| primary (cluster_mean) | [5.65, 16.17] | 203 | 0.000 | 0.000 |
+| total_lmp (alias) | [5.65, 16.17] | 203 | 0.000 | 0.000 |
+| ox | [5.65, 16.17] | 203 | 0.000 | 0.000 |
+| bristers | [5.65, 16.17] | 203 | 0.000 | 0.000 |
+| dom_zonal | [5.65, 16.17] | 203 | 0.000 | 0.000 |
+| ashburn_tx1 | [5.79, 16.17] | 109 | 0.000 | 0.000 |
+| ashburn_tx2 | [5.79, 16.17] | 109 | 0.000 | 0.000 |
+
+(Higher thresholds — $250 to $2000 — also all 0.000. See CSV for
+full table.)
+
+**Observation.** Ashburn pnodes have ~half the top-decile sample size
+(n=109 vs n=203) because their data coverage starts in 2024 rather
+than 2022-10. CIs are correspondingly wider (~3.4% vs 1.9% Wilson
+upper). Direction-wise, no cross-pnode contrast emerges at this
+threshold set — all pnodes uniformly produce 0% at $100+.
+
+### The "crazy region" question — what the data actually shows
+
+**Naive reading: no crazy region exists within the proposal-filter
+scope.** Every (decile × threshold × pnode) cell except for ~10
+isolated $100 exceedances on total_lmp has p_hat = 0.
+
+**Why this happens.** The proposal-filter selects shoulder seasons +
+2-5 AM specifically to exclude high-load summer afternoons + named
+supply-side events. By construction, the filter removes the conditions
+under which "crazy LMP" most commonly occurs. The filtered subset's
+LMP distribution is concentrated in the $0-$100 range, with a
+99.5th-percentile total_lmp value of approximately $100.
+
+**This is not a null finding about "Z → LMP" — it is a finding about
+the filter scope:** the filter does its job (isolates the volatility
+signal from supply-side spikes), but it does so by removing the very
+events the user's "crazy LMP" framing targets. The mechanism work in
+items #1-4 was conducted on this filtered scope's tail (top percentiles
+within the filter, not absolute $ levels), which is why the
+conditional-Z congestion shape_diff = -0.18 result is meaningful even
+though the absolute LMP values are mostly $0-$100.
+
+**To answer the user's "crazy region" framing more directly, two paths
+exist (neither was executed in this run):**
+
+1. **Re-run item #6 with smaller thresholds calibrated to the filtered
+   panel** — e.g., $25, $50, $75, $100, $150. Stays within the
+   proposal-filter scope; characterizes Z → tail-shape at the magnitudes
+   the filter actually produces. Pre-reg discipline-wise this would be
+   post-hoc threshold selection, so any finding from this re-run should
+   be flagged as exploratory.
+
+2. **Re-run on the raw panel** (no filter) with the original
+   $100/$250/$500/$1000/$2000 thresholds. Answers "where do crazy
+   events occur in the full panel?" but mixes data-center-driven
+   volatility events with supply-side spikes (the very thing the
+   filter was designed to separate). This is closer to the user's
+   stated question but methodologically less clean — sub-q3 (event
+   correlation, NEW per 2026-05-14 entry) is the principled venue for
+   this characterization.
+
+The current production output is the honest answer to the
+question-as-asked-with-the-design-as-specified. Path (1) or path (2)
+would extend the answer with specific tradeoffs.
+
+### Implication for the paper
+
+The descriptive figure item #6 produces (4 per-pnode chart pairs +
+1 cross-pnode summary) is **not the headline figure** the user's
+stated framing imagined. The charts show flat-zero lines across most
+panels, with the only visible signal being a sparse $100 exceedance
+band in the moderate Z deciles (5-9) on total_lmp.
+
+For the paper:
+- The mechanism work in items #1-4 (conditional-Z congestion shape_diff
+  rejection, opposite-direction-by-component pattern, Ashburn TX1
+  q=0.99 anomaly) remains the empirical anchor. Those tests do NOT
+  require LMP to reach absolute $-thresholds — they measure tail-shape
+  changes within the filter's effective LMP range.
+- Item #6's figure is best framed as a **methodology contribution**:
+  "the proposal-filter scope, by isolating the volatility signal from
+  supply-side spikes, also removes the absolute-magnitude extreme
+  events; tail-shape mechanism testing within the filter is meaningful
+  but absolute-magnitude characterization of 'crazy LMP' requires a
+  different scope."
+- Paper-headline framing is still deferred to advisor (item #5);
+  item #6's contribution informs but does not anchor that decision.
+
+### Implication for sub-q2 JLARC projection
+
+The top-decile P(LMP > $X) curve is the natural input to a
+"growth-shifts-Z-distribution → P(LMP > $X) increases" projection. But
+since item #6's headline P_hat is 0 across the board, **there is no
+useful empirical anchor for sub-q2's projection within this filter
+scope.**
+
+Sub-q2's projection design (per
+`docs/plans/2026-05-14-jlarc-projection-design.md`) should anchor at
+the **moderate-quantile z_slope** evidence (which items #3 and Spec B
+established at τ=0.95) rather than at absolute $-threshold exceedance
+probabilities. This is consistent with the 2026-05-14 item #3 entry's
+recommendation to use the year-FE-residualized slope at τ=0.95 as the
+conservative bound.
+
+### Revisit when
+
+- Advisor input (item #5) on whether to re-run with calibrated
+  thresholds or accept the methodology-contribution framing.
+- Sub-q3 (event correlation, new addition tonight) — would produce
+  the raw-panel "crazy region" characterization with explicit
+  supply-side event flags.
+- The proposal-filter is re-evaluated (e.g., expanded to include
+  high-load summer hours) — the descriptive results would change
+  qualitatively.
+- A longer historical window (pre-2022-10) is added to the panel —
+  the filtered scope might capture different LMP magnitudes.

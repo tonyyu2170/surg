@@ -52,6 +52,43 @@ def test_add_load_gradient_columns_preserves_existing_columns():
     assert out["extra"].iloc[0] == "x"
 
 
+def test_add_load_gradient_columns_5min_freq():
+    """sub-q1 item #8: gradient must scale by freq_minutes (5 instead of 60)."""
+    from surg.preprocessing.features import add_load_gradient_columns
+
+    df = pd.DataFrame({
+        "datetime_beginning_ept": pd.date_range(
+            "2026-04-15", periods=4, freq="5min"
+        ),
+        "dom_load_mw": [10_000.0, 10_005.0, 10_002.0, 10_010.0],
+    })
+    out = add_load_gradient_columns(df, freq_minutes=5)
+    # Second row: delta = +5 MW over 5 min → 1.0 MW/min signed; 60 MW/hr extrapolated
+    assert out["dom_load_gradient_mw_per_hr"].iloc[1] == pytest.approx(60.0)
+    assert out["dom_load_gradient_signed_mw_per_min"].iloc[1] == 1.0
+    assert out["dom_load_gradient_abs_mw_per_min"].iloc[1] == 1.0
+    # Third row: delta = -3 MW over 5 min → -0.6 MW/min signed; abs = 0.6
+    assert out["dom_load_gradient_signed_mw_per_min"].iloc[2] == pytest.approx(-0.6)
+    assert out["dom_load_gradient_abs_mw_per_min"].iloc[2] == pytest.approx(0.6)
+    # First row NaN
+    assert pd.isna(out["dom_load_gradient_abs_mw_per_min"].iloc[0])
+
+
+def test_add_load_gradient_columns_default_is_60min():
+    """Default freq_minutes=60 preserves hourly behavior (regression-safe)."""
+    from surg.preprocessing.features import add_load_gradient_columns
+
+    df = pd.DataFrame({
+        "datetime_beginning_ept": pd.to_datetime([
+            "2024-07-15T00:00:00", "2024-07-15T01:00:00",
+        ]),
+        "dom_load_mw": [10_000.0, 10_120.0],
+    })
+    # No freq_minutes kwarg → defaults to 60
+    out = add_load_gradient_columns(df)
+    assert out["dom_load_gradient_signed_mw_per_min"].iloc[1] == 2.0  # 120/60
+
+
 def test_pivot_lmp_long_to_pnode_columns_creates_one_col_per_pnode():
     from surg.preprocessing.features import pivot_lmp_long_to_pnode_columns
 

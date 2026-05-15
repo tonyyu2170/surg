@@ -19,22 +19,30 @@ _VALUE_COLS_PIVOTED = [
 ]
 
 
-def add_load_gradient_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Add hour-over-hour gradient columns to a DOM-load DataFrame.
+def add_load_gradient_columns(
+    df: pd.DataFrame,
+    freq_minutes: int = 60,
+) -> pd.DataFrame:
+    """Add period-over-period gradient columns to a DOM-load DataFrame.
 
-    Requires `datetime_beginning_ept` (sorted, hourly) and `dom_load_mw`.
-    Adds:
-    - dom_load_gradient_mw_per_hr: dom_load_mw.diff(1)
-    - dom_load_gradient_signed_mw_per_min: gradient / 60
-    - dom_load_gradient_abs_mw_per_min: abs(gradient) / 60
+    Requires `datetime_beginning_ept` (sorted, evenly spaced at
+    `freq_minutes`) and `dom_load_mw`. Default `freq_minutes=60`
+    preserves the original hourly behavior; sub-q1 item #8 5-min
+    companion uses `freq_minutes=5`.
 
-    First row gets NaN for each (no prior hour).
+    Adds (semantics independent of freq_minutes):
+    - dom_load_gradient_mw_per_hr: gradient extrapolated to MW/hr
+      (= delta * 60 / freq_minutes)
+    - dom_load_gradient_signed_mw_per_min: delta / freq_minutes
+    - dom_load_gradient_abs_mw_per_min: |delta| / freq_minutes
+
+    First row gets NaN for each (no prior period).
     """
     out = df.copy()
-    gradient = out["dom_load_mw"].diff(1)
-    out["dom_load_gradient_mw_per_hr"] = gradient
-    out["dom_load_gradient_signed_mw_per_min"] = gradient / 60.0
-    out["dom_load_gradient_abs_mw_per_min"] = gradient.abs() / 60.0
+    delta = out["dom_load_mw"].diff(1)
+    out["dom_load_gradient_mw_per_hr"] = delta * (60.0 / freq_minutes)
+    out["dom_load_gradient_signed_mw_per_min"] = delta / freq_minutes
+    out["dom_load_gradient_abs_mw_per_min"] = delta.abs() / freq_minutes
     return out
 
 

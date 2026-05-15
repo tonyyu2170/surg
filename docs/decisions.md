@@ -3104,3 +3104,162 @@ the same conventions as items #1-#8.
 following this run. If verdict C (mixed), the advisor meeting locks
 the sub-q1 narrative; if verdict A or B, the pre-reg forces a
 specific paper headline before the meeting.
+
+---
+
+## 2026-05-15 (late) — Sub-q1 item #9: Full-panel direct Z → LMP characterization (application)
+
+**Context.** Pre-reg at this date § Item #9 (above) locked the
+verdict mapping before any code ran. This entry mechanically applies
+that decision rule to the full-panel `run_tail_risk_curves` output
+(filter lifted, n_boot=200, seed=42, all 7 pnodes).
+
+**Run details.**
+- Panel: `data/interim/analysis_panel.parquet` (rebuilt with schema
+  v2 metadata; 31,536 hourly rows, 2022-10-02 → 2026-05-07).
+- In-filter rows (for comparison context): 2,027.
+- Full-panel n_total per pnode: 31,540 (cluster pnodes), 17,448
+  (Ashburn pnodes; fewer because the Ashburn columns have NA on
+  pre-availability dates).
+- Top-Z-decile range: z ∈ [13.38, 36.39] MW/min.
+- Wall: ~30 s.
+
+### Decision rule application
+
+Headline: P(`total_lmp_rt` > $250 | top Z decile), per the pre-reg.
+
+| Pnode | n_top_decile | P(total_lmp > $250) | CI 95% |
+|---|---:|---:|---:|
+| primary | 3,154 | 0.0190 | [0.0146, 0.0247] |
+| total_lmp | 3,154 | 0.0190 | [0.0146, 0.0247] |
+| ox | 3,154 | 0.0200 | [0.0152, 0.0251] |
+| bristers | 3,154 | 0.0190 | [0.0146, 0.0244] |
+| dom_zonal | 3,154 | 0.0206 | [0.0158, 0.0260] |
+| ashburn_tx1 | 1,745 | **0.0470** | [0.0384, 0.0562] |
+| ashburn_tx2 | 1,745 | **0.0395** | [0.0309, 0.0481] |
+
+- **Pnodes with P > 0.05:** 0/7. *Verdict A threshold (≥4) NOT met.*
+- **Pnodes with P ≤ 0.01:** 0/7. *Verdict B threshold (≥4) NOT met.*
+- **Pnodes between 0.01 and 0.05:** 7/7.
+
+**Verdict: C — partial / mixed**, by the literal pre-reg rule.
+
+### Secondary diagnostic — STRONG structural twist
+
+The pre-reg's secondary check was: "monotonic increase of P(total_lmp
+> $100) across deciles 1 → 10 on ≥4 of 7 pnodes indicates a smooth Z →
+tail relationship exists outside the filter scope." Result:
+
+| Pnode | d1 | d2 | d3 | d4 | d5 | d6 | d7 | d8 | d9 | d10 | Monotonic? |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| primary | 0.061 | 0.056 | 0.059 | 0.062 | 0.054 | 0.054 | 0.053 | 0.063 | 0.061 | **0.078** | No |
+| dom_zonal | 0.081 | 0.078 | 0.080 | 0.081 | 0.073 | 0.068 | 0.069 | 0.081 | 0.084 | **0.091** | No |
+| ashburn_tx1 | 0.111 | 0.111 | 0.105 | 0.107 | 0.111 | 0.094 | 0.104 | 0.123 | 0.120 | **0.139** | No |
+| ashburn_tx2 | 0.105 | 0.108 | 0.098 | 0.103 | 0.101 | 0.086 | 0.093 | 0.112 | 0.104 | **0.127** | No |
+
+**Monotonicity fails on 4/4 plotted pnodes.** P(LMP > $100) is
+essentially flat across Z deciles, with only a small bump at the
+highest decile (~25-28% relative increase d1 → d10, well within the
+descriptive noise of the lower deciles).
+
+For congestion (the proposal's specific mechanism variable),
+Z-decile binning provides essentially zero discrimination:
+
+| Pnode | d1 | d10 | d10/d1 ratio |
+|---|---:|---:|---:|
+| primary | 0.010 | 0.013 | 1.3× |
+| dom_zonal | 0.022 | 0.016 | 0.7× (DECREASES) |
+| ashburn_tx1 | 0.038 | 0.048 | 1.3× |
+| ashburn_tx2 | 0.029 | 0.037 | 1.3× |
+
+**Congestion-exceedance rates are flat or non-monotonic across Z deciles.**
+
+### Headline interpretation — verdict C with structural-leaning content
+
+Verdict C by the literal pre-reg rule, but the secondary diagnostic
+provides a **strong structural-leaning interpretation** that needs to
+be on the table for the advisor meeting:
+
+1. **Lifting the filter does NOT reveal a Z → LMP relationship.** The
+   in-filter null was not a filter artifact; the relationship is
+   weak-to-absent at the decile level on the full panel as well.
+
+2. **Crazy LMP events occur at a low-but-nonzero rate at EVERY Z decile.**
+   1.9–4.7% top-decile $250+ exceedance is not zero, but it's not
+   uniquely concentrated in high-Z bins either. The events appear
+   roughly Z-uniform across the support.
+
+3. **The proposal's "phase transition" framing is structurally
+   rejected at the descriptive level.** There is no decile (low or
+   high) where LMP behavior qualitatively shifts. The smooth-curve
+   diagnosis from 2026-05-13 is now reinforced by the full-panel
+   per-decile evidence.
+
+4. **Ashburn pnodes show consistent ~2× elevation across all deciles.**
+   This is a pnode-level effect, not a Z-driven effect. Independent
+   of the Z question; consistent with item #4's TX1 anomaly findings.
+
+### Implication for sub-q1's overall verdict
+
+The mechanism-test mixed answer (positive QR-full moderate-τ,
+negative Spec A median-split) now has an additional **descriptive
+structural finding**: Z is uninformative for predicting crazy LMP at
+the decile level, on the full panel. This **does not contradict** the
+positive QR-full moderate-τ slope (which operates on conditional
+quantiles, not decile exceedance rates), but it does **constrain
+the paper's framing**: any "Z drives LMP" claim has to be carefully
+qualified as a *moderate-quantile slope* phenomenon, not a *crazy-
+event-rate* phenomenon. The two are distinct.
+
+The pre-reg's purpose was to prevent post-hoc "the data really shows
+X" rationalization on a likely-mixed result. Mechanical Verdict C
+applies; the secondary diagnostic is mechanically reported. The
+choice of how to weight verdict C vs the secondary structural-leaning
+interpretation in the paper headline is now explicitly an advisor-
+meeting decision.
+
+### Three options for the advisor meeting (item #5)
+
+1. **Anchor on Spec A median-split rejection** ("ORDC mechanism on
+   congestion is rejected at α=0.05"). Item #9's result becomes a
+   descriptive companion: "The rejection holds on the full panel
+   too — top-Z decile only marginally elevates exceedance rates over
+   low-Z decile, well within the small range of overall variation."
+
+2. **Anchor on QR-full moderate-τ positive finding** ("higher Z drives
+   higher conditional 95th-pct LMP"). Item #9's result becomes a
+   limit: "The Z → LMP slope at moderate quantiles does not extend
+   to a decile-level concentration of crazy events; the effect is in
+   the conditional distribution shape, not in the exceedance rate."
+
+3. **Anchor on the unified structural finding** ("Z provides little
+   discrimination for crazy LMP events — the proposal's threshold
+   framing is wrong, the mechanism evidence is mixed, the
+   descriptive evidence on the full panel finds Z roughly uniform
+   for high-LMP events"). Treats all sub-q1 work as triangulation
+   pointing toward "the proposal's framing was the wrong question."
+
+### Sub-q1 closure status (revised after item #9)
+
+| Item | Status |
+|---|---|
+| #1 Spec B continuous ξ(Z) | DONE |
+| #2 LMP-components decomposition | DONE |
+| #3 year_fe_diagnostic | DONE |
+| #4 Ashburn TX1 anomaly | DONE |
+| #5 Advisor meeting | **PENDING (now ready with full evidence)** |
+| #6 Direct Z → LMP tail-risk (in-filter) | DONE |
+| #8 5-min companion (Part A + Part B) | DONE |
+| #9 Full-panel direct Z → LMP (filter lifted) | **DONE — this entry** |
+
+**Only item #5 remains.** All analysis paths sub-q1 was designed to
+support are exhausted. The advisor meeting is now positioned to make
+narrative + framing decisions with the complete evidentiary picture
+available.
+
+### Revisit when
+
+- Advisor meeting locks the headline framing (item #5).
+- A NEW data source (private dataset, EIA load curves, etc.)
+  enables a different scope test that addresses Z → LMP at sub-decile
+  granularity. Currently no path within the SURG dataset.

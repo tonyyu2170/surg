@@ -2304,3 +2304,117 @@ At τ=0.99: **defer JLARC projection at τ=0.99** until a longer historical wind
 - Advisor input on the moderate-τ positive secular finding (it is descriptive new evidence; whether it warrants paper-level treatment is a narrative decision).
 - A longer historical window pre-2022-10 enables clean year-FE without the 2022 partial-year + post-cap regime issues.
 - Sub-q2 JLARC plan-writing — this entry feeds the projection-layer slope choice (year-FE > primary at τ=0.95).
+
+## 2026-05-14 — Sub-q1 item #4: Ashburn TX1 99th-pct anomaly diagnostic (descriptive)
+
+**Context.** The 2026-05-14 Spec B application entry (above, line 1876, "Notable cross-pnode findings") flagged Ashburn TX1's β₁ flipping sign at the 99th-pct threshold: at q ∈ {0.90, 0.95, 0.995} β₁ is negative (consistent with cross-pnode pattern); at q=0.99 β₁ = +0.0932 (CI [+0.010, +0.167], p = 0.030; LRT p = 0.000). The pre-registered case taxonomy was: (a) real distribution-side physics at extreme tail, (b) power-driven over-fit / outlier-driven sign flip, (c) data-quality issue from Ashburn's asymmetric coverage.
+
+The diagnostic ran leave-one-out (LOO) re-estimation across all 4 thresholds for both TX1 and TX2, plus a 4-panel scatter overlay PNG. The headline outcome is **case (b) "power-driven over-fit" is ruled out**: the q=0.99 sign at TX1 is robust to dropping any single exceedance (0 of 175 LOO refits change sign; LOO stdev = 0.003 on a point estimate of +0.093). Cases (a) and (c) remain candidate explanations. **The TX2 cross-check is NOT independent evidence** (see rigor caveat below); it provides directional confirmation that the sign flip is not a TX1-specific artifact but cannot independently rule out case (c).
+
+The honest framing this entry adopts: **a robust unexplained q=0.99 anomaly at the Ashburn substation worth flagging for the advisor meeting and for follow-up investigation**, not a paper-headline mechanism finding. The mechanism is undetermined; the robustness is what the diagnostic established.
+
+**Production-run config.**
+- Code: `feature/sub-q1-batched-diagnostics` worktree (commits `66528a4` + `6b93af9` for LOO + response-col fix).
+- TX1 and TX2 LOO at 4 thresholds (0.90, 0.95, 0.99, 0.995). Each LOO refit is a deterministic GPD MLE (n_boot=0) on the exceedance set minus one observation; response column is `congestion_price_rt_<tx>` per the 2026-05-14 fix commit `6b93af9` (Spec B's anomaly is on congestion, not total_lmp).
+- Cross-threshold β₁ + CI table (`cross_threshold_summary.json`) uses pair-bootstrap n_boot=200 for the full-sample β₁ CI at each threshold.
+- 4-panel scatter overlay PNG at `outputs/ashburn_diagnostic/scatter_overlay.png` (TX1 + TX2 at p95 and p99).
+
+### Cross-threshold β₁ (Spec B redux, n_boot=200, both Ashburn pnodes)
+
+From `outputs/ashburn_diagnostic/cross_threshold_summary.json`. β₁ on the linear form, pair-bootstrap CIs:
+
+| Threshold | TX1 β₁ [CI] | TX2 β₁ [CI] |
+|---|---|---|
+| q=0.90 | −0.0261 [−0.045, −0.010] ✓ | −0.0090 [−0.024, +0.008] |
+| q=0.95 | −0.0252 [−0.049, −0.004] ✓ | −0.0114 [−0.033, +0.013] |
+| **q=0.99** | **+0.0932 [+0.010, +0.167] ✓** | **+0.0232 [−0.012, +0.075]** |
+| q=0.995 | −0.0262 [−0.110, +0.084] | −0.0009 [−0.144, +0.190] |
+
+(✓ marks CIs excluding 0.) TX1 has CIs excluding 0 at q=0.90, q=0.95, and q=0.99 — significance at the q=0.99 threshold is in the OPPOSITE direction. TX2 has a point-direction agreement with TX1 at q=0.99 (both positive) but its CI spans 0.
+
+### LOO summary at the q=0.99 anomaly threshold (TX1)
+
+Derived from `tx1_loo.json` `loo_beta_1_distribution[]` at q=0.99 (n_exc = 175 LOO refits):
+
+- **Full-sample β₁ = +0.09317** (matches Spec B cross-pnode entry exactly; pipeline sanity check passes).
+- LOO mean = +0.09314, median = +0.09337.
+- **LOO stdev = 0.00278** (3.0% of |full β₁|).
+- LOO IQR = [+0.09187, +0.09494]; range = [+0.08304, +0.10070].
+- **Sign-change LOO refits: 0 of 175 (0.00%).** Every single LOO refit remains positive.
+- Top-5 most influential exceedances (sorted by |Δβ₁| = |full − loo|):
+
+| Rank | exc-set idx | β₁_loo | Δβ₁ |
+|---|---|---|---|
+| 1 | 154 | +0.08304 | +0.01013 |
+| 2 | 113 | +0.08436 | +0.00881 |
+| 3 | 112 | +0.08475 | +0.00842 |
+| 4 | 98 | +0.10070 | −0.00753 |
+| 5 | 130 | +0.08641 | +0.00676 |
+
+(Indices are positions in the threshold-filtered exceedance set, NOT panel row indices.) The most influential single exceedance shifts β₁ by ~0.010, leaving the LOO refit at +0.083 — still well above zero. Dropping the top influential exceedance does not change the sign.
+
+### LOO summary at other thresholds (TX1 + TX2)
+
+From `tx1_loo.json` and `tx2_loo.json`:
+
+| Pnode | Threshold | n_exc | Full β₁ | LOO mean | LOO stdev | Sign-change refits |
+|---|---|---|---|---|---|---|
+| TX1 | 0.90 | 1,745 | −0.0261 | −0.0261 | 0.00024 | 0 / 1,745 |
+| TX1 | 0.95 | 873 | −0.0252 | −0.0252 | 0.00038 | 0 / 873 |
+| TX1 | **0.99** | **175** | **+0.0932** | **+0.0931** | **0.00278** | **0 / 175** |
+| TX1 | 0.995 | 88 | −0.0262 | −0.0263 | 0.00529 | 0 / 88 |
+| TX2 | 0.90 | 1,745 | −0.0090 | −0.0090 | 0.00020 | 0 / 1,745 |
+| TX2 | 0.95 | 873 | −0.0114 | −0.0114 | 0.00038 | 0 / 873 |
+| TX2 | **0.99** | **175** | **+0.0232** | **+0.0232** | **0.00164** | **0 / 175** |
+| TX2 | 0.995 | 88 | −0.0009 | −0.0008 | 0.00570 | **26 / 88 (29.5%)** |
+
+**Two methodologically relevant observations.**
+
+1. **TX1 q=0.99 LOO is rock-solid.** Stdev 0.003 on point +0.093; every refit stays positive. Direct evidence the q=0.99 sign flip is **not driven by 1–2 outlier exceedances** — case (b) "outlier-driven over-fit" is ruled out for TX1 q=0.99. The same robustness holds at TX1 q=0.90 and q=0.95 (negative direction).
+
+2. **TX2 q=0.995 shows 30% sign-change refits**, validating that the LOO methodology CAN detect fragile fits. This makes the TX1 q=0.99 0-sign-change result more meaningful as fit-stability evidence — the LOO isn't merely smooth across the board; it's smooth at TX1 q=0.99 specifically and fragile at TX2 q=0.995 specifically. The contrast is informative.
+
+### TX2 cross-check — directional, not independent
+
+TX2 q=0.99 β₁ = +0.0232 (same direction as TX1's +0.0932), LOO stdev 0.0016, 0 of 175 sign-change refits. Every TX2 q=0.99 LOO refit stays in the positive range [+0.010, +0.030].
+
+**Rigor caveat: TX2 is NOT independent evidence of "real physics."** Both Ashburn TX1 and TX2 are pnodes at the same Loudoun substation, sharing the same local load environment, the same DOM-zone congestion signal, and overlapping data-coverage windows. The TX2 result is best interpreted as **directional confirmation that the q=0.99 sign flip is not a TX1-specific artifact within this substation** — useful, but it does NOT rule out case (c) "data-quality issue from Ashburn's asymmetric coverage" because TX2 shares the same asymmetric coverage window (~2y of data, 2024-04 onward).
+
+What would constitute **independent** evidence of case (a) "real distribution-side physics":
+- A second Ashburn-like 35 kV LOAD-subtype pnode in a DIFFERENT substation, also showing the q=0.99 sign flip — not in this data set.
+- A pre-2024 historical replication of the q=0.99 sign flip at Ashburn — not available (Ashburn coverage starts 2024-04).
+- Mechanism evidence connecting the Ashburn LOAD-subtype voltage class to a specific ORDC-relevant physical effect — outside the scope of the diagnostic.
+
+### Caveats beyond LOO
+
+LOO measures the **fit's robustness to single-observation exclusion**. It does NOT measure:
+- **Temporal clustering of exceedances.** If TX1's 175 q=0.99 exceedances are concentrated in a specific window (e.g., specific months in 2025-2026), the sign flip could reflect window-specific physics rather than tail-shape physics. Diagnosing temporal clustering requires the timestamps of the exceedance set, which are not in this entry's input JSONs; this is a **follow-up check** worth running before the paper.
+- **Selection effects from the proposal-filter.** The filter (`passes_proposal_filter`) selects shoulder-season + 2-5 AM observations to isolate the signal from supply-side spikes. If Ashburn's q=0.99 exceedances pass the filter at different rates than its q=0.95 exceedances (e.g., 0.99 exceedances disproportionately survive the filter from a different time-of-day pattern), the threshold-conditional fit is fitting different sub-populations of events.
+- **Generative-model misspecification.** LOO confirms the fitted linear form is stable; it doesn't confirm the linear form is correct. The LRT p=0.000 at TX1 q=0.99 (Spec B cross-pnode table, line 1933) is evidence of strong non-linearity — a spline form at q=0.99 might capture a different qualitative shape than the linear β₁ suggests.
+
+### 4-panel scatter overlay
+
+`outputs/ashburn_diagnostic/scatter_overlay.png` shows TX1 + TX2 exceedances at q=0.95 and q=0.99, congestion-price vs Z. Pre-paper, this overlay is the natural place to check whether the q=0.99 exceedance cloud has a visually distinct shape vs the q=0.95 cloud and whether outlier influence would have been visually obvious. (PNG not embedded in this entry; reference path only.)
+
+### Interpretation — which case does the evidence support?
+
+- **Case (b) "outlier-driven over-fit" — RULED OUT.** LOO at TX1 q=0.99 has 0/175 sign-change refits and stdev 0.003. The q=0.99 sign is not contingent on any single exceedance.
+- **Case (a) "real distribution-side physics" — POSSIBLE, NOT CONFIRMED.** TX2 directional agreement is consistent with case (a) but is not independent (co-located substation). The mechanism for why q=0.99 (and only q=0.99) would carry the opposite-direction effect is undetermined.
+- **Case (c) "data-quality / asymmetric coverage issue" — POSSIBLE.** Ashburn pnodes have ~2y coverage vs ~3.6y for other pnodes; q=0.99 exceedance set may be temporally clustered in ways the LOO cannot detect.
+- **Generative-model misspecification at TX1 q=0.99 (NEW open question)** — the Spec B LRT at TX1 q=0.99 was p=0.000 (strong non-linearity); the linear β₁ may not characterize the response shape correctly even given case (a). A spline-form re-fit at TX1 q=0.99 specifically is the next diagnostic.
+
+### Implication for the paper
+
+**Report as "a robust unexplained Ashburn-substation q=0.99 anomaly worth investigating," NOT as a paper-headline mechanism finding.** Specifically:
+
+- **Methods-section subsection (not headline).** The LOO + cross-threshold β₁ table establish that the sign flip is stable and not outlier-driven; the mechanism is undetermined.
+- **Caveat the TX2 cross-check** as directional, not independent.
+- **Open questions for follow-up** (temporal clustering check, spline-form re-fit at q=0.99, mechanism investigation): list these explicitly so the paper section reads as "robust observation + open questions" rather than "explained finding."
+- **Do not lead the paper with this finding.** The mean-quantile mechanism (QR-full positive z_slope) and the median-split congestion rejection (anti-ORDC direction) are stronger anchor candidates with α=0.05-cleared evidence.
+
+### Revisit when
+
+- Advisor input on whether the Ashburn anomaly warrants its own paper sub-section or remains a methods-section footnote.
+- Temporal-clustering check on TX1's q=0.99 exceedances completes (requires loading the panel and inspecting the exceedance-set timestamps; not done in this entry).
+- Spline-form re-fit at TX1 q=0.99 specifically (the LRT p=0.000 suggests non-linearity; a spline may characterize the q=0.99 shape qualitatively).
+- A pre-2024 Ashburn data source or a second Ashburn-like 35 kV LOAD pnode at a different substation becomes available — would provide independent evidence for case (a).

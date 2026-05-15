@@ -199,3 +199,40 @@ def test_tail_risk_curves_pair_bootstrap_equivalence():
             ref = _load_json(ref_file)
             cur = _load_json(cur_file)
             _assert_numeric_equivalence(ref, cur, ref_file.name)
+
+
+# ---------------------------------------------------------------------------
+# Item #1: gpd_continuous (Spec B)
+# ---------------------------------------------------------------------------
+
+def test_gpd_continuous_pair_bootstrap_equivalence():
+    """Sub-q1 item #1 (gpd_continuous Spec B): refactor preserves
+    pair-bootstrap output byte-for-byte."""
+    from surg.analysis.gpd_continuous import run_gpd_continuous_z
+    from surg.analysis.run import PNODE_RESPONSES
+
+    panel = _hourly_panel_or_skip()
+    ref_dir = REF_DIR / "gpd_continuous"
+    with TemporaryDirectory() as tmp:
+        out_root = Path(tmp) / "gpd_continuous"
+        for label, col in PNODE_RESPONSES.items():
+            if panel[col].dropna().empty:
+                continue
+            run_gpd_continuous_z(
+                panel=panel,
+                out_path=out_root / f"{label}.json",
+                response_col=col,
+                pnode_label=label,
+                n_boot=50,
+                seed=42,
+                bootstrap_method="pair",
+            )
+        for ref_file in sorted(ref_dir.glob("*.json")):
+            cur_file = out_root / ref_file.name
+            if not cur_file.exists():
+                raise AssertionError(
+                    f"Refactored module missing reference output: {ref_file.name}"
+                )
+            ref = _load_json(ref_file)
+            cur = _load_json(cur_file)
+            _assert_numeric_equivalence(ref, cur, ref_file.name)

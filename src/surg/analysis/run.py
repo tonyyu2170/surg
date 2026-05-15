@@ -82,6 +82,23 @@ def run_all(
     """
     out_root.mkdir(parents=True, exist_ok=True)
 
+    # Sub-q1 item #8: compute panel-level island_ids when cluster
+    # bootstrap is requested. Each downstream module slices these to
+    # its own dropna subset. Identify gaps > 10 min as island
+    # boundaries (the natural 3h-on/21h-off structure of the
+    # proposal-filter window for items running on filtered subsets;
+    # for full-panel modules, K is whatever the data's contiguity
+    # supports — often K=1 or near-1 for the 5-min joint panel,
+    # which is pre-registered as underpowered.)
+    panel_island_ids = None
+    if bootstrap_method == "cluster":
+        from surg.analysis.bootstrap_strategies import identify_islands
+        panel_island_ids = identify_islands(
+            pd.DatetimeIndex(panel["datetime_beginning_ept"]),
+            pd.Series(True, index=panel.index),
+            gap_threshold_minutes=10,
+        )
+
     primary = None
     if not skip_tar:
         primary = run_tar(
@@ -189,6 +206,8 @@ def run_all(
                 pnode_label=label,
                 n_boot=continuous_n_boot,
                 seed=seed,
+                bootstrap_method=bootstrap_method,
+                island_ids=panel_island_ids,
             )
 
         # Headline JSON: primary congestion @ 95th-pct linear β₁ per pre-reg

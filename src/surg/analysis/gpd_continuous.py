@@ -224,6 +224,8 @@ def fit_gpd_continuous_z(
     form: Literal["linear", "spline"],
     n_boot: int = 200,
     seed: int = 0,
+    bootstrap_method: str = "pair",
+    island_ids: np.ndarray | pd.Series | None = None,
 ) -> GPDContinuousFitResult:
     """Fit non-stationary GPD with covariate Z on shape and scale.
 
@@ -295,22 +297,61 @@ def fit_gpd_continuous_z(
             convergence_status="failed",
         )
 
-    # Bootstrap
+    # Bootstrap. Pair preserves byte-for-byte equivalence with the
+    # pre-refactor implementation (regression test gate). Cluster
+    # resamples whole islands among exceedance rows for the 5-min
+    # companion (sub-q1 item #8).
     rng = np.random.default_rng(seed)
     bootstrap_xi_params: list[np.ndarray] = []
     bootstrap_sigma_params: list[np.ndarray] = []
-    for _ in range(n_boot):
-        idx = rng.integers(0, n_exc, size=n_exc)
-        Y_b = Y_exc[idx]
-        Z_b = Z_exc[idx]
-        try:
-            boot_params, boot_status = _optimize_mle(Y_b, Z_b, form=form)
-        except (ValueError, FloatingPointError):
-            continue
-        if boot_status != "converged":
-            continue
-        bootstrap_xi_params.append(boot_params[:n_xi])
-        bootstrap_sigma_params.append(boot_params[n_xi:])
+    if bootstrap_method == "pair":
+        for _ in range(n_boot):
+            idx = rng.integers(0, n_exc, size=n_exc)
+            Y_b = Y_exc[idx]
+            Z_b = Z_exc[idx]
+            try:
+                boot_params, boot_status = _optimize_mle(Y_b, Z_b, form=form)
+            except (ValueError, FloatingPointError):
+                continue
+            if boot_status != "converged":
+                continue
+            bootstrap_xi_params.append(boot_params[:n_xi])
+            bootstrap_sigma_params.append(boot_params[n_xi:])
+    elif bootstrap_method == "cluster":
+        if island_ids is None:
+            raise ValueError(
+                "bootstrap_method='cluster' requires island_ids aligned to Y"
+            )
+        ids_arr = np.asarray(island_ids)
+        if len(ids_arr) != len(Y_arr):
+            raise ValueError(
+                f"island_ids length {len(ids_arr)} must match Y length "
+                f"{len(Y_arr)}"
+            )
+        ids_exc = ids_arr[exceed_mask]
+        unique_ids = np.unique(ids_exc)
+        K = len(unique_ids)
+        # Pre-group exceedance rows by island
+        groups: dict[int, tuple[np.ndarray, np.ndarray]] = {
+            int(iid): (Y_exc[ids_exc == iid], Z_exc[ids_exc == iid])
+            for iid in unique_ids
+        }
+        for _ in range(n_boot):
+            sampled = rng.choice(unique_ids, size=K, replace=True)
+            Y_b = np.concatenate([groups[int(iid)][0] for iid in sampled])
+            Z_b = np.concatenate([groups[int(iid)][1] for iid in sampled])
+            if len(Y_b) == 0:
+                continue
+            try:
+                boot_params, boot_status = _optimize_mle(Y_b, Z_b, form=form)
+            except (ValueError, FloatingPointError):
+                continue
+            if boot_status != "converged":
+                continue
+            bootstrap_xi_params.append(boot_params[:n_xi])
+            bootstrap_sigma_params.append(boot_params[n_xi:])
+    else:
+        raise ValueError(f"Unknown bootstrap_method: {bootstrap_method!r}")
 
     if len(bootstrap_xi_params) < 100:
         nan_ci = tuple((float("nan"), float("nan")) for _ in range(n_xi))
@@ -463,6 +504,8 @@ def run_gpd_continuous_z(
     threshold_quantiles: tuple[float, ...] = (0.90, 0.95, 0.99, 0.995),
     n_boot: int = 200,
     seed: int = 0,
+    bootstrap_method: str = "pair",
+    island_ids: pd.Series | None = None,
 ) -> None:
     """Per-pnode Spec B orchestrator: threshold sweep × (linear + spline + LRT).
 
@@ -475,16 +518,25 @@ def run_gpd_continuous_z(
     Y = subset[response_col].to_numpy()
     Z = subset[threshold_col].to_numpy()
     n_after = len(subset)
+    # Slice island_ids to the dropna subset (only used in cluster mode)
+    sub_island_ids = (
+        island_ids.loc[subset.index].to_numpy()
+        if island_ids is not None else None
+    )
 
     sweep_entries: list[dict] = []
     for i, q in enumerate(threshold_quantiles):
         threshold = float(np.quantile(Y, q))
         n_exc = int((Y > threshold).sum())
         linear_result = fit_gpd_continuous_z(
-            Y, Z, threshold=threshold, form="linear", n_boot=n_boot, seed=seed + 10 * i,
+            Y, Z, threshold=threshold, form="linear", n_boot=n_boot,
+            seed=seed + 10 * i,
+            bootstrap_method=bootstrap_method, island_ids=sub_island_ids,
         )
         spline_result = fit_gpd_continuous_z(
-            Y, Z, threshold=threshold, form="spline", n_boot=n_boot, seed=seed + 10 * i + 5,
+            Y, Z, threshold=threshold, form="spline", n_boot=n_boot,
+            seed=seed + 10 * i + 5,
+            bootstrap_method=bootstrap_method, island_ids=sub_island_ids,
         )
         lrt = _likelihood_ratio_test(
             linear_result, spline_result, Y, Z, threshold=threshold,

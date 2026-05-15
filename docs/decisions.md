@@ -2996,3 +2996,111 @@ threshold. Cross-pnode CSV at
 5-min DOM-load source surfaces (different PJM feed, advisor's
 private dataset, EIA), or advisor reframes which resolution is the
 headline.
+---
+
+## 2026-05-15 (late) — Sub-q1 item #9: Full-panel direct Z → LMP characterization (pre-reg)
+
+**Context.** Sub-q1 item #6 (direct Z → LMP tail-risk) finding within
+the proposal-filter scope (shoulder × 2-5 AM) was: P(LMP > $250 |
+top Z decile) = 0.000 across all 10 deciles × 7 pnodes; only 10 of
+2027 in-filter observations even exceed $100. The natural critique
+of this result is that the filter excludes by construction the
+periods (summer afternoons, peak hours) where DOM-zone "crazy LMP"
+events actually occur. To resolve this critique before the advisor
+meeting (item #5), this entry pre-registers a single full-panel
+re-run of item #6 with the proposal-filter lifted.
+
+This is added as **sub-q1 closure item #9** (item #7 was renumbered;
+item #8 is the 5-min companion shipped earlier today). Decision to
+add pre-meeting per user direction tonight.
+
+**Decision rule (pre-registered before any code runs).** Three
+mutually-exclusive verdicts on whether item #6's null was driven by
+the proposal-filter or is structural:
+
+- **Verdict A — "filter-driven":** Full-panel
+  `P(total_lmp_rt > $250 | top Z decile) > 0.05` on **≥4 of 7
+  pnodes**. The filter was the binding constraint; lifting it
+  reveals high-Z → crazy-LMP at material rates. Item #6's in-filter
+  null is a scope artifact, not a substantive answer. Major
+  reframing implication: sub-q1's negative answer becomes scope-
+  limited; the descriptive question has a positive answer outside
+  the filter.
+
+- **Verdict B — "structural":** Full-panel
+  `P(total_lmp_rt > $250 | top Z decile) ≤ 0.01` on **≥4 of 7
+  pnodes** AND the monotonic-increase check below also fails. Even
+  on the full panel, top-Z deciles do not produce crazy LMP at
+  material rates. Item #6's in-filter null hardens into a real
+  finding. The proposal's hypothesis is wrong on the merits, not on
+  the scope.
+
+- **Verdict C — "partial / mixed":** Anything between A and B.
+  Examples: only 1-3 pnodes show full-panel exceedance >0.05;
+  monotonic increase emerges on the full panel but at moderate
+  thresholds ($100 not $250); cross-pnode pattern is heterogeneous.
+  Headline framing depends on which subset of pnodes shows the
+  effect — to be decided in the advisor meeting.
+
+**Secondary diagnostic (descriptive, not gating verdict A/B/C):**
+For each pnode, on the full panel, check whether
+`P(total_lmp_rt > $100 | Z decile)` increases monotonically from
+decile 1 → decile 10. Monotonicity on **≥4 of 7 pnodes** indicates
+a smooth Z → tail relationship exists outside the filter scope, even
+if the $250+ exceedance criterion fails. This sharpens verdict B vs
+C interpretation but does not change the verdict assignment itself.
+
+**Scope.**
+- Panel: `data/interim/analysis_panel.parquet` (3.6y post-cap
+  hourly, ~31k rows).
+- Module: `surg.analysis.tail_risk_curves.run_tail_risk_curves`
+  with new `filter_col=None` mode (filter step skipped).
+- Pnodes: all 7 in `CROSS_PNODE_PNODES` (primary cluster, total_lmp,
+  ox, bristers, dom_zonal, ashburn_tx1, ashburn_tx2).
+- Thresholds: default `[100, 250, 500, 1000, 2000]`.
+- Bootstrap: `bootstrap_method=pair`, `n_boot=200`, `seed=42`.
+- Headline response: `total_lmp_rt` (the proposal's "crazy LMP"
+  variable) at the $250 threshold. Decision rule uses total_lmp_rt
+  exclusively because the proposal's framing was about absolute
+  pricing, not the congestion component.
+
+**Why total_lmp_rt $250 specifically (cross-checked with PJM data):**
+$250 is roughly the 99th percentile of total_lmp_rt across the full
+DOM-zone hourly panel and corresponds informally to the "crazy LMP"
+threshold in PJM operator parlance (well above the typical $30-50
+nominal range, close to the ORDC reserve-shortage trigger). Lower
+thresholds ($100) capture moderately elevated prices that are not
+"crazy" by the proposal's framing.
+
+**Why 0.05 specifically:** A 5% top-decile exceedance rate at $250
+would correspond to roughly 1 hour per 20 high-Z hours. At the panel
+scale (~3,000 top-decile observations on the unfiltered full
+panel), 0.05 = ~150 events — large enough to support follow-up
+characterization (sub-q3 territory). Below 0.05, the events are too
+rare to ground a positive answer.
+
+**Implementation.**
+- New worktree: `../surg-item-6-no-filter/` on branch
+  `feature/sub-q1-item-6-no-filter`.
+- Modify `run_tail_risk_curves` to accept `filter_col: str | None
+  = "passes_proposal_filter"`. When `None`, skip the filter step
+  and use the full panel.
+- Add CLI flag `--no-filter` to `surg-analyze`.
+- Test: assert behavior when filter_col=None matches a manually
+  unfiltered call.
+- Run on the full panel; write outputs to `outputs_no_filter/`.
+
+**Rationale for pre-registering.** Even though this is a single
+descriptive run with no inferential claim, pre-registering the
+verdict mapping prevents post-hoc "the data really shows X"
+rationalization when the result is mixed. The advisor meeting
+benefits from a mechanical verdict assignment we can't talk
+ourselves out of.
+
+**No FF-merge, no push policy continues** for this closure item per
+the same conventions as items #1-#8.
+
+**Revisit when.** Verdict applied in the application entry
+following this run. If verdict C (mixed), the advisor meeting locks
+the sub-q1 narrative; if verdict A or B, the pre-reg forces a
+specific paper headline before the meeting.

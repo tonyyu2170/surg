@@ -158,25 +158,24 @@ def run_pnode_tail_risk_curves(
             mask = bin_indices == d
             decile_entry: dict = {
                 "decile": d + 1,  # 1-indexed for display
-                "z_range": [float(edges[d]), float(edges[d + 1])],
+                "z_range_mw_per_min": [float(edges[d]), float(edges[d + 1])],
                 "n_total": decile_n_obs[d],
                 "by_threshold": {},
             }
             for t in thresholds:
-                p_hat, n_exc, n_total, lo, hi = compute_exceedance_probability_with_ci(
+                p_hat, n_exc, _, lo, hi = compute_exceedance_probability_with_ci(
                     panel,
                     response_col=resp_col,
                     threshold=t,
                     z_bin_mask=mask,
                     n_boot=n_boot,
-                    seed=seed + d * 1000 + int(t),
+                    seed=seed + d * 100_000 + int(t),
                 )
                 decile_entry["by_threshold"][float(t)] = {
                     "p_hat": p_hat,
                     "n_exc": n_exc,
                     "ci_95": [lo, hi],
                 }
-                _ = n_total  # already in decile_entry
             results[resp_key].append(decile_entry)
 
     return {
@@ -186,8 +185,52 @@ def run_pnode_tail_risk_curves(
         "thresholds": [float(t) for t in thresholds],
         "n_boot": n_boot,
         "n_total_filtered": int(len(panel)),
-        "decile_edges": [float(e) for e in edges],
+        "decile_edges_mw_per_min": [float(e) for e in edges],
         "decile_n_obs": decile_n_obs,
         "threshold_percentiles": threshold_pcts,
         "results": results,
+    }
+
+
+def aggregate_cross_pnode_summary(per_pnode_results: list[dict]) -> dict:
+    """Extract top-decile-only summary across all per-pnode results.
+
+    Output schema per design spec: ``{n_boot, thresholds, scope, pnodes: [...]}``.
+    Each pnode entry has top-decile p_hat + CI per (response, threshold).
+    """
+    if not per_pnode_results:
+        return {"scope": "top_decile_only", "thresholds": [], "pnodes": []}
+
+    thresholds = per_pnode_results[0]["thresholds"]
+    n_boot = per_pnode_results[0].get("n_boot")
+
+    pnodes_out: list[dict] = []
+    for entry in per_pnode_results:
+        # Top decile is the last one (decile=10, 0-indexed 9)
+        top_decile_by_resp: dict[str, dict[float, dict]] = {}
+        for resp_key, deciles in entry["results"].items():
+            top = deciles[-1]  # 10th decile
+            top_decile_by_resp[resp_key] = {
+                t: {
+                    "p_hat": top["by_threshold"][t]["p_hat"],
+                    "ci_95": top["by_threshold"][t]["ci_95"],
+                }
+                for t in thresholds
+            }
+
+        pnodes_out.append({
+            "pnode_label": entry["pnode_label"],
+            "z_range_top_decile_mw_per_min": [
+                float(entry["decile_edges_mw_per_min"][-2]),
+                float(entry["decile_edges_mw_per_min"][-1]),
+            ],
+            "n_top_decile": int(entry["decile_n_obs"][-1]),
+            "results": top_decile_by_resp,
+        })
+
+    return {
+        "n_boot": n_boot,
+        "thresholds": thresholds,
+        "scope": "top_decile_only",
+        "pnodes": pnodes_out,
     }

@@ -5,10 +5,11 @@ import pandas as pd
 import pytest
 
 from surg.analysis.tail_risk_curves import (
+    aggregate_cross_pnode_summary,
     compute_exceedance_probability_with_ci,
     compute_threshold_percentiles,
-    run_pnode_tail_risk_curves,
     compute_z_deciles,
+    run_pnode_tail_risk_curves,
 )
 
 
@@ -172,7 +173,7 @@ def test_run_pnode_tail_risk_curves_returns_full_schema():
     assert result["z_col"] == "z"
     assert result["thresholds"] == [50.0, 100.0]
     assert result["n_boot"] == 20
-    assert len(result["decile_edges"]) == 11
+    assert len(result["decile_edges_mw_per_min"]) == 11
     assert len(result["decile_n_obs"]) == 10
     assert "threshold_percentiles" in result
     assert "results" in result
@@ -183,7 +184,7 @@ def test_run_pnode_tail_risk_curves_returns_full_schema():
         assert len(deciles) == 10
         for decile_entry in deciles:
             assert "decile" in decile_entry
-            assert "z_range" in decile_entry
+            assert "z_range_mw_per_min" in decile_entry
             assert "n_total" in decile_entry
             assert "by_threshold" in decile_entry
             for t in (50.0, 100.0):
@@ -192,3 +193,86 @@ def test_run_pnode_tail_risk_curves_returns_full_schema():
                 assert "n_exc" in cell
                 assert "ci_95" in cell
                 assert len(cell["ci_95"]) == 2
+
+
+def test_aggregate_cross_pnode_summary_extracts_top_decile():
+    """Given 2 fake per-pnode results, summary picks top-decile entries per (response, threshold)."""
+    per_pnode = [
+        {
+            "pnode_label": "primary",
+            "thresholds": [100.0, 500.0],
+            "n_boot": 200,
+            "decile_edges_mw_per_min": [0.0] + [float(i) for i in range(1, 11)],
+            "decile_n_obs": [100] * 10,
+            "results": {
+                "total_lmp": [
+                    {
+                        "decile": d + 1,
+                        "z_range_mw_per_min": [d * 1.0, (d + 1) * 1.0],
+                        "n_total": 100,
+                        "by_threshold": {
+                            100.0: {"p_hat": 0.01 * d, "n_exc": d, "ci_95": [0.0, 0.02 * d]},
+                            500.0: {"p_hat": 0.005 * d, "n_exc": d // 2, "ci_95": [0.0, 0.01 * d]},
+                        },
+                    }
+                    for d in range(10)
+                ],
+                "congestion": [
+                    {
+                        "decile": d + 1,
+                        "z_range_mw_per_min": [d * 1.0, (d + 1) * 1.0],
+                        "n_total": 100,
+                        "by_threshold": {
+                            100.0: {"p_hat": 0.02 * d, "n_exc": 2 * d, "ci_95": [0.0, 0.04 * d]},
+                            500.0: {"p_hat": 0.01 * d, "n_exc": d, "ci_95": [0.0, 0.02 * d]},
+                        },
+                    }
+                    for d in range(10)
+                ],
+            },
+        },
+        {
+            "pnode_label": "dom_zonal",
+            "thresholds": [100.0, 500.0],
+            "n_boot": 200,
+            "decile_edges_mw_per_min": [0.0] + [float(i) for i in range(1, 11)],
+            "decile_n_obs": [100] * 10,
+            "results": {
+                "total_lmp": [
+                    {
+                        "decile": d + 1,
+                        "z_range_mw_per_min": [d * 1.0, (d + 1) * 1.0],
+                        "n_total": 100,
+                        "by_threshold": {
+                            100.0: {"p_hat": 0.005 * d, "n_exc": d, "ci_95": [0.0, 0.01 * d]},
+                            500.0: {"p_hat": 0.002 * d, "n_exc": d // 3, "ci_95": [0.0, 0.005 * d]},
+                        },
+                    }
+                    for d in range(10)
+                ],
+                "congestion": [
+                    {
+                        "decile": d + 1,
+                        "z_range_mw_per_min": [d * 1.0, (d + 1) * 1.0],
+                        "n_total": 100,
+                        "by_threshold": {
+                            100.0: {"p_hat": 0.01 * d, "n_exc": d, "ci_95": [0.0, 0.02 * d]},
+                            500.0: {"p_hat": 0.005 * d, "n_exc": d // 2, "ci_95": [0.0, 0.01 * d]},
+                        },
+                    }
+                    for d in range(10)
+                ],
+            },
+        },
+    ]
+
+    summary = aggregate_cross_pnode_summary(per_pnode)
+
+    assert summary["scope"] == "top_decile_only"
+    assert summary["thresholds"] == [100.0, 500.0]
+    assert len(summary["pnodes"]) == 2
+
+    primary_entry = next(p for p in summary["pnodes"] if p["pnode_label"] == "primary")
+    # Top decile (d=9) values: 0.01 * 9 = 0.09 (total_lmp @ 100)
+    assert primary_entry["results"]["total_lmp"][100.0]["p_hat"] == pytest.approx(0.09)
+    assert primary_entry["results"]["total_lmp"][500.0]["p_hat"] == pytest.approx(0.045)

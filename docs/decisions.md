@@ -3189,11 +3189,13 @@ be on the table for the advisor meeting:
    uniquely concentrated in high-Z bins either. The events appear
    roughly Z-uniform across the support.
 
-3. **The proposal's "phase transition" framing is structurally
-   rejected at the descriptive level.** There is no decile (low or
-   high) where LMP behavior qualitatively shifts. The smooth-curve
-   diagnosis from 2026-05-13 is now reinforced by the full-panel
-   per-decile evidence.
+3. **At the decile level, the proposal's "phase transition" framing
+   finds no support.** No decile (low or high) where LMP behavior
+   qualitatively shifts in the decile aggregates. The smooth-curve
+   diagnosis from 2026-05-13 is reinforced by the full-panel
+   per-decile evidence. **See post-hoc exploration below for the
+   extreme-tail (top 1% of Z) caveat that decile binning is too
+   coarse to detect.**
 
 4. **Ashburn pnodes show consistent ~2× elevation across all deciles.**
    This is a pnode-level effect, not a Z-driven effect. Independent
@@ -3203,13 +3205,17 @@ be on the table for the advisor meeting:
 
 The mechanism-test mixed answer (positive QR-full moderate-τ,
 negative Spec A median-split) now has an additional **descriptive
-structural finding**: Z is uninformative for predicting crazy LMP at
-the decile level, on the full panel. This **does not contradict** the
-positive QR-full moderate-τ slope (which operates on conditional
-quantiles, not decile exceedance rates), but it does **constrain
-the paper's framing**: any "Z drives LMP" claim has to be carefully
-qualified as a *moderate-quantile slope* phenomenon, not a *crazy-
-event-rate* phenomenon. The two are distinct.
+finding at the decile level**: Z provides little discrimination for
+predicting crazy LMP across deciles 1-10 on the full panel. This
+**does not contradict** the positive QR-full moderate-τ slope (which
+operates on conditional quantiles, not decile exceedance rates), but
+it does **constrain the paper's framing**: any decile-aggregate "Z
+drives LMP" claim has to be carefully qualified as a *moderate-
+quantile slope* phenomenon, not a *crazy-event-rate* phenomenon at
+the decile level. **The post-hoc top-1% exploration below identifies
+a real concentration at the extreme Z tail that the decile binning
+is too coarse to detect — see that subsection for the refined
+picture.**
 
 The pre-reg's purpose was to prevent post-hoc "the data really shows
 X" rationalization on a likely-mixed result. Mechanical Verdict C
@@ -3218,26 +3224,42 @@ choice of how to weight verdict C vs the secondary structural-leaning
 interpretation in the paper headline is now explicitly an advisor-
 meeting decision.
 
-### Three options for the advisor meeting (item #5)
+### Four options for the advisor meeting (item #5)
 
 1. **Anchor on Spec A median-split rejection** ("ORDC mechanism on
    congestion is rejected at α=0.05"). Item #9's result becomes a
-   descriptive companion: "The rejection holds on the full panel
-   too — top-Z decile only marginally elevates exceedance rates over
-   low-Z decile, well within the small range of overall variation."
+   descriptive companion: "The decile-level rejection holds on the
+   full panel too — top-Z decile only marginally elevates exceedance
+   rates over low-Z decile, well within the small range of overall
+   variation."
 
 2. **Anchor on QR-full moderate-τ positive finding** ("higher Z drives
    higher conditional 95th-pct LMP"). Item #9's result becomes a
    limit: "The Z → LMP slope at moderate quantiles does not extend
    to a decile-level concentration of crazy events; the effect is in
-   the conditional distribution shape, not in the exceedance rate."
+   the conditional distribution shape, not in the decile-aggregate
+   exceedance rate."
 
-3. **Anchor on the unified structural finding** ("Z provides little
-   discrimination for crazy LMP events — the proposal's threshold
-   framing is wrong, the mechanism evidence is mixed, the
-   descriptive evidence on the full panel finds Z roughly uniform
-   for high-LMP events"). Treats all sub-q1 work as triangulation
-   pointing toward "the proposal's framing was the wrong question."
+3. **Anchor on the unified decile-level finding** ("Z provides little
+   discrimination for crazy LMP events at the decile level — the
+   proposal's threshold framing is wrong, the mechanism evidence is
+   mixed, the decile-aggregate evidence on the full panel finds Z
+   roughly uniform for high-LMP events"). Treats most sub-q1 work as
+   triangulation pointing toward "the proposal's framing was the
+   wrong question." Acknowledges the post-hoc top-1% caveat as a
+   methodological footnote.
+
+4. **Anchor on the extreme-tail concentration** (post-hoc):
+   "Z drives crazy LMP only at the extreme tail (top 1% of Z, n=316
+   on the full hourly panel), with the effect concentrated in the
+   system_energy component (ORDC mechanism). The proposal's
+   threshold framing was directionally right about *where* the
+   effect lives but wrong about the *smoothness/sharpness* of the
+   transition — there is no kink, only a heavy-tail concentration
+   visible at percentile-99+ resolution that decile binning is too
+   coarse to detect." Reconciles the proposal with the data; cost
+   is post-hoc analysis with n=316 (modest CIs) and n=32 at top
+   0.1% (uselessly wide CIs).
 
 ### Sub-q1 closure status (revised after item #9)
 
@@ -3263,3 +3285,95 @@ available.
 - A NEW data source (private dataset, EIA load curves, etc.)
   enables a different scope test that addresses Z → LMP at sub-decile
   granularity. Currently no path within the SURG dataset.
+
+### Post-hoc exploration — extreme-tail Z (NOT pre-registered)
+
+Triggered by a sanity-check audit of this entry's pre-reg verdict.
+The pre-registered decile-level rule averages z ∈ [13.38, 36.39] in
+the top-decile bin (n=3,154 for cluster, n=1,745 for Ashburn) — wide
+enough that an extreme-tail concentration could be diluted away.
+**This subsection is post-hoc and exploratory; the pre-reg verdict C
+above stands unchanged.** The findings here are reported for the
+advisor meeting's framing decision, not used to revise the verdict.
+
+**Method.** Recompute `P(LMP > $X | Z > pct)` for percentiles 50, 75,
+90, 95, 99, 99.5, 99.9 using the same full hourly panel. No
+bootstrap; raw counts. CIs in this section are normal-approximation
+or Wilson — sufficient for descriptive characterization, not
+inferential claims.
+
+**Results — `total_lmp_rt_cluster_mean` (cluster pnode, n=31,536):**
+
+| pct | Z cutoff | n above | P>$100 | P>$250 | P>$500 | P>$1000 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 50.0 | 5.47 | 15,768 | 0.062 | 0.015 | 0.005 | 0.001 |
+| 90.0 | 13.38 | 3,154 | 0.078 | 0.019 | 0.007 | 0.002 |
+| 95.0 | 15.95 | 1,577 | 0.098 | 0.024 | 0.009 | 0.003 |
+| **99.0** | **19.87** | **316** | **0.146** | **0.044** | **0.019** | **0.010** |
+| 99.5 | 21.04 | 158 | 0.196 | 0.051 | 0.019 | 0.013 |
+| 99.9 | 24.29 | 32 | 0.156 | 0.094 | 0.063 | 0.063 |
+| **(unconditional)** | — | 31,536 | **0.060** | **0.015** | **0.005** | **0.002** |
+
+**Lift at top 1% Z vs unconditional baseline:**
+- P > $100: 0.146 / 0.060 = **2.4×**
+- P > $250: 0.044 / 0.015 = **2.9×** (Wilson 95% CI ≈ [0.027, 0.072], lower bound excludes the 0.015 unconditional)
+- P > $500: 0.019 / 0.005 = **3.8×**
+- P > $1000: 0.010 / 0.002 = **5.9×**
+
+**Lift at top 0.1% Z (n=32, very wide CIs):**
+- P > $1000: 0.063 / 0.002 = **37×** — n=32 means just 2 events; not statistically reliable
+
+**Results — congestion** (proposal's mechanism variable, cluster):
+
+| pct | Z cutoff | n | P>$50 | P>$100 | P>$250 |
+|---:|---:|---:|---:|---:|---:|
+| 50 | 5.47 | 15,768 | 0.025 | 0.012 | 0.003 |
+| 99 | 19.87 | 316 | 0.063 | 0.029 | 0.013 |
+| 99.5 | 21.04 | 158 | 0.076 | 0.032 | 0.006 |
+| **(unconditional)** | — | 31,536 | **0.025** | **0.012** | **0.004** |
+
+Congestion top-1% lift: ~2.3-3× (smaller than total_lmp's, consistent
+with the LMP-components decomposition's `total_lmp ≈ 4× congestion`
+finding). The lift at top 0.5% for $250 (0.006 vs 0.004 unconditional)
+is small enough to be within sampling noise at n=158.
+
+### Refined honest interpretation
+
+Combining the pre-registered verdict C with the post-hoc top-1%
+finding:
+
+1. **At the decile level (pre-registered):** Z provides little
+   discrimination for crazy LMP. The "filter excludes the events"
+   critique is dead. The proposal's *smooth-curve* hypothesis is
+   reinforced.
+
+2. **At the extreme-tail level (post-hoc):** Z DOES concentrate crazy
+   LMP at top 1% (lifts of 2-6×, modest CIs supporting the lower-bound
+   above unconditional baseline for cluster pnodes). The effect lives
+   in the system_energy component (ORDC mechanism), with congestion
+   showing a smaller secondary lift consistent with the components
+   decomposition.
+
+3. **The two findings together support a refined characterization:**
+   "There is no Z threshold, but there IS an extreme-tail Z
+   concentration of crazy LMP — visible only at percentile-99+ Z
+   resolution." This is a paper-publishable refinement of the
+   proposal's framing: the proposal was directionally right about
+   where the effect lives but wrong about the sharpness of the
+   transition.
+
+### Caveat on the post-hoc
+
+The post-hoc top-1% finding was triggered by an audit that explicitly
+checked whether decile binning could mask an extreme-tail effect. It
+was NOT specified before the run, so it inherits the usual post-hoc
+caveats: no MT correction, no formal CI on the lift ratio, sample
+sizes (n=316 at p99, n=32 at p99.9) are too small to support a
+strong statistical claim. **A pre-registered top-1% analysis would
+require advisor sign-off post-meeting**; this subsection's purpose is
+only to surface the finding for that conversation.
+
+The implementation has been audited (5/5 sanity checks pass: filter-
+skip plumbing, in-filter byte-equivalent reproduction, total_lmp
+derivation, Z range expectations, full-panel coverage). The
+extreme-tail finding is a real feature of the data, not a bug.

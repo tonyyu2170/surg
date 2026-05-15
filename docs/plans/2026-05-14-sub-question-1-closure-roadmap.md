@@ -256,9 +256,20 @@ absolute $-threshold exceedance probabilities. Consistent with item
 
 ### 8. 5-min companion run (item #8) — added 2026-05-15
 
-**Status:** Pre-reg + design + implementation plan committed
-2026-05-15. Pending autonomous execution via slash command
-`/run-5min-companion`.
+**Status: DONE 2026-05-15 (late).** Application entry committed at
+`21caaf3` ("docs(decisions): apply sub-q1 item #8 5-min companion
+findings"). Branch `feature/sub-q1-item-8-5min-companion` ready
+for user review (NO FF-merge done, NO push done).
+
+**Headlines:**
+- Part A confirmed pre-reg expectation: every Spec B CI spans 0 at
+  the 27-day joint window. Item #2 insufficient_sample, item #3
+  skip_reason single-month-window. Item #6 replicates the hourly
+  finding (filter-excludes-spikes) at 5-min cadence.
+- Part B is the independently useful deliverable: at PLEASANT VIEW,
+  hourly publication hides 34-60% of hour-buckets where 5-min
+  spiked above $50/$100/$250/$500/$1000 (monotonically increasing
+  with threshold).
 
 **Pre-reg:** `docs/decisions.md` § "2026-05-15 — Sub-q1 item #8:
 5-min companion run (pre-reg)".

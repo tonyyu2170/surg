@@ -83,12 +83,16 @@ def compute_exceedance_probability_with_ci(
         Bootstrap 95% CI lower bound. ``0.0`` if ``n_exc == 0``.
     ci_high : float
         Bootstrap 95% CI upper bound. Wilson exact upper for ``n_exc == 0``
-        case (bootstrap is degenerate when all reps yield 0/n).
+        (bootstrap is degenerate). ``1.0`` (with Wilson exact lower returned
+        in ``ci_low``) for ``n_exc == n_total``.
     """
     bin_resp = panel.loc[z_bin_mask, response_col].dropna().to_numpy()
     n_total = int(bin_resp.size)
     if n_total == 0:
         return 0.0, 0, 0, 0.0, 0.0
+
+    if n_boot <= 0:
+        raise ValueError(f"n_boot must be positive, got {n_boot}")
 
     is_exc = (bin_resp > threshold).astype(np.int64)
     n_exc = int(is_exc.sum())
@@ -103,7 +107,8 @@ def compute_exceedance_probability_with_ci(
         return p_hat, n_exc, n_total, 0.0, float(ci_high)
 
     if n_exc == n_total:
-        # Symmetric Wilson treatment for the n_exc = n boundary.
+        # Wilson lower for n_exc=n at alpha=0.05: p = 1, sqrt term = z
+        # lower = (2*n + z^2 - z*z) / (2*(n + z^2)) = n / (n + z^2)
         z2 = 1.96**2
         ci_low = n_total / (n_total + z2)
         return p_hat, n_exc, n_total, float(ci_low), 1.0
@@ -117,3 +122,72 @@ def compute_exceedance_probability_with_ci(
 
     ci_low, ci_high = np.quantile(boot_p, [0.025, 0.975])
     return p_hat, n_exc, n_total, float(ci_low), float(ci_high)
+
+
+def run_pnode_tail_risk_curves(
+    panel: pd.DataFrame,
+    *,
+    pnode_label: str,
+    response_cols: dict[str, str],
+    z_col: str,
+    thresholds: list[float],
+    n_deciles: int = 10,
+    n_boot: int = 200,
+    seed: int = 0,
+) -> dict:
+    """Per-pnode orchestrator: compute the full P(response > threshold | z decile)
+    table for two response variables (typically total_lmp + congestion).
+
+    Returns a JSON-ready dict matching the design spec schema.
+    """
+    if n_deciles != 10:
+        raise NotImplementedError(
+            f"n_deciles={n_deciles} not supported; design fixes deciles=10"
+        )
+
+    edges, bin_indices = compute_z_deciles(panel, z_col)
+    decile_n_obs = [int((bin_indices == d).sum()) for d in range(n_deciles)]
+
+    threshold_pcts: dict[str, dict[float, float]] = {}
+    for key, col in response_cols.items():
+        threshold_pcts[key] = compute_threshold_percentiles(panel, col, thresholds)
+
+    results: dict[str, list[dict]] = {key: [] for key in response_cols}
+    for resp_key, resp_col in response_cols.items():
+        for d in range(n_deciles):
+            mask = bin_indices == d
+            decile_entry: dict = {
+                "decile": d + 1,  # 1-indexed for display
+                "z_range": [float(edges[d]), float(edges[d + 1])],
+                "n_total": decile_n_obs[d],
+                "by_threshold": {},
+            }
+            for t in thresholds:
+                p_hat, n_exc, n_total, lo, hi = compute_exceedance_probability_with_ci(
+                    panel,
+                    response_col=resp_col,
+                    threshold=t,
+                    z_bin_mask=mask,
+                    n_boot=n_boot,
+                    seed=seed + d * 1000 + int(t),
+                )
+                decile_entry["by_threshold"][float(t)] = {
+                    "p_hat": p_hat,
+                    "n_exc": n_exc,
+                    "ci_95": [lo, hi],
+                }
+                _ = n_total  # already in decile_entry
+            results[resp_key].append(decile_entry)
+
+    return {
+        "pnode_label": pnode_label,
+        "response_cols": response_cols,
+        "z_col": z_col,
+        "thresholds": [float(t) for t in thresholds],
+        "n_boot": n_boot,
+        "n_total_filtered": int(len(panel)),
+        "decile_edges": [float(e) for e in edges],
+        "decile_n_obs": decile_n_obs,
+        "threshold_percentiles": threshold_pcts,
+        "results": results,
+    }

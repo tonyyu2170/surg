@@ -7,6 +7,7 @@ import pytest
 from surg.analysis.tail_risk_curves import (
     compute_exceedance_probability_with_ci,
     compute_threshold_percentiles,
+    run_pnode_tail_risk_curves,
     compute_z_deciles,
 )
 
@@ -120,3 +121,74 @@ def test_exceedance_probability_ci_includes_point_estimate():
 
     assert ci_low <= p_hat <= ci_high
     assert ci_high - ci_low < 0.15  # for n=500, CI width should be reasonable
+
+
+def test_exceedance_probability_all_exceedances_returns_wilson_lower():
+    """When every observation exceeds the threshold, p_hat=1; CI uses Wilson lower bound."""
+    panel = pd.DataFrame({
+        "z": np.arange(50),
+        "resp": np.full(50, 500.0),  # all exceed threshold=100
+    })
+    mask = np.ones(50, dtype=bool)
+
+    p_hat, n_exc, n_total, ci_low, ci_high = compute_exceedance_probability_with_ci(
+        panel, response_col="resp", threshold=100.0, z_bin_mask=mask, n_boot=50, seed=0
+    )
+
+    assert p_hat == 1.0
+    assert n_exc == 50
+    assert n_total == 50
+    assert ci_high == 1.0
+    # Wilson lower for (50, 50) at alpha=0.05: 50 / (50 + 1.96^2) = ~0.929
+    expected_low = 50 / (50 + 1.96**2)
+    assert ci_low == pytest.approx(expected_low, rel=1e-5)
+
+
+def test_run_pnode_tail_risk_curves_returns_full_schema():
+    """Per-pnode orchestrator returns nested dict with all expected fields."""
+    rng = np.random.default_rng(seed=3)
+    n = 2000
+    panel = pd.DataFrame({
+        "z": rng.exponential(scale=2.0, size=n),
+        "total_lmp_rt_cluster_mean": rng.lognormal(mean=3.5, sigma=1.0, size=n),
+        "congestion_price_rt_cluster_mean": rng.exponential(scale=10.0, size=n),
+    })
+
+    result = run_pnode_tail_risk_curves(
+        panel=panel,
+        pnode_label="primary",
+        response_cols={
+            "total_lmp": "total_lmp_rt_cluster_mean",
+            "congestion": "congestion_price_rt_cluster_mean",
+        },
+        z_col="z",
+        thresholds=[50.0, 100.0],
+        n_deciles=10,
+        n_boot=20,
+        seed=5,
+    )
+
+    assert result["pnode_label"] == "primary"
+    assert result["z_col"] == "z"
+    assert result["thresholds"] == [50.0, 100.0]
+    assert result["n_boot"] == 20
+    assert len(result["decile_edges"]) == 11
+    assert len(result["decile_n_obs"]) == 10
+    assert "threshold_percentiles" in result
+    assert "results" in result
+
+    for resp_key in ("total_lmp", "congestion"):
+        assert resp_key in result["results"]
+        deciles = result["results"][resp_key]
+        assert len(deciles) == 10
+        for decile_entry in deciles:
+            assert "decile" in decile_entry
+            assert "z_range" in decile_entry
+            assert "n_total" in decile_entry
+            assert "by_threshold" in decile_entry
+            for t in (50.0, 100.0):
+                cell = decile_entry["by_threshold"][t]
+                assert "p_hat" in cell
+                assert "n_exc" in cell
+                assert "ci_95" in cell
+                assert len(cell["ci_95"]) == 2

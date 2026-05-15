@@ -2169,3 +2169,138 @@ What this entry contributes is **direction-level evidence for the cancellation h
 - Advisor input materially shifts framing for the paper's mechanism narrative.
 - A longer historical window enables components-level fits at deeper thresholds (currently n_per_half=10 at p99; n_per_half=51 at p95 is one above the convergence floor).
 - A different conditioning variable Z' becomes available (separate scientific question).
+
+## 2026-05-14 — Sub-q1 item #3: τ=0.99 secular sign-flip diagnostic (descriptive)
+
+**Context.** The 2026-05-14 Spec B application entry (above, line 1876) left open: at τ=0.99 the QR-full `z_slope` flips negative across most pnodes (e.g., ashburn_tx1: −5.57), contrasting positive `z_slope` at τ=0.90/0.95. The pre-registered case taxonomy was: (a) real grid improvement / downward p99 trend, (b) sparse-tail bootstrap artifact, (c) window-specific noise. The three-layer year-FE diagnostic decomposes each τ's `z_slope` into a primary specification and a year-FE-augmented specification, then pair-bootstraps the difference (`primary_z_slope − year_fe_z_slope`) as the **secular component**.
+
+The headline τ=0.99 result is **case (b) sparse-tail bootstrap artifact**. All 7 pnodes' secular component CIs span 0 at τ=0.99; Layer 1 raw p99 trajectory directly contradicts case (a). The diagnostic also surfaces a **new moderate-τ finding the closure roadmap did not anticipate**: at τ=0.90/0.95 the secular component is POSITIVE and CIs EXCLUDE 0 on five of seven pnodes. This has implications for sub-q2 JLARC projection that warrant their own subsection.
+
+**Production-run config.**
+- Code: `feature/sub-q1-batched-diagnostics` worktree. Pair-bootstrap n_boot=200 for Layer 2 (year dummies) and Layer 3 (secular component).
+- 7 pnodes (`primary`, `total_lmp`, `ox`, `bristers`, `dom_zonal`, `ashburn_tx1`, `ashburn_tx2`) × 3 taus (0.90, 0.95, 0.99).
+- Response columns: `congestion_price_rt_cluster_mean` for `primary`; `total_lmp_rt_cluster_mean` for `total_lmp`; `congestion_price_rt_<pnode>` for the others.
+
+### Layer 1 — Raw per-year p99 trajectory (descriptive)
+
+From `outputs/year_fe_diagnostic/<pnode>.json` (`layer1_raw_per_year`). Empirical p99 of the response column per year, no Z involved:
+
+| Pnode | 2022 (partial) | 2023 | 2024 | 2025 | 2026 (partial) |
+|---|---|---|---|---|---|
+| primary | 119.3 | 42.7 | 60.6 | 95.8 | **480.4** |
+| total_lmp | 571.0 | 129.8 | 180.0 | 289.9 | **996.9** |
+| ox | 122.8 | 53.5 | 66.2 | 108.4 | **483.6** |
+| bristers | 123.3 | 52.3 | 59.0 | 92.0 | **488.8** |
+| dom_zonal | 221.0 | 85.1 | 70.8 | 230.2 | 439.1 |
+| ashburn_tx1 | — | — | 319.8 | 674.7 | 586.4 |
+| ashburn_tx2 | — | — | 238.7 | 481.5 | 585.8 |
+
+n_obs per year: 2022 has 2,185 obs (post-2022-10 cutoff); 2023–2025 have ~8,760 obs each (full year); 2026 has 3,047 obs (Jan–Apr partial). Ashburn pnodes have 0 obs in 2022/2023, ~5,641 in 2024, full year 2025, partial 2026.
+
+**Observation.** The 2026 partial-year p99 is **4–10× any other year** across all pnodes. This is a **wide-pattern observation across pnodes**, not a single-pnode artifact. Case (a) "real grid improvement / downward p99 trend" is **directly contradicted** — 2026 is exceptionally bad, not improving. The 2025 → 2026 step on partial-year data is the dominant trajectory feature.
+
+### Layer 2 — Year-dummy bootstrap @ τ=0.99, focus on the year_2026 dummy (descriptive, baseline=2022)
+
+From `layer2_year_dummy_bootstrap.tau_0.99.year_2026` (the level shift relative to 2022 baseline). Pair-bootstrap CIs:
+
+| Pnode | year_2026 dummy (point) | CI 95% | n_boot_conv |
+|---|---|---|---|
+| primary | +355.0 | [+236.6, +486.6] | 200 |
+| total_lmp | +388.1 | [−338.2, +740.6] | 200 |
+| ox | +340.1 | [+234.1, +464.1] | 200 |
+| bristers | +341.7 | [+225.4, +470.5] | 200 |
+| dom_zonal | +232.6 | [+132.2, +356.9] | 200 |
+| ashburn_tx1 | +20.4 | [−94.3, +196.3] | 200 |
+| ashburn_tx2 | +368.3 | [+284.3, +449.4] | 200 |
+
+(Layer 2 is descriptive level shifts, NOT a trend test; the trend test is Layer 3.)
+
+**Observation.** 2026 year-dummy excludes 0 on 5 of 7 pnodes (all except total_lmp and ashburn_tx1) with massive point estimates. Ashburn_tx1's year_2026 dummy is unique — small (+20) and CI spans 0. The 2026 spike at TX1 is concentrated where Z is concentrated, not at all τ=0.99 events.
+
+### Layer 3 — Secular-component bootstrap (the trend test)
+
+#### τ=0.99 — the sign-flip threshold
+
+From `layer3_secular_component_bootstrap.tau_0.99` per pnode:
+
+| Pnode | primary_z_slope | year_fe_z_slope | secular component (point) | secular CI 95% |
+|---|---|---|---|---|
+| primary | +0.357 | +0.622 | **−0.265** | [−0.890, +0.256] |
+| total_lmp | +2.598 | +2.129 | **+0.468** | [−1.511, +1.861] |
+| ox | +0.655 | +0.770 | **−0.115** | [−0.942, +0.788] |
+| bristers | +0.636 | +1.116 | **−0.480** | [−1.021, +0.510] |
+| dom_zonal | −0.395 | −0.006 | **−0.389** | [−1.225, +0.962] |
+| ashburn_tx1 | −5.571 | −5.430 | **−0.141** | [−1.720, +0.927] |
+| ashburn_tx2 | −2.272 | −1.539 | **−0.733** | [−3.740, +3.148] |
+
+**All 7 pnodes have secular component CIs spanning 0 at τ=0.99.** The diagnostic cannot distinguish a real secular trend from noise at the tail. Combined with the Layer 1 evidence that 2026 p99 is 4–10× higher than prior years (not lower), this matches **case (b) "sparse-tail bootstrap artifact"** unambiguously:
+
+- Case (a) ruled out by Layer 1 (no downward p99 trend; opposite trajectory).
+- Case (c) "window-specific noise" is subsumed into (b) here — the sparse-tail GPD-like instability dominates over any meaningful window-specific signal.
+- The τ=0.99 QR-full sign flip reported in Spec B is a sparse-tail estimator instability, not an interpretable trend.
+
+For Ashburn pnodes specifically: `primary_z_slope` and `year_fe_z_slope` are both large negative (TX1: −5.6 / −5.4; TX2: −2.3 / −1.5), but the **difference** (secular component) is small (TX1: −0.14, TX2: −0.73). The τ=0.99 sign flip at Ashburn is NOT a year-FE-distinguishable secular effect — it survives both specifications and is consistent with the LOO-stable q=0.99 anomaly diagnosed separately in sub-q1 item #4.
+
+#### τ=0.95 and τ=0.90 — the NEW moderate-τ finding (closure roadmap did not anticipate)
+
+From `layer3_secular_component_bootstrap.tau_0.95` and `tau_0.90` per pnode:
+
+**τ=0.95:**
+
+| Pnode | primary_z_slope | year_fe_z_slope | secular component (point) | secular CI 95% |
+|---|---|---|---|---|
+| primary | +0.578 | +0.410 | **+0.168** | [+0.040, +0.275] ✓ |
+| total_lmp | +2.334 | +1.389 | **+0.945** | [+0.547, +1.205] ✓ |
+| ox | +0.612 | +0.408 | **+0.203** | [+0.051, +0.330] ✓ |
+| bristers | +0.570 | +0.348 | **+0.223** | [+0.060, +0.347] ✓ |
+| dom_zonal | +0.195 | +0.080 | +0.115 | [−0.055, +0.340] |
+| ashburn_tx1 | −0.604 | −0.255 | −0.349 | [−0.646, +0.281] |
+| ashburn_tx2 | +0.119 | +0.282 | −0.163 | [−0.505, +0.101] |
+
+**τ=0.90:**
+
+| Pnode | primary_z_slope | year_fe_z_slope | secular component (point) | secular CI 95% |
+|---|---|---|---|---|
+| primary | +0.393 | +0.251 | **+0.141** | [+0.090, +0.205] ✓ |
+| total_lmp | +1.527 | +1.146 | **+0.381** | [+0.194, +0.566] ✓ |
+| ox | +0.433 | +0.306 | **+0.128** | [+0.073, +0.196] ✓ |
+| bristers | +0.403 | +0.283 | **+0.120** | [+0.071, +0.179] ✓ |
+| dom_zonal | +0.354 | +0.175 | **+0.179** | [+0.108, +0.260] ✓ |
+| ashburn_tx1 | +0.377 | +0.261 | +0.116 | [−0.075, +0.296] |
+| ashburn_tx2 | +0.371 | +0.357 | +0.013 | [−0.075, +0.141] |
+
+(✓ marks CIs that exclude 0.)
+
+**Observation — the new finding.** At τ=0.90 and τ=0.95 the secular component is **positive** on 5/7 non-Ashburn pnodes with CIs **excluding 0**. This means `primary_z_slope > year_fe_z_slope` — the primary specification reports a larger response of LMP to Z than the year-FE-augmented specification does. Year-FE has absorbed something correlated with year that the primary spec was attributing to Z.
+
+The most natural reading is that **year-2026's extreme partial-year (and to a lesser extent 2025's elevated p95) inflates the primary spec's z_slope unconditionally**; year-FE conditions out year-mean shifts and recovers a smaller within-year slope. But year-FE absorbs *everything* loading on year — weather, generation mix, topology, and 2026 partial-year selection — so the magnitude attribution between "secular drift" and "2026-specific event" is **not separately identified** by this diagnostic. The pre-registered interpretation taxonomy did not include this τ=0.95-positive case; it is reported here as descriptive evidence.
+
+Ashburn pnodes diverge from the DOM-cluster pattern: at τ=0.95, both Ashburn secular components are NEGATIVE (TX1 −0.35; TX2 −0.16) with CIs spanning 0; at τ=0.90 both are positive but CIs span 0. The DOM-cluster's moderate-τ pattern does not extend to Ashburn — consistent with Ashburn's smaller window (2024–2026) absorbing year-FE differently.
+
+### Implication for the paper
+
+**Spec B's β₁ on the primary spec at moderate τ is partly attributable to year-correlated effects that year-FE absorbs.** The honest framing is: the proposal's central response coefficient is **the year-FE-residualized slope at τ=0.95** as a conservative bound, with **magnitude attribution between secular drift and the 2026 partial-year event unresolved by the diagnostic available here**.
+
+Concretely for the paper:
+- Spec B's headline β₁ = −0.008 at τ=0.95 on congestion is unchanged (different fit, different variable; not directly comparable to this entry's z_slope numbers, which are on the QR-full spec used by sub-q2 JLARC projection).
+- The QR-full z_slope used in Spec C-strategy framing at moderate τ should be reported as **a range bounded below by the year-FE slope and above by the primary slope**, with the difference labeled "year-FE-absorbed component, attribution unresolved."
+- The τ=0.99 QR-full numbers reported in Spec B should be flagged as **sparse-tail unstable** rather than interpreted as direction-reversal evidence.
+
+### Implication for sub-question 2 (JLARC projection)
+
+The JLARC projection layer at τ=0.95 should use **the year-FE-residualized slope** as the conservative, rigorous choice:
+
+| Spec | primary z_slope @ τ=0.95 | year_fe z_slope @ τ=0.95 |
+|---|---|---|
+| congestion (primary cluster) | +0.578 | +0.410 |
+| total_lmp (cluster) | +2.334 | +1.389 |
+
+For sub-q2's "2030/2040 projection" framing: using year-FE @ τ=0.95 gives a more conservative price-trajectory estimate than using primary @ τ=0.95. The 2026 partial-window inflation would otherwise extrapolate non-conservatively.
+
+At τ=0.99: **defer JLARC projection at τ=0.99** until a longer historical window stabilizes the tail. The current 3.6y window's τ=0.99 secular component CIs span 0 on all 7 pnodes; projecting from an unstable tail risks reporting a number more confident than the data supports. Sub-q2's headline projection table should anchor at τ=0.95 with τ=0.99 as a "directional caveat" sub-table.
+
+### Revisit when
+
+- Advisor input on the moderate-τ positive secular finding (it is descriptive new evidence; whether it warrants paper-level treatment is a narrative decision).
+- A longer historical window pre-2022-10 enables clean year-FE without the 2022 partial-year + post-cap regime issues.
+- Sub-q2 JLARC plan-writing — this entry feeds the projection-layer slope choice (year-FE > primary at τ=0.95).

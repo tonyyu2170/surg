@@ -254,6 +254,40 @@ moderate-quantile z_slope evidence (year-FE @ τ=0.95) rather than at
 absolute $-threshold exceedance probabilities. Consistent with item
 #3 entry's recommendation.
 
+### 8. 5-min companion run (item #8) — added 2026-05-15
+
+**Status:** Pre-reg + design + implementation plan committed
+2026-05-15. Pending autonomous execution via slash command
+`/run-5min-companion`.
+
+**Pre-reg:** `docs/decisions.md` § "2026-05-15 — Sub-q1 item #8:
+5-min companion run (pre-reg)".
+
+**Design:** `docs/plans/2026-05-15-5min-companion-design.md`.
+
+**Implementation plan:**
+`docs/plans/2026-05-15-5min-companion-implementation.md`.
+
+**Scope (two parts):**
+- **Part A** — items #1–4 + #6 on a joint 30-day Z+LMP panel
+  (mid-Apr → mid-May 2026, bounded by `inst_load` 30-day retention).
+  Pre-registered as a feasibility probe: every CI is expected to span
+  0; the run documents the data wall in concrete numbers.
+  Bootstrap: pure island cluster bootstrap.
+- **Part B** — single new module computing 5-min vs PJM-published-
+  hourly spike-exceedance comparison on the full 6-month LMP-only
+  panel. Headline: hidden-fraction by threshold per pnode.
+  Descriptive only; no inferential CIs.
+
+**Why before item #5:** The advisor meeting is stronger if mechanism
++ descriptive findings come with a 5-min companion + an honest
+accounting of what 5-min granularity adds (and what it cannot
+recover, given the retention wall).
+
+**Effort estimate:** 10–15 h autonomous wall (user-authorized to
+overflow the 8h target). 22 implementation tasks; 5 setup tasks
+done pre-launch on `main`.
+
 ### 5. Advisor meeting (Prof Wei / Lihui)
 
 **Status:** Agenda at

@@ -2753,3 +2753,53 @@ conservative bound.
   qualitatively.
 - A longer historical window (pre-2022-10) is added to the panel —
   the filtered scope might capture different LMP magnitudes.
+
+---
+
+## 2026-05-15 — Sub-q1 item #8: 5-min companion run (pre-reg)
+
+**Context.** Sub-q1 closure (items #1–4 + #6) shipped at hourly
+resolution. The advisor meeting (item #5) is stronger if mechanism +
+descriptive findings come with a 5-min companion + an honest
+accounting of what 5-min granularity adds. Initial brainstorm
+assumed a 3.6y 5-min companion; API verification on 2026-05-15
+revealed `inst_load` is hard-capped at ~30-day PJM retention
+(`pjm-api-constraints.md:84`), making the joint Z+LMP analysis
+feasible only on a ~30-day window. 5-min LMP-only data is
+available for ~6 months on disk.
+
+**Decision.** Execute item #8 in two parts per the design at
+`docs/plans/2026-05-15-5min-companion-design.md`:
+
+- **Part A.** Items #1–4 + #6 on a joint 30-day Z+LMP panel
+  (mid-Apr → mid-May 2026). Pre-registered as a feasibility probe —
+  every CI is expected to span 0; the run documents the data wall
+  in concrete numbers. Bootstrap: pure island cluster bootstrap
+  (proposal-filter creates 3-hour islands separated by 21-hour gaps;
+  ~30 islands in window; below the 50-cluster floor for
+  cluster-bootstrap CI reliability — also pre-registered).
+- **Part B.** Single new module computing 5-min vs hourly
+  spike-exceedance comparison on the full 6-month LMP panel.
+  Headline comparator: PJM-published `total_lmp_rt` from
+  `rt_hrl_lmps`. Output: hidden-fraction by threshold per pnode.
+  Descriptive only; no inferential CIs.
+
+Implementation per
+`docs/plans/2026-05-15-5min-companion-implementation.md`. Execution
+via slash command `/run-5min-companion` (plan-driven launcher,
+≤ 4000 chars). Sibling worktree `../surg-5min-companion/`, commit
+per task, NO FF-merge, NO push.
+
+**Rationale.** The data-retention wall is a hard constraint, not a
+framing choice. Pre-registering the underpowered expectation
+prevents post-hoc "5-min looks the same" disappointment from being
+reframed as a finding; pre-registering the sub-50-cluster floor
+flag prevents post-hoc CI-noise from being read as substantive
+uncertainty. Part B is decoupled from Part A's Z constraint, giving
+an independently useful descriptive deliverable ("what does PJM
+hourly aggregation hide about 5-min spikes").
+
+**Revisit when.** Either (a) a longer-history 5-min DOM-load
+source surfaces (different PJM feed, advisor's private dataset,
+EIA), in which case Part A re-runs on a real window, or (b)
+advisor (item #5) reframes which resolution is the headline.

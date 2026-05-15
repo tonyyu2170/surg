@@ -7,7 +7,10 @@
 > confidence**. Brainstormed scope + sequencing with the user in-session.
 >
 > **Closure status as of 2026-05-14 night:** Items 1, 2, 3, 4 all DONE.
-> Item 5 (advisor meeting) remains as the only open closure step.
+> Items 5 (advisor meeting) and 6 (direct Z → LMP tail-risk
+> characterization, added late tonight) remain as open closure steps.
+> Item 6 sequenced BEFORE item 5 so the advisor sees the complete
+> sub-q1 picture (mechanism + descriptive characterization).
 > Commits (chronological):
 > - Item 1 — Spec B continuous ξ(Z): `fe2cb94` (FF-merged earlier).
 > - Item 2 — LMP-components decomposition (reframed from "response-
@@ -20,8 +23,14 @@
 >   outlier-driven RULED OUT (LOO 0/175 sign-change); cases (a) and
 >   (c) remain candidate. Framed as "robust unexplained anomaly worth
 >   investigating" for methods-section subsection.
-> - Item 5 — Advisor meeting: agenda updated below to reflect the
->   above; not yet scheduled.
+> - Item 5 — Advisor meeting: agenda needs updating; not yet scheduled.
+> - Item 6 — Direct Z → LMP tail-risk characterization: **added
+>   2026-05-14 night** after the user clarified the sub-q1 framing
+>   (*"what range of load variance causes LMP to essentially go crazy"*
+>   is fundamentally a descriptive characterization of the conditional
+>   Z → LMP distribution, not a mechanism test). Items #1-4 stay as
+>   mechanism supporting evidence; item #6 adds the direct empirical
+>   answer. Design pending brainstorm.
 
 ## What's already done (as of 2026-05-14)
 
@@ -188,6 +197,64 @@ advisor + paper-writing):
 - Independent Ashburn-like 35 kV pnode at a different substation —
   not available in current dataset.
 
+### 6. Direct Z → LMP tail-risk characterization *(added 2026-05-14 night)*
+
+> **Why this item exists.** Items #1-4 are **mechanism tests** — they
+> ask *why* LMP gets crazy at high Z (ORDC scarcity, cancellation
+> hypothesis, components decomposition). The user's stated sub-q1
+> framing — *"what range of load variance causes LMP to essentially
+> go crazy"* — is a **descriptive characterization** of where in
+> Z-space LMP's tail behavior lights up. The mechanism tests imply
+> the answer (positive z_slope at τ=0.95 means higher Z → higher
+> conditional 95th-pct LMP) but don't directly produce the artifact
+> the framing wants.
+
+**Status:** Added 2026-05-14 night. Design pending brainstorm; not yet
+executed.
+
+**What it produces (target):** A binned or smooth characterization of
+the conditional Z → LMP distribution, specifically focused on the
+upper tail. Final form to be determined in brainstorm; candidate
+outputs include:
+
+- Z-bin × P(LMP > $threshold) table, for several thresholds (e.g.,
+  $200, $500, $1000) — answers "in which Z range does P(crazy LMP)
+  exceed N%?"
+- Z-bin × conditional quantile of LMP (50th, 95th, 99th) — answers
+  "at what Z does the 99th-pct LMP cross $X?"
+- Tail expectation E[LMP | LMP > cutoff, Z bin] — answers "given
+  that LMP is already in the tail, how much worse is it at high Z?"
+
+**Why before item #5 (advisor meeting):** The advisor sees the
+complete sub-q1 picture (mechanism + descriptive characterization)
+before weighing in on paper framing. Calendar latency on advisor
+scheduling absorbs the implementation time. If item #6 surfaces an
+unexpected pattern (e.g., the "crazy region" is at LOW Z, opposite
+the proposal's prediction), advisor framing shifts.
+
+**Design decisions pending brainstorm:**
+- Z binning strategy (quantile vs equally-spaced MW/min vs
+  physically-meaningful breakpoints from ORDC-curve documentation)
+- "Crazy" cutoff(s) — $200 / $500 / $1000 thresholds; conditional
+  quantile-based; tail expectation
+- Response variable(s) — total_lmp, congestion, components-decomposed
+- Pnode scope — primary cluster only, all 7, voltage-stratified
+- Filter — proposal-filter (consistency with prior mechanism work)
+  vs raw panel (a separate descriptive view)
+- Pre-reg discipline — descriptive only, or pre-committed binning
+  + thresholds to avoid post-hoc cherry-picking (per the discipline
+  used in items #2-4)
+- Output artifact — table, plot, both; static, interactive
+
+**Effort estimate:** Half-day implementation; brainstorm + plan add
+~1 hour.
+
+**Closes:** the direct empirical answer to the user's stated sub-q1
+framing. Items #1-4 stay as mechanism supporting evidence in the
+paper. Without item #6, the paper would have substantial *why*
+evidence but no clean *where* artifact answering the user's
+own question.
+
 ### 5. Advisor meeting (Prof Wei / Lihui)
 
 **Status:** Agenda at
@@ -217,7 +284,7 @@ decisions that any of items 1-4 above might need re-doing.
 
 ```
                                 ┌──── 3. τ=0.99 ✓ ────┐
-1. Spec B ✓ ─→ 2. Components ✓ ─┤                     │── 5. Advisor meeting ─→ paper-ready sub-q1
+1. Spec B ✓ ─→ 2. Components ✓ ─┤                     │── 6. Z-bin tail-risk ─→ 5. Advisor meeting ─→ paper-ready sub-q1
                                 └──── 4. Ashburn ✓ ───┘
 ```
 
@@ -225,8 +292,11 @@ decisions that any of items 1-4 above might need re-doing.
   (2026-05-14). Original "3-5 weeks" estimate compressed by batching
   items 2, 3, 4 into one production run + one round of application
   entries (commits `01ebbd8` / `72456bb` / `fd0065c`).
-- Item 5 (advisor meeting) is the only remaining step. Agenda needs
-  updating to reflect the moderate-τ secular finding (new from item
+- Items 6 and 5 remain. Item 6 (added 2026-05-14 night) is the
+  direct descriptive answer to the user's stated sub-q1 framing —
+  sequenced before item 5 so the advisor sees mechanism +
+  description together. Agenda for item 5 needs updating to reflect
+  the moderate-τ secular finding (new from item
   3) and the Ashburn q=0.99 anomaly framing (sharpened from item 4).
 
 ## What "paper-publishable" means here

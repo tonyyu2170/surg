@@ -2418,3 +2418,93 @@ LOO measures the **fit's robustness to single-observation exclusion**. It does N
 - Temporal-clustering check on TX1's q=0.99 exceedances completes (requires loading the panel and inspecting the exceedance-set timestamps; not done in this entry).
 - Spline-form re-fit at TX1 q=0.99 specifically (the LRT p=0.000 suggests non-linearity; a spline may characterize the q=0.99 shape qualitatively).
 - A pre-2024 Ashburn data source or a second Ashburn-like 35 kV LOAD pnode at a different substation becomes available — would provide independent evidence for case (a).
+
+## 2026-05-14 — Post-sub-q1 research agenda + sub-q1 framing clarification (item #6 added)
+
+**Context.** A status-update conversation tonight surfaced that the
+sub-q1 framing the user has been holding is **descriptive**, not
+mechanistic: *"what range of load variance causes LMP to essentially
+go crazy."* The work to date (items #1-4 in the sub-q1 closure
+roadmap, plus the Strategy C / Spec B foundation) has been
+**mechanism-focused** — testing whether ORDC's predicted direction
+holds, whether components cancel, whether Ashburn TX1's q=0.99 sign
+is robust. These tests imply the descriptive answer (positive z_slope
+at τ=0.95 → higher Z drives higher conditional 95th-pct LMP) but do
+not directly produce a clean *"Z in range [a, b] makes LMP cross
+$X with probability P"* artifact.
+
+This entry records two decisions made tonight in light of that
+clarification:
+
+### Decision 1 — Sub-q1 closure now includes item #6
+
+Item #6 (direct Z → LMP tail-risk characterization) added to
+`docs/plans/2026-05-14-sub-question-1-closure-roadmap.md`. Items
+#1-4 stay as **mechanism supporting evidence**, not replaced.
+Sequenced **before item #5 (advisor meeting)** so the advisor sees
+the complete sub-q1 picture (mechanism + descriptive
+characterization) together. Design pending brainstorm; effort
+estimate ~half a day implementation + ~1 hour design.
+
+The descriptive question item #6 answers is closer to the
+**proposal's original sub-q1 framing** (*"at what load-variance
+threshold ... does LMP transition to heavy-tailed"*) than the
+mechanism-first reframing used in items #1-4 was. The proposal's
+threshold framing was already ruled out by the smooth-curve
+diagnosis (2026-05-13); item #6 replaces "threshold" with "range"
+and characterizes the smooth response empirically.
+
+### Decision 2 — Post-sub-q1 research agenda (event correlation + time trends)
+
+The user identified two follow-up directions explicitly **post**
+sub-q1:
+
+1. **Real-world event correlation.** Cross-referencing LMP-volatility
+   events with PJM outage logs, weather incidents, named generation
+   events — confirming volatility-driven extremes are NOT
+   supply-side noise. This is **Phase 1/2 of the original SURG
+   proposal**; mostly not done yet. The 2-5 AM + shoulder-season
+   filter currently in use is a *coarse* version (excludes most
+   supply-side spikes by construction); the follow-up sharpens it
+   with specific event matching.
+
+2. **Time-trend characterization.** "Do crazy events occur more
+   often as more data centers come online?" This is **sub-q2
+   (JLARC projection)**. The design + JLARC Rpt598-2 extraction +
+   napkin-math are already shipped to `docs/plans/2026-05-14-jlarc-
+   projection-*.md`; implementation plan-writing is gated on
+   sub-q1 closure.
+
+#### Mapping table
+
+| User's framing | Project sub-q | Status |
+|---|---|---|
+| "What range of Z makes LMP crazy?" | sub-q1 item #6 (NEW, added tonight) | Design pending brainstorm |
+| "Why does it happen?" | sub-q1 items #1-4 (mechanism work) | All DONE (`fe2cb94` / `01ebbd8` / `72456bb` / `fd0065c`) |
+| "Are events related to real-world incidents?" | **sub-q3** (event correlation, NEW addition tonight) | Gated by sub-q1 closure |
+| "Are events more frequent as more DCs come online?" | sub-q2 (JLARC projection) | Plan-writing gated by sub-q1 closure |
+
+#### Gating order (locked tonight)
+
+1. Sub-q1 item #6 — direct Z → LMP tail-risk characterization.
+2. Sub-q1 item #5 — advisor meeting.
+3. Sub-q1 paper-ready.
+4. Sub-q2 (JLARC projection) plan-writing unlocks; design + execute.
+5. Sub-q3 (event correlation) plan-writing unlocks; design + execute.
+
+The unlocks are sequential because:
+- Sub-q2's slope-choice depends on sub-q1's framing decisions
+  (e.g., year-FE z_slope @ τ=0.95 was set tonight by item #3).
+- Sub-q3's "what counts as an event" definition depends on
+  sub-q1 item #6's output (e.g., if item #6 defines crazy LMP =
+  P(LMP > $500 | Z > 5 MW/min) > 30%, sub-q3 looks at the
+  timestamps in that intersection).
+
+### Revisit when
+
+- Sub-q1 closes fully (items #5 + #6 both done) — re-evaluate
+  whether sub-q2 should start before sub-q3 or in parallel.
+- A NEW finding from sub-q1 closure work (advisor meeting or item
+  #6) materially changes the sub-q2 / sub-q3 framing.
+- The user pivots priorities (e.g., decides event correlation
+  should happen before JLARC projection).

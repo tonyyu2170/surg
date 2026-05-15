@@ -458,7 +458,7 @@ def test_run_pnode_tail_risk_curves_returns_full_schema():
     assert result["z_col"] == "z"
     assert result["thresholds"] == [50.0, 100.0]
     assert result["n_boot"] == 20
-    assert len(result["decile_edges"]) == 11
+    assert len(result["decile_edges_mw_per_min"]) == 11
     assert len(result["decile_n_obs"]) == 10
     assert "threshold_percentiles" in result
     assert "results" in result
@@ -469,7 +469,7 @@ def test_run_pnode_tail_risk_curves_returns_full_schema():
         assert len(deciles) == 10
         for decile_entry in deciles:
             assert "decile" in decile_entry
-            assert "z_range" in decile_entry
+            assert "z_range_mw_per_min" in decile_entry
             assert "n_total" in decile_entry
             assert "by_threshold" in decile_entry
             for t in (50.0, 100.0):
@@ -525,7 +525,7 @@ def run_pnode_tail_risk_curves(
             mask = bin_indices == d
             decile_entry: dict = {
                 "decile": d + 1,  # 1-indexed for display
-                "z_range": [float(edges[d]), float(edges[d + 1])],
+                "z_range_mw_per_min": [float(edges[d]), float(edges[d + 1])],
                 "n_total": decile_n_obs[d],
                 "by_threshold": {},
             }
@@ -553,7 +553,7 @@ def run_pnode_tail_risk_curves(
         "thresholds": [float(t) for t in thresholds],
         "n_boot": n_boot,
         "n_total_filtered": int(len(panel)),
-        "decile_edges": [float(e) for e in edges],
+        "decile_edges_mw_per_min": [float(e) for e in edges],
         "decile_n_obs": decile_n_obs,
         "threshold_percentiles": threshold_pcts,
         "results": results,
@@ -595,13 +595,13 @@ def test_aggregate_cross_pnode_summary_extracts_top_decile():
         {
             "pnode_label": "primary",
             "thresholds": [100.0, 500.0],
-            "decile_edges": [0.0] + [float(i) for i in range(1, 11)],  # 11 edges
+            "decile_edges_mw_per_min": [0.0] + [float(i) for i in range(1, 11)],  # 11 edges
             "decile_n_obs": [100] * 10,
             "results": {
                 "total_lmp": [
                     {
                         "decile": d + 1,
-                        "z_range": [d * 1.0, (d + 1) * 1.0],
+                        "z_range_mw_per_min": [d * 1.0, (d + 1) * 1.0],
                         "n_total": 100,
                         "by_threshold": {
                             100.0: {"p_hat": 0.01 * d, "n_exc": d, "ci_95": [0.0, 0.02 * d]},
@@ -613,7 +613,7 @@ def test_aggregate_cross_pnode_summary_extracts_top_decile():
                 "congestion": [
                     {
                         "decile": d + 1,
-                        "z_range": [d * 1.0, (d + 1) * 1.0],
+                        "z_range_mw_per_min": [d * 1.0, (d + 1) * 1.0],
                         "n_total": 100,
                         "by_threshold": {
                             100.0: {"p_hat": 0.02 * d, "n_exc": 2 * d, "ci_95": [0.0, 0.04 * d]},
@@ -627,13 +627,13 @@ def test_aggregate_cross_pnode_summary_extracts_top_decile():
         {
             "pnode_label": "dom_zonal",
             "thresholds": [100.0, 500.0],
-            "decile_edges": [0.0] + [float(i) for i in range(1, 11)],
+            "decile_edges_mw_per_min": [0.0] + [float(i) for i in range(1, 11)],
             "decile_n_obs": [100] * 10,
             "results": {
                 "total_lmp": [
                     {
                         "decile": d + 1,
-                        "z_range": [d * 1.0, (d + 1) * 1.0],
+                        "z_range_mw_per_min": [d * 1.0, (d + 1) * 1.0],
                         "n_total": 100,
                         "by_threshold": {
                             100.0: {"p_hat": 0.005 * d, "n_exc": d, "ci_95": [0.0, 0.01 * d]},
@@ -645,7 +645,7 @@ def test_aggregate_cross_pnode_summary_extracts_top_decile():
                 "congestion": [
                     {
                         "decile": d + 1,
-                        "z_range": [d * 1.0, (d + 1) * 1.0],
+                        "z_range_mw_per_min": [d * 1.0, (d + 1) * 1.0],
                         "n_total": 100,
                         "by_threshold": {
                             100.0: {"p_hat": 0.01 * d, "n_exc": d, "ci_95": [0.0, 0.02 * d]},
@@ -709,9 +709,9 @@ def aggregate_cross_pnode_summary(per_pnode_results: list[dict]) -> dict:
 
         pnodes_out.append({
             "pnode_label": entry["pnode_label"],
-            "z_range_top_decile": [
-                float(entry["decile_edges"][-2]),
-                float(entry["decile_edges"][-1]),
+            "z_range_top_decile_mw_per_min": [
+                float(entry["decile_edges_mw_per_min"][-2]),
+                float(entry["decile_edges_mw_per_min"][-1]),
             ],
             "n_top_decile": int(entry["decile_n_obs"][-1]),
             "results": top_decile_by_resp,
@@ -814,7 +814,7 @@ def plot_tail_risk_curves(per_pnode: dict, out_path: Path) -> None:
 
     pnode_label = per_pnode["pnode_label"]
     thresholds = per_pnode["thresholds"]
-    edges = per_pnode["decile_edges"]
+    edges = per_pnode["decile_edges_mw_per_min"]
     threshold_pcts = per_pnode["threshold_percentiles"]
 
     decile_centers = list(range(1, 11))
@@ -945,7 +945,7 @@ def test_run_tail_risk_curves_writes_all_expected_outputs(tmp_path):
     with open(tr_dir / "primary.json") as f:
         primary = json.load(f)
     assert primary["pnode_label"] == "primary"
-    assert "decile_edges" in primary
+    assert "decile_edges_mw_per_min" in primary
     assert "results" in primary
     assert "total_lmp" in primary["results"]
     assert "congestion" in primary["results"]
@@ -1092,8 +1092,8 @@ def _write_cross_pnode_csv(summary: dict, out_path: Path) -> None:
         for p in summary["pnodes"]:
             row = [
                 p["pnode_label"],
-                p["z_range_top_decile"][0],
-                p["z_range_top_decile"][1],
+                p["z_range_top_decile_mw_per_min"][0],
+                p["z_range_top_decile_mw_per_min"][1],
                 p["n_top_decile"],
             ]
             for r in response_vars:
@@ -1296,7 +1296,7 @@ Expected:
 import json
 with open('outputs/tail_risk_curves/primary.json') as f:
     d = json.load(f)
-print('decile edges (MW/min):', [round(e, 2) for e in d['decile_edges']])
+print('decile edges (MW/min):', [round(e, 2) for e in d['decile_edges_mw_per_min']])
 print('threshold percentiles (total_lmp):', d['threshold_percentiles']['total_lmp'])
 print()
 print('Top-decile P(total_lmp > thresholds):')
@@ -1331,7 +1331,7 @@ for name in ['primary', 'dom_zonal', 'ashburn_tx1', 'ashburn_tx2']:
         d = json.load(f)
     print(f'=== {name} ===')
     print(f'n_total_filtered: {d[\"n_total_filtered\"]}')
-    print(f'decile edges: {[round(e, 2) for e in d[\"decile_edges\"]]}')
+    print(f'decile edges: {[round(e, 2) for e in d[\"decile_edges_mw_per_min\"]]}')
     print(f'threshold percentiles (total_lmp): {d[\"threshold_percentiles\"][\"total_lmp\"]}')
     print('Top-decile total_lmp:')
     for t, cell in d['results']['total_lmp'][-1]['by_threshold'].items():

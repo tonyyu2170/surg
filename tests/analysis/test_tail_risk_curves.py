@@ -9,6 +9,7 @@ from surg.analysis.tail_risk_curves import (
     compute_exceedance_probability_with_ci,
     compute_threshold_percentiles,
     compute_z_deciles,
+    plot_tail_risk_curves,
     run_pnode_tail_risk_curves,
 )
 
@@ -276,3 +277,42 @@ def test_aggregate_cross_pnode_summary_extracts_top_decile():
     # Top decile (d=9) values: 0.01 * 9 = 0.09 (total_lmp @ 100)
     assert primary_entry["results"]["total_lmp"][100.0]["p_hat"] == pytest.approx(0.09)
     assert primary_entry["results"]["total_lmp"][500.0]["p_hat"] == pytest.approx(0.045)
+
+    # Verify structural properties:
+    assert summary["n_boot"] == 200  # propagated from input
+    assert primary_entry["z_range_top_decile_mw_per_min"] == [9.0, 10.0]
+    assert primary_entry["n_top_decile"] == 100
+    assert 500.0 in primary_entry["results"]["congestion"]  # congestion response present
+    dom_zonal_entry = next(p for p in summary["pnodes"] if p["pnode_label"] == "dom_zonal")
+    assert dom_zonal_entry["results"]["total_lmp"][100.0]["p_hat"] == pytest.approx(0.045)
+    # ci_95 propagated:
+    assert primary_entry["results"]["total_lmp"][100.0]["ci_95"] == [0.0, pytest.approx(0.18)]
+
+
+def test_plot_tail_risk_curves_writes_png(tmp_path):
+    """Plot smoke test: given a per-pnode result dict, writes a non-empty PNG."""
+    rng = np.random.default_rng(seed=99)
+    n = 1000
+    panel = pd.DataFrame({
+        "z": rng.exponential(scale=1.0, size=n),
+        "total_lmp_rt_cluster_mean": rng.lognormal(mean=3.5, sigma=1.0, size=n),
+        "congestion_price_rt_cluster_mean": rng.exponential(scale=10.0, size=n),
+    })
+    per_pnode = run_pnode_tail_risk_curves(
+        panel=panel,
+        pnode_label="test_pnode",
+        response_cols={
+            "total_lmp": "total_lmp_rt_cluster_mean",
+            "congestion": "congestion_price_rt_cluster_mean",
+        },
+        z_col="z",
+        thresholds=[10.0, 50.0, 100.0],
+        n_boot=20,
+        seed=11,
+    )
+
+    out_path = tmp_path / "test_plot.png"
+    plot_tail_risk_curves(per_pnode, out_path)
+
+    assert out_path.exists()
+    assert out_path.stat().st_size > 5_000  # non-trivial PNG

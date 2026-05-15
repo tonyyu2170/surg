@@ -199,7 +199,7 @@ def aggregate_cross_pnode_summary(per_pnode_results: list[dict]) -> dict:
     Each pnode entry has top-decile p_hat + CI per (response, threshold).
     """
     if not per_pnode_results:
-        return {"scope": "top_decile_only", "thresholds": [], "pnodes": []}
+        return {"n_boot": None, "scope": "top_decile_only", "thresholds": [], "pnodes": []}
 
     thresholds = per_pnode_results[0]["thresholds"]
     n_boot = per_pnode_results[0].get("n_boot")
@@ -234,3 +234,65 @@ def aggregate_cross_pnode_summary(per_pnode_results: list[dict]) -> dict:
         "scope": "top_decile_only",
         "pnodes": pnodes_out,
     }
+
+
+def plot_tail_risk_curves(per_pnode: dict, out_path) -> None:
+    """2-panel chart: P(LMP > $X | Z decile) for total_lmp + congestion.
+
+    X-axis: decile index 1-10 with MW/min edge labels.
+    Y-axis: exceedance probability with bootstrap 95% CI ribbon.
+    Lines: one per $-threshold, colored by viridis.
+    """
+    # Local import to avoid loading matplotlib at module import time
+    import matplotlib
+    matplotlib.use("Agg")  # non-interactive backend for headless runs
+    import matplotlib.pyplot as plt
+    from matplotlib.cm import viridis
+
+    pnode_label = per_pnode["pnode_label"]
+    thresholds = per_pnode["thresholds"]
+    edges = per_pnode["decile_edges_mw_per_min"]
+    threshold_pcts = per_pnode["threshold_percentiles"]
+
+    decile_centers = list(range(1, 11))
+    xtick_labels = [
+        f"{d}\n[{edges[d-1]:.1f},\n{edges[d]:.1f}]"
+        for d in decile_centers
+    ]
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharey=True)
+
+    for ax, resp_key in zip(axes, ("total_lmp", "congestion")):
+        deciles = per_pnode["results"][resp_key]
+        n_thresh = len(thresholds)
+        for i, t in enumerate(thresholds):
+            ps = [d["by_threshold"][t]["p_hat"] for d in deciles]
+            lo = [d["by_threshold"][t]["ci_95"][0] for d in deciles]
+            hi = [d["by_threshold"][t]["ci_95"][1] for d in deciles]
+            color = viridis(i / max(1, n_thresh - 1))
+            pct = threshold_pcts.get(resp_key, {}).get(t, None)
+            label = (
+                f"${int(t)} (p{pct*100:.1f})" if pct is not None else f"${int(t)}"
+            )
+            ax.plot(
+                decile_centers, ps,
+                color=color, linewidth=1 + i * 0.4, marker="o", label=label,
+            )
+            ax.fill_between(decile_centers, lo, hi, color=color, alpha=0.15)
+
+        ax.set_title(f"{resp_key}")
+        ax.set_xlabel("Z decile (MW/min range)")
+        ax.set_xticks(decile_centers)
+        ax.set_xticklabels(xtick_labels, fontsize=8)
+        ax.set_ylim(bottom=0)
+        ax.grid(True, alpha=0.3)
+        ax.legend(title="threshold $ (pct)", loc="upper left", fontsize=8)
+
+    axes[0].set_ylabel("P(LMP > $threshold)")
+    fig.suptitle(
+        f"{pnode_label}: P(LMP > $X) by Z decile "
+        f"(proposal-filter, n_boot={per_pnode['n_boot']}, hourly)"
+    )
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=120)
+    plt.close(fig)

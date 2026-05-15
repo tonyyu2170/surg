@@ -245,6 +245,8 @@ def run_all(
                 out_root=out_root,
                 n_boot=tail_risk_n_boot,
                 seed=seed,
+                bootstrap_method=bootstrap_method,
+                pnode_labels=tail_risk_pnodes,
             )
 
     # Note: leave_one_season_out (robustness.py) is intentionally NOT called

@@ -72,6 +72,8 @@ def compute_exceedance_probability_with_ci(
     z_bin_mask: np.ndarray,
     n_boot: int = 200,
     seed: int = 0,
+    bootstrap_method: str = "pair",
+    island_ids: pd.Series | None = None,
 ) -> tuple[float, int, int, float, float]:
     """Pair-bootstrap CI for P(response > threshold | row in z_bin_mask).
 
@@ -117,12 +119,45 @@ def compute_exceedance_probability_with_ci(
         ci_low = n_total / (n_total + z2)
         return p_hat, n_exc, n_total, float(ci_low), 1.0
 
-    # Pair-bootstrap: resample (z_bin_mask rows) with replacement.
+    # Bootstrap: pair preserves byte-for-byte equivalence with the
+    # pre-refactor implementation (regression test gate); cluster
+    # resamples whole islands within the bin's rows for the 5-min
+    # companion (sub-q1 item #8).
     rng = np.random.default_rng(seed)
     boot_p = np.empty(n_boot, dtype=np.float64)
-    for i in range(n_boot):
-        idx = rng.integers(0, n_total, size=n_total)
-        boot_p[i] = is_exc[idx].mean()
+    if bootstrap_method == "pair":
+        for i in range(n_boot):
+            idx = rng.integers(0, n_total, size=n_total)
+            boot_p[i] = is_exc[idx].mean()
+    elif bootstrap_method == "cluster":
+        if island_ids is None:
+            raise ValueError(
+                "bootstrap_method='cluster' requires island_ids aligned to "
+                "the bin's rows"
+            )
+        # Slice island_ids to the bin's rows, in the same order is_exc was
+        # computed (panel.loc[z_bin_mask, response_col].dropna()).
+        bin_island_ids = (
+            island_ids.loc[z_bin_mask]
+            .iloc[: len(bin_resp)]  # align to dropna order
+            .reset_index(drop=True)
+        )
+        unique = bin_island_ids.unique()
+        K = len(unique)
+        for i in range(n_boot):
+            sampled = rng.choice(unique, size=K, replace=True)
+            # All bin rows whose island id is in the sampled list,
+            # with multiplicity = count of that island id in `sampled`
+            picks: list[np.ndarray] = []
+            for iid in sampled:
+                rows_in_island = (bin_island_ids == iid).to_numpy()
+                picks.append(is_exc[rows_in_island])
+            if not picks:
+                boot_p[i] = 0.0
+            else:
+                boot_p[i] = np.concatenate(picks).mean()
+    else:
+        raise ValueError(f"Unknown bootstrap_method: {bootstrap_method!r}")
 
     ci_low, ci_high = np.quantile(boot_p, [0.025, 0.975])
     return p_hat, n_exc, n_total, float(ci_low), float(ci_high)
@@ -138,6 +173,8 @@ def run_pnode_tail_risk_curves(
     n_deciles: int = 10,
     n_boot: int = 200,
     seed: int = 0,
+    bootstrap_method: str = "pair",
+    island_ids: pd.Series | None = None,
 ) -> dict:
     """Per-pnode orchestrator: compute the full P(response > threshold | z decile)
     table for two response variables (typically total_lmp + congestion).
@@ -174,6 +211,8 @@ def run_pnode_tail_risk_curves(
                     z_bin_mask=mask,
                     n_boot=n_boot,
                     seed=seed + d * 100_000 + int(t),
+                    bootstrap_method=bootstrap_method,
+                    island_ids=island_ids,
                 )
                 decile_entry["by_threshold"][float(t)] = {
                     "p_hat": p_hat,
@@ -384,11 +423,18 @@ def run_tail_risk_curves(
     thresholds: list[float] | None = None,
     n_boot: int = 200,
     seed: int = 0,
+    bootstrap_method: str = "pair",
+    pnode_labels: tuple[str, ...] | None = None,
 ) -> None:
     """Top-level orchestrator: applies the proposal-filter, runs all
     per-pnode + cross-pnode analyses, writes outputs to disk.
 
     Writes 5 JSONs + 4 PNGs + 1 CSV under ``out_root/tail_risk_curves/``.
+
+    Sub-q1 item #8 additions:
+    - bootstrap_method: "pair" (default; preserves hourly behavior) or
+      "cluster" (5-min companion: resample whole 3-hour islands).
+    - pnode_labels: subset of CROSS_PNODE_PNODES to process. None = all.
     """
     if thresholds is None:
         thresholds = DEFAULT_THRESHOLDS.copy()
@@ -400,14 +446,35 @@ def run_tail_risk_curves(
     # Materialize derived total_lmp columns where features.py didn't label them.
     filtered = _ensure_total_lmp_columns(filtered, CROSS_PNODE_PNODES)
 
+    # Compute island_ids on the filtered panel (only needed for cluster
+    # bootstrap; identify_islands assigns one int per filtered row based
+    # on >10-minute timestamp gaps).
+    if bootstrap_method == "cluster":
+        from surg.analysis.bootstrap_strategies import identify_islands
+        island_ids = identify_islands(
+            pd.DatetimeIndex(filtered["datetime_beginning_ept"]),
+            pd.Series(True, index=filtered.index),
+            gap_threshold_minutes=10,
+        )
+    else:
+        island_ids = None
+
+    pnodes_to_process = (
+        pnode_labels if pnode_labels is not None else CROSS_PNODE_PNODES
+    )
+
     all_results: list[dict] = []
 
-    # Per-pnode pass (cross-pnode set includes all 7 pnodes; only 4 get plots)
-    for pnode_label in CROSS_PNODE_PNODES:
+    for pnode_label in pnodes_to_process:
         response_cols = PNODE_TO_RESPONSE[pnode_label]
         # Drop NA rows in either response column for this pnode
         cols = list(response_cols.values()) + [Z_COL]
         sub = filtered.dropna(subset=cols)
+        # Slice island_ids to match `sub`'s row index (dropna preserves
+        # index labels)
+        sub_island_ids = (
+            island_ids.loc[sub.index] if island_ids is not None else None
+        )
 
         result = run_pnode_tail_risk_curves(
             panel=sub,
@@ -418,6 +485,8 @@ def run_tail_risk_curves(
             n_deciles=10,
             n_boot=n_boot,
             seed=seed,
+            bootstrap_method=bootstrap_method,
+            island_ids=sub_island_ids,
         )
         # Inject filter provenance (per-pnode orchestrator can't know this)
         result["filter"] = FILTER_DESC

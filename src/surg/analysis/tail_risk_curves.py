@@ -11,6 +11,10 @@ the descriptive WHERE.
 """
 from __future__ import annotations
 
+import csv
+import json
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -236,16 +240,17 @@ def aggregate_cross_pnode_summary(per_pnode_results: list[dict]) -> dict:
     }
 
 
-def plot_tail_risk_curves(per_pnode: dict, out_path) -> None:
+def plot_tail_risk_curves(per_pnode: dict, out_path: Path) -> None:
     """2-panel chart: P(LMP > $X | Z decile) for total_lmp + congestion.
 
     X-axis: decile index 1-10 with MW/min edge labels.
     Y-axis: exceedance probability with bootstrap 95% CI ribbon.
     Lines: one per $-threshold, colored by viridis.
     """
-    # Local import to avoid loading matplotlib at module import time
-    import matplotlib
-    matplotlib.use("Agg")  # non-interactive backend for headless runs
+    # Local import to avoid loading matplotlib at module import time.
+    # Backend selection (Agg for headless test runs) is handled by
+    # conftest.py via MPLBACKEND env var; library code does not call
+    # matplotlib.use() to avoid mutating process-level state.
     import matplotlib.pyplot as plt
     from matplotlib.cm import viridis
 
@@ -289,10 +294,163 @@ def plot_tail_risk_curves(per_pnode: dict, out_path) -> None:
         ax.legend(title="threshold $ (pct)", loc="upper left", fontsize=8)
 
     axes[0].set_ylabel("P(LMP > $threshold)")
+    filter_desc = per_pnode.get("filter", "")
     fig.suptitle(
         f"{pnode_label}: P(LMP > $X) by Z decile "
-        f"(proposal-filter, n_boot={per_pnode['n_boot']}, hourly)"
+        f"(filter: {filter_desc}, n_boot={per_pnode['n_boot']}, hourly)"
     )
     fig.tight_layout()
     fig.savefig(out_path, dpi=120)
     plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+DEFAULT_THRESHOLDS = [100.0, 250.0, 500.0, 1000.0, 2000.0]
+Z_COL = "dom_load_gradient_abs_mw_per_min"
+FILTER_COL = "passes_proposal_filter"
+FILTER_DESC = "passes_proposal_filter == True"
+PNODE_TO_RESPONSE: dict[str, dict[str, str]] = {
+    "primary": {
+        "total_lmp": "total_lmp_rt_cluster_mean",
+        "congestion": "congestion_price_rt_cluster_mean",
+    },
+    "dom_zonal": {
+        "total_lmp": "total_lmp_rt_dom_zonal",
+        "congestion": "congestion_price_rt_dom_zonal",
+    },
+    "ashburn_tx1": {
+        "total_lmp": "total_lmp_rt_ashburn_tx1",
+        "congestion": "congestion_price_rt_ashburn_tx1",
+    },
+    "ashburn_tx2": {
+        "total_lmp": "total_lmp_rt_ashburn_tx2",
+        "congestion": "congestion_price_rt_ashburn_tx2",
+    },
+    "ox": {
+        "total_lmp": "total_lmp_rt_ox",
+        "congestion": "congestion_price_rt_ox",
+    },
+    "bristers": {
+        "total_lmp": "total_lmp_rt_bristers",
+        "congestion": "congestion_price_rt_bristers",
+    },
+    "total_lmp": {  # total_lmp pnode alias to cluster_mean total_lmp
+        "total_lmp": "total_lmp_rt_cluster_mean",
+        "congestion": "congestion_price_rt_cluster_mean",
+    },
+}
+PER_PNODE_PLOTTED = ("primary", "dom_zonal", "ashburn_tx1", "ashburn_tx2")
+CROSS_PNODE_PNODES = (
+    "primary", "total_lmp", "ox", "bristers",
+    "dom_zonal", "ashburn_tx1", "ashburn_tx2",
+)
+
+
+# ---------------------------------------------------------------------------
+# Top-level orchestrator
+# ---------------------------------------------------------------------------
+
+
+def run_tail_risk_curves(
+    panel: pd.DataFrame,
+    *,
+    out_root: Path,
+    thresholds: list[float] | None = None,
+    n_boot: int = 200,
+    seed: int = 0,
+) -> None:
+    """Top-level orchestrator: applies the proposal-filter, runs all
+    per-pnode + cross-pnode analyses, writes outputs to disk.
+
+    Writes 5 JSONs + 4 PNGs + 1 CSV under ``out_root/tail_risk_curves/``.
+    """
+    if thresholds is None:
+        thresholds = DEFAULT_THRESHOLDS.copy()
+
+    tr_dir = Path(out_root) / "tail_risk_curves"
+    tr_dir.mkdir(parents=True, exist_ok=True)
+
+    filtered = panel.loc[panel[FILTER_COL] == True].copy()  # noqa: E712
+
+    all_results: list[dict] = []
+
+    # Per-pnode pass (cross-pnode set includes all 7 pnodes; only 4 get plots)
+    for pnode_label in CROSS_PNODE_PNODES:
+        response_cols = PNODE_TO_RESPONSE[pnode_label]
+        # Drop NA rows in either response column for this pnode
+        cols = list(response_cols.values()) + [Z_COL]
+        sub = filtered.dropna(subset=cols)
+
+        result = run_pnode_tail_risk_curves(
+            panel=sub,
+            pnode_label=pnode_label,
+            response_cols=response_cols,
+            z_col=Z_COL,
+            thresholds=thresholds,
+            n_deciles=10,
+            n_boot=n_boot,
+            seed=seed,
+        )
+        # Inject filter provenance (per-pnode orchestrator can't know this)
+        result["filter"] = FILTER_DESC
+        all_results.append(result)
+
+        if pnode_label in PER_PNODE_PLOTTED:
+            # Write per-pnode JSON
+            with open(tr_dir / f"{pnode_label}.json", "w") as f:
+                json.dump(_json_serializable(result), f, indent=2)
+            # Write per-pnode PNG
+            plot_tail_risk_curves(result, tr_dir / f"{pnode_label}.png")
+
+    # Cross-pnode summary
+    summary = aggregate_cross_pnode_summary(all_results)
+    with open(tr_dir / "cross_pnode_summary.json", "w") as f:
+        json.dump(_json_serializable(summary), f, indent=2)
+
+    # Cross-pnode summary CSV
+    _write_cross_pnode_csv(summary, tr_dir / "cross_pnode_summary.csv")
+
+
+def _json_serializable(obj):
+    """Convert numeric dict keys to strings (JSON requires) and recurse."""
+    if isinstance(obj, dict):
+        return {str(k): _json_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_json_serializable(v) for v in obj]
+    return obj
+
+
+def _write_cross_pnode_csv(summary: dict, out_path: Path) -> None:
+    """Write the top-decile cross-pnode summary as a wide CSV.
+
+    Rows = pnodes; columns = (response_var, threshold) pairs with p_hat.
+    """
+    thresholds = summary["thresholds"]
+    response_vars = ("total_lmp", "congestion")
+    header = [
+        "pnode_label",
+        "z_range_top_decile_low_mw_per_min",
+        "z_range_top_decile_high_mw_per_min",
+        "n_top_decile",
+    ]
+    for r in response_vars:
+        for t in thresholds:
+            header.append(f"{r}_p_hat_at_{int(t)}")
+
+    with open(out_path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(header)
+        for p in summary["pnodes"]:
+            row = [
+                p["pnode_label"],
+                p["z_range_top_decile_mw_per_min"][0],
+                p["z_range_top_decile_mw_per_min"][1],
+                p["n_top_decile"],
+            ]
+            for r in response_vars:
+                for t in thresholds:
+                    row.append(p["results"][r][t]["p_hat"])
+            w.writerow(row)

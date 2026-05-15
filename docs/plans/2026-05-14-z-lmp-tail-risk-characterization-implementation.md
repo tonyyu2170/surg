@@ -1081,7 +1081,7 @@ def _write_cross_pnode_csv(summary: dict, out_path: Path) -> None:
     """
     thresholds = summary["thresholds"]
     response_vars = ("total_lmp", "congestion")
-    header = ["pnode_label", "z_range_top_decile_low", "z_range_top_decile_high", "n_top_decile"]
+    header = ["pnode_label", "z_range_top_decile_low_mw_per_min", "z_range_top_decile_high_mw_per_min", "n_top_decile"]
     for r in response_vars:
         for t in thresholds:
             header.append(f"{r}_p_hat_at_{int(t)}")

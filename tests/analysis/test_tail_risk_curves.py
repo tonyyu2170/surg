@@ -1,5 +1,7 @@
 """Tests for src/surg/analysis/tail_risk_curves.py — sub-q1 item #6."""
 
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -11,6 +13,7 @@ from surg.analysis.tail_risk_curves import (
     compute_z_deciles,
     plot_tail_risk_curves,
     run_pnode_tail_risk_curves,
+    run_tail_risk_curves,
 )
 
 
@@ -316,3 +319,63 @@ def test_plot_tail_risk_curves_writes_png(tmp_path):
 
     assert out_path.exists()
     assert out_path.stat().st_size > 5_000  # non-trivial PNG
+
+
+def _make_synthetic_panel(n: int = 2000, seed: int = 0) -> pd.DataFrame:
+    """Synthetic panel covering the 7 pnodes + filter column."""
+    rng = np.random.default_rng(seed)
+    df = pd.DataFrame({"dom_load_gradient_abs_mw_per_min": rng.exponential(scale=2.0, size=n)})
+    df["passes_proposal_filter"] = True
+    for pnode in ("cluster_mean", "ox", "bristers", "dom_zonal", "ashburn_tx1", "ashburn_tx2"):
+        df[f"total_lmp_rt_{pnode}"] = rng.lognormal(mean=3.5, sigma=1.0, size=n)
+        df[f"congestion_price_rt_{pnode}"] = rng.exponential(scale=10.0, size=n)
+    return df
+
+
+def test_run_tail_risk_curves_writes_all_expected_outputs(tmp_path):
+    """End-to-end: run_tail_risk_curves writes 5 JSONs + 4 PNGs + 1 CSV under out_root."""
+    panel = _make_synthetic_panel(n=2000, seed=0)
+    out_root = tmp_path / "outputs"
+    out_root.mkdir()
+
+    run_tail_risk_curves(
+        panel=panel,
+        out_root=out_root,
+        n_boot=5,
+        seed=0,
+    )
+
+    tr_dir = out_root / "tail_risk_curves"
+    assert tr_dir.exists()
+
+    expected_jsons = [
+        "primary.json",
+        "dom_zonal.json",
+        "ashburn_tx1.json",
+        "ashburn_tx2.json",
+        "cross_pnode_summary.json",
+    ]
+    for name in expected_jsons:
+        assert (tr_dir / name).exists(), f"missing {name}"
+
+    expected_pngs = [
+        "primary.png",
+        "dom_zonal.png",
+        "ashburn_tx1.png",
+        "ashburn_tx2.png",
+    ]
+    for name in expected_pngs:
+        assert (tr_dir / name).exists(), f"missing {name}"
+        assert (tr_dir / name).stat().st_size > 5_000
+
+    assert (tr_dir / "cross_pnode_summary.csv").exists()
+
+    # Sanity-check the primary JSON structure (post-rename keys)
+    with open(tr_dir / "primary.json") as f:
+        primary = json.load(f)
+    assert primary["pnode_label"] == "primary"
+    assert "decile_edges_mw_per_min" in primary
+    assert "results" in primary
+    assert "total_lmp" in primary["results"]
+    assert "congestion" in primary["results"]
+    assert "filter" in primary  # added by top-level orchestrator

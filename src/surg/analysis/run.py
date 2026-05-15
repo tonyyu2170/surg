@@ -69,6 +69,7 @@ def run_all(
     skip_robustness: bool = False,
     skip_conditional_z: bool = False,
     skip_gpd_continuous: bool = False,
+    tail_risk_filter_col: str | None = "passes_proposal_filter",
 ) -> None:
     """Run the full Phase 3 analysis pipeline.
 
@@ -270,6 +271,7 @@ def run_all(
                 seed=seed,
                 bootstrap_method=bootstrap_method,
                 pnode_labels=tail_risk_pnodes,
+                filter_col=tail_risk_filter_col,
             )
 
     # Note: leave_one_season_out (robustness.py) is intentionally NOT called
@@ -349,6 +351,9 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--skip-gpd-continuous", action="store_true",
                    help="Skip Spec B continuous ξ(Z) regression (sub-q1 "
                         "item #8 smoke mode).")
+    p.add_argument("--no-filter", action="store_true",
+                   help="Skip the proposal-filter for tail_risk_curves (sub-q1 "
+                        "item #9 full-panel re-run). Other modules ignore this flag.")
     return p
 
 
@@ -393,6 +398,7 @@ def main(argv: list[str] | None = None) -> int:
         skip_robustness=args.skip_robustness,
         skip_conditional_z=args.skip_conditional_z,
         skip_gpd_continuous=args.skip_gpd_continuous,
+        tail_risk_filter_col=None if args.no_filter else "passes_proposal_filter",
     )
     print(f"wrote analysis outputs to {args.out_root}/")
     return 0

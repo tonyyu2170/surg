@@ -380,6 +380,54 @@ def test_run_tail_risk_curves_writes_all_expected_outputs(tmp_path):
     assert "total_lmp" in primary["results"]
     assert "congestion" in primary["results"]
     assert "filter" in primary  # added by top-level orchestrator
+    # Default filter is the proposal-filter
+    assert primary["filter"] == "passes_proposal_filter == True"
+
+
+def test_run_tail_risk_curves_filter_col_none_uses_full_panel(tmp_path):
+    """Sub-q1 item #9: filter_col=None skips the filter step and uses the full panel.
+
+    Verifies (a) provenance string changes, (b) per-decile n is larger than
+    the in-filter run, (c) outputs are still well-formed.
+    """
+    # Build a panel where only ~10% of rows pass the filter
+    panel_in = _make_synthetic_panel(n=2000, seed=0)
+    rng = np.random.default_rng(123)
+    in_filter_mask = rng.random(2000) < 0.10
+    panel_in["passes_proposal_filter"] = in_filter_mask
+    n_in_filter = int(in_filter_mask.sum())
+    assert 100 < n_in_filter < 400  # roughly 10%
+
+    out_root_in = tmp_path / "outputs_in_filter"
+    out_root_no = tmp_path / "outputs_no_filter"
+    out_root_in.mkdir()
+    out_root_no.mkdir()
+
+    run_tail_risk_curves(
+        panel=panel_in, out_root=out_root_in,
+        n_boot=5, seed=0, filter_col="passes_proposal_filter",
+    )
+    run_tail_risk_curves(
+        panel=panel_in, out_root=out_root_no,
+        n_boot=5, seed=0, filter_col=None,
+    )
+
+    with open(out_root_in / "tail_risk_curves" / "primary.json") as f:
+        in_filter = json.load(f)
+    with open(out_root_no / "tail_risk_curves" / "primary.json") as f:
+        no_filter = json.load(f)
+
+    # Provenance strings differ
+    assert in_filter["filter"] == "passes_proposal_filter == True"
+    assert no_filter["filter"] == "no filter (full panel)"
+
+    # No-filter run has substantially more total observations
+    assert no_filter["n_total_filtered"] > in_filter["n_total_filtered"]
+    # Per-decile counts also larger
+    assert sum(no_filter["decile_n_obs"]) > sum(in_filter["decile_n_obs"])
+    # No-filter ≈ all 2000 rows; in-filter ≈ 100-400
+    assert no_filter["n_total_filtered"] == 2000
+    assert in_filter["n_total_filtered"] == n_in_filter
 
 
 def test_ensure_total_lmp_columns_derives_missing_via_lmp_identity():

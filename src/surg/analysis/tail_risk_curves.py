@@ -425,9 +425,10 @@ def run_tail_risk_curves(
     seed: int = 0,
     bootstrap_method: str = "pair",
     pnode_labels: tuple[str, ...] | None = None,
+    filter_col: str | None = "passes_proposal_filter",
 ) -> None:
-    """Top-level orchestrator: applies the proposal-filter, runs all
-    per-pnode + cross-pnode analyses, writes outputs to disk.
+    """Top-level orchestrator: applies the proposal-filter (or skips it),
+    runs all per-pnode + cross-pnode analyses, writes outputs to disk.
 
     Writes 5 JSONs + 4 PNGs + 1 CSV under ``out_root/tail_risk_curves/``.
 
@@ -435,6 +436,10 @@ def run_tail_risk_curves(
     - bootstrap_method: "pair" (default; preserves hourly behavior) or
       "cluster" (5-min companion: resample whole 3-hour islands).
     - pnode_labels: subset of CROSS_PNODE_PNODES to process. None = all.
+    Sub-q1 item #9 addition: ``filter_col=None`` skips the filter and
+    operates on the full panel. The default
+    ``filter_col="passes_proposal_filter"`` preserves item #6's
+    in-filter behavior.
     """
     if thresholds is None:
         thresholds = DEFAULT_THRESHOLDS.copy()
@@ -442,7 +447,12 @@ def run_tail_risk_curves(
     tr_dir = Path(out_root) / "tail_risk_curves"
     tr_dir.mkdir(parents=True, exist_ok=True)
 
-    filtered = panel.loc[panel[FILTER_COL] == True].copy()  # noqa: E712
+    if filter_col is None:
+        filtered = panel.copy()
+        filter_desc = "no filter (full panel)"
+    else:
+        filtered = panel.loc[panel[filter_col] == True].copy()  # noqa: E712
+        filter_desc = f"{filter_col} == True"
     # Materialize derived total_lmp columns where features.py didn't label them.
     filtered = _ensure_total_lmp_columns(filtered, CROSS_PNODE_PNODES)
 
@@ -489,7 +499,7 @@ def run_tail_risk_curves(
             island_ids=sub_island_ids,
         )
         # Inject filter provenance (per-pnode orchestrator can't know this)
-        result["filter"] = FILTER_DESC
+        result["filter"] = filter_desc
         all_results.append(result)
 
         if pnode_label in PER_PNODE_PLOTTED:
@@ -501,7 +511,7 @@ def run_tail_risk_curves(
 
     # Cross-pnode summary
     summary = aggregate_cross_pnode_summary(all_results)
-    summary["filter"] = FILTER_DESC   # propagate provenance to cross-pnode summary too
+    summary["filter"] = filter_desc   # propagate provenance to cross-pnode summary too
     with open(tr_dir / "cross_pnode_summary.json", "w") as f:
         json.dump(_json_serializable(summary), f, indent=2)
 

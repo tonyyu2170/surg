@@ -57,6 +57,18 @@ def run_all(
     tail_risk_n_boot: int = 200,
     skip_tail_risk_curves: bool = False,
     tail_risk_loo_skip: bool = False,
+    # Sub-q1 item #8 additions:
+    seed: int = 42,
+    bootstrap_method: str = "pair",
+    tail_risk_pnodes: tuple[str, ...] | None = None,
+    skip_tar: bool = False,
+    skip_qr: bool = False,
+    skip_qr_full: bool = False,
+    skip_gpd: bool = False,
+    skip_mechanism: bool = False,
+    skip_robustness: bool = False,
+    skip_conditional_z: bool = False,
+    skip_gpd_continuous: bool = False,
 ) -> None:
     """Run the full Phase 3 analysis pipeline.
 
@@ -70,91 +82,117 @@ def run_all(
     """
     out_root.mkdir(parents=True, exist_ok=True)
 
-    primary = run_tar(
-        panel=panel,
-        out_path=out_root / "tar" / "primary.json",
-        response_col=PNODE_RESPONSES["primary"],
-        n_boot=n_boot,
-    )
-
-    for label, col in PNODE_RESPONSES.items():
-        if label == "primary":
-            continue
-        if panel[col].dropna().empty:
-            continue
-        run_tar(
+    primary = None
+    if not skip_tar:
+        primary = run_tar(
             panel=panel,
-            out_path=out_root / "tar" / f"{label}.json",
-            response_col=col,
+            out_path=out_root / "tar" / "primary.json",
+            response_col=PNODE_RESPONSES["primary"],
             n_boot=n_boot,
         )
 
-    run_qr(
-        panel=panel,
-        out_path=out_root / "qr" / "filtered_at_tar_c.json",
-        c_for_threshold_dummy=primary.c_hat,
-    )
+        for label, col in PNODE_RESPONSES.items():
+            if label == "primary":
+                continue
+            if panel[col].dropna().empty:
+                continue
+            run_tar(
+                panel=panel,
+                out_path=out_root / "tar" / f"{label}.json",
+                response_col=col,
+                n_boot=n_boot,
+            )
 
-    run_mechanism(
-        panel=panel,
-        events=events,
-        threshold=primary.c_hat,
-        out_path=out_root / "mechanism" / "validation.json",
-    )
+    # QR + mechanism need TAR's c_hat. If TAR was skipped but QR or
+    # mechanism are still requested, fall back to a literature default
+    # so the rest of the pipeline is exercisable. Item #8 always
+    # skips TAR + QR + mechanism together so this branch is exercised
+    # by the smoke + production runs.
+    c_hat_for_dummy = primary.c_hat if primary is not None else 1.45
 
-    subsample_bootstrap(
-        panel=panel,
-        out_path=out_root / "robustness" / "subsample_bootstrap.parquet",
-        n_reps=n_subsample_reps,
-    )
+    if not skip_qr:
+        run_qr(
+            panel=panel,
+            out_path=out_root / "qr" / "filtered_at_tar_c.json",
+            c_for_threshold_dummy=c_hat_for_dummy,
+        )
+
+    if not skip_mechanism:
+        run_mechanism(
+            panel=panel,
+            events=events,
+            threshold=c_hat_for_dummy,
+            out_path=out_root / "mechanism" / "validation.json",
+        )
+
+    if not skip_robustness:
+        subsample_bootstrap(
+            panel=panel,
+            out_path=out_root / "robustness" / "subsample_bootstrap.parquet",
+            n_reps=n_subsample_reps,
+        )
 
     # Strategy C methods: QR-full + GPD per pnode, full panel (no filter)
-    for label, col in PNODE_RESPONSES.items():
-        if panel[col].dropna().empty:
-            continue
-        run_qr_full(
-            panel=panel,
-            out_path=out_root / "qr_full" / f"{label}.json",
-            response_col=col,
-            pnode_label=label,
-            n_boot=qr_full_n_boot,
-        )
-        run_gpd(
-            panel=panel,
-            out_path=out_root / "gpd" / f"{label}.json",
-            response_col=col,
-            pnode_label=label,
-            n_boot=gpd_n_boot,
-        )
+    if not (skip_qr_full and skip_gpd):
+        for label, col in PNODE_RESPONSES.items():
+            if panel[col].dropna().empty:
+                continue
+            if not skip_qr_full:
+                run_qr_full(
+                    panel=panel,
+                    out_path=out_root / "qr_full" / f"{label}.json",
+                    response_col=col,
+                    pnode_label=label,
+                    n_boot=qr_full_n_boot,
+                )
+            if not skip_gpd:
+                run_gpd(
+                    panel=panel,
+                    out_path=out_root / "gpd" / f"{label}.json",
+                    response_col=col,
+                    pnode_label=label,
+                    n_boot=gpd_n_boot,
+                )
 
     # 2026-05-14 conditional-Z robustness battery (A/C/F + Holm-Bonferroni).
     # Single battery run on the primary response (cluster total_lmp) where
     # the original median-split rejection was found. Pre-reg:
     # docs/decisions.md § "2026-05-14 — Pre-registration: conditional-Z
     # robustness battery (A/C/F + gated B)".
-    run_conditional_z_robustness(
-        panel=panel,
-        out_path=out_root / "gpd" / "conditional_z_robustness.json",
-        response_col=PNODE_RESPONSES["total_lmp"],
-        pnode_label="total_lmp",
-        n_boot=gpd_n_boot,
-    )
+    if not skip_conditional_z:
+        run_conditional_z_robustness(
+            panel=panel,
+            out_path=out_root / "gpd" / "conditional_z_robustness.json",
+            response_col=PNODE_RESPONSES["total_lmp"],
+            pnode_label="total_lmp",
+            n_boot=gpd_n_boot,
+            seed=seed,
+        )
 
     # 2026-05-14 Spec B continuous ξ(Z) regression battery — sub-q1 closure.
     # Per pre-reg: docs/decisions.md § "2026-05-14 — Pre-registration: Spec B".
-    for label, col in PNODE_RESPONSES.items():
-        if panel[col].dropna().empty:
-            continue
-        run_gpd_continuous_z(
-            panel=panel,
-            out_path=out_root / "gpd_continuous" / f"{label}.json",
-            response_col=col,
-            pnode_label=label,
-            n_boot=continuous_n_boot,
-        )
+    # Items #1-4 + #6 modules accept `bootstrap_method` and `pnode_labels`
+    # only after their refactors land (Tasks 9-13). Until then,
+    # `bootstrap_method` is passed through ONLY to functions whose
+    # refactor commit has landed; `tail_risk_pnodes` is passed only
+    # once tail_risk_curves accepts it. The kwargs below are
+    # incrementally wired in subsequent tasks.
 
-    # Headline JSON: primary congestion @ 95th-pct linear β₁ per pre-reg
-    _write_spec_b_headline(out_root / "gpd_continuous")
+    if not skip_gpd_continuous:
+        for label, col in PNODE_RESPONSES.items():
+            if panel[col].dropna().empty:
+                continue
+            run_gpd_continuous_z(
+                panel=panel,
+                out_path=out_root / "gpd_continuous" / f"{label}.json",
+                response_col=col,
+                pnode_label=label,
+                n_boot=continuous_n_boot,
+                seed=seed,
+            )
+
+        # Headline JSON: primary congestion @ 95th-pct linear β₁ per pre-reg
+        _write_spec_b_headline(out_root / "gpd_continuous")
 
     # Sub-q1 closure item #2: LMP-components decomposition.
     # Pre-reg: docs/decisions.md § 2026-05-14 — Pre-registration: LMP-components decomposition.
@@ -163,6 +201,7 @@ def run_all(
             panel=panel,
             out_dir=out_root / "gpd_components",
             n_boot=components_n_boot,
+            seed=seed,
         )
 
     # Sub-q1 closure item #3: τ=0.99 secular sign-flip diagnostic (descriptive).
@@ -177,6 +216,7 @@ def run_all(
                 pnode_label=label,
                 response_col=col,
                 n_boot=year_fe_n_boot,
+                seed=seed,
             )
             pnode_labels_processed.append(label)
         write_cross_pnode_summary(out_root / "year_fe_diagnostic", tuple(pnode_labels_processed))
@@ -191,6 +231,7 @@ def run_all(
                 panel=panel,
                 out_dir=out_subdir,
                 spec_b_results_dir=out_root / "gpd_continuous",
+                seed=seed,
             )
 
     # Sub-q1 closure item #6: direct Z → LMP tail-risk characterization.
@@ -203,6 +244,7 @@ def run_all(
                 panel=panel,
                 out_root=out_root,
                 n_boot=tail_risk_n_boot,
+                seed=seed,
             )
 
     # Note: leave_one_season_out (robustness.py) is intentionally NOT called
@@ -250,6 +292,38 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    help="Skip sub-q1 item #6 (tail_risk_curves) orchestrator.")
     p.add_argument("--tail-risk-loo-skip", action="store_true",
                    help="Soft idempotency: skip tail_risk_curves if output already exists.")
+
+    # Sub-q1 item #8 additions:
+    p.add_argument("--seed", type=int, default=42,
+                   help="Top-level RNG seed threaded into every module that "
+                        "exposes a `seed` kwarg (sub-q1 item #8).")
+    p.add_argument("--bootstrap-method", choices=["pair", "cluster"],
+                   default="pair",
+                   help="Bootstrap resampling method for items #1-4 + #6 "
+                        "(sub-q1 item #8). 'pair' preserves hourly behavior; "
+                        "'cluster' uses island cluster bootstrap for the "
+                        "5-min companion.")
+    p.add_argument("--tail-risk-pnodes", default=None,
+                   help="Comma-separated subset of pnode labels (e.g. "
+                        "'primary,total_lmp') for sub-q1 item #6. None = all.")
+    p.add_argument("--skip-tar", action="store_true",
+                   help="Skip Hansen TAR (sub-q1 item #8 smoke + production).")
+    p.add_argument("--skip-qr", action="store_true",
+                   help="Skip QR-filtered (sub-q1 item #8).")
+    p.add_argument("--skip-qr-full", action="store_true",
+                   help="Skip Strategy C QR-full (sub-q1 item #8).")
+    p.add_argument("--skip-gpd", action="store_true",
+                   help="Skip Strategy C GPD median-split (sub-q1 item #8).")
+    p.add_argument("--skip-mechanism", action="store_true",
+                   help="Skip mechanism validation (sub-q1 item #8).")
+    p.add_argument("--skip-robustness", action="store_true",
+                   help="Skip subsample bootstrap robustness (sub-q1 item #8).")
+    p.add_argument("--skip-conditional-z", action="store_true",
+                   help="Skip 2026-05-14 conditional-Z robustness battery "
+                        "(sub-q1 item #8).")
+    p.add_argument("--skip-gpd-continuous", action="store_true",
+                   help="Skip Spec B continuous ξ(Z) regression (sub-q1 "
+                        "item #8 smoke mode).")
     return p
 
 
@@ -261,6 +335,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     panel = load_panel(panel_path)
     events = load_sync_reserve_events(Path(args.data_root))
+    tail_risk_pnodes_tuple: tuple[str, ...] | None = None
+    if args.tail_risk_pnodes:
+        tail_risk_pnodes_tuple = tuple(
+            s.strip() for s in args.tail_risk_pnodes.split(",") if s.strip()
+        )
     run_all(
         panel=panel, events=events,
         out_root=Path(args.out_root),
@@ -278,6 +357,17 @@ def main(argv: list[str] | None = None) -> int:
         tail_risk_n_boot=args.tail_risk_n_boot,
         skip_tail_risk_curves=args.skip_tail_risk_curves,
         tail_risk_loo_skip=args.tail_risk_loo_skip,
+        seed=args.seed,
+        bootstrap_method=args.bootstrap_method,
+        tail_risk_pnodes=tail_risk_pnodes_tuple,
+        skip_tar=args.skip_tar,
+        skip_qr=args.skip_qr,
+        skip_qr_full=args.skip_qr_full,
+        skip_gpd=args.skip_gpd,
+        skip_mechanism=args.skip_mechanism,
+        skip_robustness=args.skip_robustness,
+        skip_conditional_z=args.skip_conditional_z,
+        skip_gpd_continuous=args.skip_gpd_continuous,
     )
     print(f"wrote analysis outputs to {args.out_root}/")
     return 0

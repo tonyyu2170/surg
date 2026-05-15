@@ -2803,3 +2803,68 @@ hourly aggregation hide about 5-min spikes").
 source surfaces (different PJM feed, advisor's private dataset,
 EIA), in which case Part A re-runs on a real window, or (b)
 advisor (item #5) reframes which resolution is the headline.
+
+---
+
+## 2026-05-15 (late) — Deliverable structure for sub-q reports
+
+**Context.** With sub-q1 analytically closed (only advisor meeting
+remaining) and sub-q2 / sub-q3 plan-writing about to unlock, this
+entry codifies the deliverable expectation so all three sub-q
+write-ups follow a consistent structure.
+
+**Decision.** Each sub-q produces:
+
+1. **A standalone report** (markdown) explaining: the question, the
+   approach, what we found, what's still open, what the limitations
+   are.
+2. **Supporting graphs** that visualize the headline findings.
+3. **Hybrid technical + accessible prose**: a technical reader gets
+   precise method + statistics; a non-technical reader gets the
+   intuition, the framing, and the takeaway. Write ONE document
+   that does both — technical detail in subsections or appendices,
+   intuition in the main flow. Do not write two separate reports
+   for the same sub-q.
+
+**Rationale.** The SURG audience includes both research-savvy
+faculty advisors and policy-oriented stakeholders (JLARC,
+Northwestern admin reviewing the grant). A report that's only
+technical loses the policy audience; one that's only accessible
+loses methodological credibility. Hybrid prose with clear
+segmentation (technical-detail vs intuition-flow) serves both.
+
+**Sub-q2 narrative addition** (per same-date conversation):
+Sub-q2's report must connect the projection math to physical-grid
++ policy realities. Explicitly include external context:
+
+- Data center construction pace in NOVA (JLARC Rpt598-2 + newer
+  announcements as they emerge)
+- Transmission line expansion in DOM zone (Pleasant View - Ashburn,
+  Goose Creek transformer upgrades)
+- Distributed compute trends (e.g., Nvidia's late-2025/early-2026
+  proposal for residential-co-located mini data centers — changes
+  the spatial concentration assumption)
+- Other policy-relevant news/events as they emerge
+
+**Sub-q1 stays focused** on analytical findings without external-
+event context (its scope is mechanism + characterization on existing
+data, not policy projection).
+
+**Sub-q3** scope is event-correlation; external news incorporation
+TBD when plan-writing unlocks.
+
+**Implementation.** CLAUDE.md updated this date with:
+- Sub-q1/2/3 split + gating order
+- Per-sub-q deliverable expectation
+- Sub-q2 specific narrative scope
+- Refreshed Phase 3 methodology section (replacing stale 2026-05-11
+  TAR-as-primary reference with current Spec A/B + QR-full + item
+  #6/9 picture)
+
+**Revisit when.**
+- Sub-q1 paper is drafted — verify the report structure works for
+  the audience as designed.
+- Sub-q2 plan-writing begins — re-evaluate which external-event
+  sources are most material; commission a brief literature/news
+  scan as part of the design phase.
+- A new sub-q is added or the existing scope shifts.

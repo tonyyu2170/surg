@@ -238,6 +238,8 @@ def run_all(
                 response_col=col,
                 n_boot=year_fe_n_boot,
                 seed=seed,
+                bootstrap_method=bootstrap_method,
+                island_ids=panel_island_ids,
             )
             pnode_labels_processed.append(label)
         write_cross_pnode_summary(out_root / "year_fe_diagnostic", tuple(pnode_labels_processed))

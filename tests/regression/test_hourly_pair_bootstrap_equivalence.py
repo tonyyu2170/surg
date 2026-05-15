@@ -202,6 +202,49 @@ def test_tail_risk_curves_pair_bootstrap_equivalence():
 
 
 # ---------------------------------------------------------------------------
+# Item #3: year_fe_diagnostic
+# ---------------------------------------------------------------------------
+
+def test_year_fe_diagnostic_pair_bootstrap_equivalence():
+    """Sub-q1 item #3 (year_fe_diagnostic): refactor preserves
+    pair-bootstrap output byte-for-byte."""
+    from surg.analysis.year_fe_diagnostic import (
+        run_year_fe_diagnostic, write_cross_pnode_summary,
+    )
+    from surg.analysis.run import PNODE_RESPONSES
+
+    panel = _hourly_panel_or_skip()
+    ref_dir = REF_DIR / "year_fe_diagnostic"
+    with TemporaryDirectory() as tmp:
+        out_dir = Path(tmp) / "year_fe_diagnostic"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        labels: list[str] = []
+        for label, col in PNODE_RESPONSES.items():
+            if panel[col].dropna().empty:
+                continue
+            run_year_fe_diagnostic(
+                panel=panel,
+                out_path=out_dir / f"{label}.json",
+                pnode_label=label,
+                response_col=col,
+                n_boot=50,
+                seed=42,
+                bootstrap_method="pair",
+            )
+            labels.append(label)
+        write_cross_pnode_summary(out_dir, tuple(labels))
+        for ref_file in sorted(ref_dir.glob("*.json")):
+            cur_file = out_dir / ref_file.name
+            if not cur_file.exists():
+                raise AssertionError(
+                    f"Refactored module missing reference output: {ref_file.name}"
+                )
+            ref = _load_json(ref_file)
+            cur = _load_json(cur_file)
+            _assert_numeric_equivalence(ref, cur, ref_file.name)
+
+
+# ---------------------------------------------------------------------------
 # Item #2: gpd_components
 # ---------------------------------------------------------------------------
 

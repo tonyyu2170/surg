@@ -58,6 +58,8 @@ def bootstrap_year_dummy_coefs(
     taus: tuple[float, ...],
     n_boot: int = 200,
     seed: int = 0,
+    bootstrap_method: str = "pair",
+    island_ids: pd.Series | None = None,
 ) -> dict:
     """Pair-bootstrap CIs for year-dummy coefficients in fit_qr_full's year_fe spec.
 
@@ -70,6 +72,10 @@ def bootstrap_year_dummy_coefs(
     hour = sub[year_col].dt.hour.to_numpy()
     month = sub[year_col].dt.month.to_numpy()
     year = sub[year_col].dt.year.to_numpy()
+    sub_island_ids = (
+        island_ids.loc[sub.index].to_numpy()
+        if island_ids is not None else None
+    )
 
     distinct_years = sorted(np.unique(year).tolist())
     if len(distinct_years) < 2:
@@ -86,11 +92,32 @@ def bootstrap_year_dummy_coefs(
                                 seed=seed + tau_idx * 1000)
         point_coefs = point_fit.covariate_coefs
 
-        # Pair-bootstrap each year dummy.
+        # Bootstrap each year dummy. Pair preserves byte-for-byte
+        # equivalence with the pre-refactor implementation; cluster
+        # resamples whole islands for the 5-min companion.
         rng = np.random.default_rng(seed + tau_idx * 1000 + 7)
         boot_coefs: dict[int, list[float]] = {y: [] for y in dummy_years}
-        for rep in range(n_boot):
-            idx = rng.integers(0, n, size=n)
+        if bootstrap_method == "pair":
+            sample_idx_iter = (rng.integers(0, n, size=n) for _ in range(n_boot))
+        elif bootstrap_method == "cluster":
+            if sub_island_ids is None:
+                raise ValueError(
+                    "bootstrap_method='cluster' requires island_ids"
+                )
+            unique_ids = np.unique(sub_island_ids)
+            K = len(unique_ids)
+            island_to_rows = {
+                int(iid): np.where(sub_island_ids == iid)[0]
+                for iid in unique_ids
+            }
+            def _cluster_iter():
+                for _ in range(n_boot):
+                    sampled = rng.choice(unique_ids, size=K, replace=True)
+                    yield np.concatenate([island_to_rows[int(iid)] for iid in sampled])
+            sample_idx_iter = _cluster_iter()
+        else:
+            raise ValueError(f"Unknown bootstrap_method: {bootstrap_method!r}")
+        for idx in sample_idx_iter:
             try:
                 rep_fit = fit_qr_full(
                     Y[idx], Z[idx], hour[idx], month[idx],
@@ -131,6 +158,8 @@ def bootstrap_secular_component(
     taus: tuple[float, ...],
     n_boot: int = 200,
     seed: int = 0,
+    bootstrap_method: str = "pair",
+    island_ids: pd.Series | None = None,
 ) -> dict:
     """Pair-bootstrap CI on primary_z_slope - year_fe_z_slope per tau.
 
@@ -143,6 +172,10 @@ def bootstrap_secular_component(
     hour = sub[year_col].dt.hour.to_numpy()
     month = sub[year_col].dt.month.to_numpy()
     year = sub[year_col].dt.year.to_numpy()
+    sub_island_ids = (
+        island_ids.loc[sub.index].to_numpy()
+        if island_ids is not None else None
+    )
 
     distinct_years = sorted(np.unique(year).tolist())
     if len(distinct_years) < 2:
@@ -157,8 +190,27 @@ def bootstrap_secular_component(
 
         rng = np.random.default_rng(seed + tau_idx * 1000 + 11)
         diffs: list[float] = []
-        for rep in range(n_boot):
-            idx = rng.integers(0, n, size=n)
+        if bootstrap_method == "pair":
+            sample_idx_iter = (rng.integers(0, n, size=n) for _ in range(n_boot))
+        elif bootstrap_method == "cluster":
+            if sub_island_ids is None:
+                raise ValueError(
+                    "bootstrap_method='cluster' requires island_ids"
+                )
+            unique_ids = np.unique(sub_island_ids)
+            K = len(unique_ids)
+            island_to_rows = {
+                int(iid): np.where(sub_island_ids == iid)[0]
+                for iid in unique_ids
+            }
+            def _cluster_iter():
+                for _ in range(n_boot):
+                    sampled = rng.choice(unique_ids, size=K, replace=True)
+                    yield np.concatenate([island_to_rows[int(iid)] for iid in sampled])
+            sample_idx_iter = _cluster_iter()
+        else:
+            raise ValueError(f"Unknown bootstrap_method: {bootstrap_method!r}")
+        for idx in sample_idx_iter:
             try:
                 pfit = fit_qr_full(Y[idx], Z[idx], hour[idx], month[idx],
                                    tau=tau, n_boot=0, seed=0)
@@ -195,6 +247,8 @@ def run_year_fe_diagnostic(
     pct_list: tuple[float, ...] = (0.90, 0.95, 0.99),
     n_boot: int = 200,
     seed: int = 0,
+    bootstrap_method: str = "pair",
+    island_ids: pd.Series | None = None,
 ) -> None:
     """Run three-layer year-FE diagnostic for one pnode. Writes JSON at out_path."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -208,11 +262,13 @@ def run_year_fe_diagnostic(
         panel, response_col=response_col, z_col=z_col,
         year_col="datetime_beginning_ept",
         taus=taus, n_boot=n_boot, seed=seed,
+        bootstrap_method=bootstrap_method, island_ids=island_ids,
     )
     layer3 = bootstrap_secular_component(
         panel, response_col=response_col, z_col=z_col,
         year_col="datetime_beginning_ept",
         taus=taus, n_boot=n_boot, seed=seed + 50,
+        bootstrap_method=bootstrap_method, island_ids=island_ids,
     )
 
     payload = {

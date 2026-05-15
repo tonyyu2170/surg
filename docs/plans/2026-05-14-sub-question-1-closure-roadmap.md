@@ -5,6 +5,23 @@
 > threshold of data center load variance that triggers a non-linear
 > phase transition in DOM congestion pricing?" — to **paper-publishable
 > confidence**. Brainstormed scope + sequencing with the user in-session.
+>
+> **Closure status as of 2026-05-14 night:** Items 1, 2, 3, 4 all DONE.
+> Item 5 (advisor meeting) remains as the only open closure step.
+> Commits (chronological):
+> - Item 1 — Spec B continuous ξ(Z): `fe2cb94` (FF-merged earlier).
+> - Item 2 — LMP-components decomposition (reframed from "response-
+>   variable sensitivity"): commit `01ebbd8`.
+> - Item 3 — τ=0.99 secular sign-flip: commit `72456bb`. **NEW finding
+>   the roadmap did not anticipate:** moderate-τ positive secular
+>   component on 5/7 non-Ashburn pnodes; sub-q2 JLARC slope
+>   choice = year-FE z_slope @ τ=0.95.
+> - Item 4 — Ashburn TX1 q=0.99 anomaly: commit `fd0065c`. Case (b)
+>   outlier-driven RULED OUT (LOO 0/175 sign-change); cases (a) and
+>   (c) remain candidate. Framed as "robust unexplained anomaly worth
+>   investigating" for methods-section subsection.
+> - Item 5 — Advisor meeting: agenda updated below to reflect the
+>   above; not yet scheduled.
 
 ## What's already done (as of 2026-05-14)
 
@@ -48,93 +65,128 @@ holds at α = 0.05; continuous fit is underpowered to sharpen at
 α = 0.05 but direction is consistent across all 7 pnodes and across
 the threshold sweep." Truthful and defensible.
 
-### 2. Response-variable sensitivity diagnostic
+### 2. LMP-components decomposition *(DONE 2026-05-14)*
 
-**Status:** Not started. Naturally follows Spec B (B's output
-informs which response shows the cleanest signal).
+> **Reframing note.** Original item was "response-variable sensitivity
+> diagnostic" (why median-split rejects on congestion but not total_lmp).
+> During design (2026-05-14, plan commits `a789e75` + `02e40e9`) this
+> was sharpened into a principled 4-component decomposition: instead
+> of comparing total_lmp vs congestion as black boxes, decompose
+> total_lmp = system_energy + congestion + marginal_loss and test the
+> conditional-Z mechanism on each component separately. The
+> "cancellation hypothesis" — system_energy carries the ORDC-direction,
+> congestion carries the opposite — explains the total_lmp null result
+> as components-canceling. Pre-reg at `docs/decisions.md § 2026-05-14
+> — Pre-registration: LMP-components decomposition (sub-q1 closure
+> item #2)`.
 
-**Why:** The 2026-05-14 application-of-pre-reg entry surfaced an
-asymmetry: median-split conditional-Z rejects on **congestion**
-(proposal's stated variable) but is inconclusive on **total_lmp**
-(Strategy C secondary). Both are on the same Loudoun cluster, same
-Z. Why does the test discriminate one but not the other? Either:
+**Status:** Closed by `docs/decisions.md § 2026-05-14 — Application of
+#2 pre-reg: LMP-components decomposition verdict` (commit `01ebbd8`).
 
-- (a) The total_lmp's larger mean-quantile response (4× the
-  congestion slope) "saturates" the tail's Z-dependence — the
-  vertical-shift effect dominates the shape effect.
-- (b) The conditional-Z test's sensitivity to scale-vs-shape
-  confounding differs between the two responses.
-- (c) Random noise — the discrepancy is sample-size-specific.
+**Closure outcome.** Rule 2 dispatch: **`underpowered_pos_direction`**
+on the headline `system_energy` test. shape_diff = +0.257, CI
+[−0.543, +0.617]. Direction is consistent with ORDC's predicted
+heavier-tail-at-HIGH-Z; magnitude does not clear α=0.05 at the
+available n_per_half=51 (one above the Rule 4 convergence floor).
 
-**What it produces:** A focused empirical investigation (not a new
-fit method). Outputs: a methodology paragraph for the paper
-explaining the asymmetry, with supporting decomposition of
-tail-shape vs. tail-rate Z-effects.
+Supplementary descriptive evidence:
+- Primary cluster: `congestion` −0.133, `marginal_loss` −0.156 (both
+  CIs span 0; direction OPPOSITE to system_energy → the
+  cancellation-hypothesis pattern descriptively).
+- Cross-pnode `system_energy` is structurally invariant across DOM
+  pnodes (zone-wide LMP-decomposition property), NOT independent
+  replication. Cross-pnode `congestion` is uniformly negative across
+  4 labeled pnodes — direction-consistent, magnitude-unsupported.
+- Threshold sweep p90→p95 on `system_energy`: 50× magnitude jump
+  flagged as **sample-fragile near GPD MLE convergence floor**, not a
+  clean threshold-effect curve.
 
-**Effort estimate:** 1 session brainstorm + small implementation
-(2-3 hours).
+**Paper-level implication:** direction-level support for the
+cancellation hypothesis without magnitude confirmation. Paper headline
+framing for sub-q1 deferred to advisor meeting (item #5 below).
 
-**Closes:** the "response-variable sensitivity" item flagged in the
-2026-05-14 application entry. Required for paper to honestly report
-which response carries the mechanism finding.
+### 3. τ = 0.99 secular sign-flip investigation *(DONE 2026-05-14)*
 
-### 3. τ = 0.99 secular sign-flip investigation
+**Status:** Closed by `docs/decisions.md § 2026-05-14 — Sub-q1 item
+#3: τ=0.99 secular sign-flip diagnostic (descriptive)` (commit
+`72456bb`).
 
-**Status:** Open since 2026-05-14 production-findings entry. Not
-addressed by any in-flight work.
+**Closure outcome — case (b) sparse-tail bootstrap artifact at τ=0.99.**
 
-**Why:** The QR-full year-FE decomposition at τ=0.99 shows the
-**secular** trend component goes the OPPOSITE direction from the
-contemporaneous Z response. 99th-pct LMP is trending *downward*
-over 2022-2026 even though DC growth and contemporaneous z_slope
-are both positive. Three plausible interpretations:
+The three-layer year-FE diagnostic (Layer 1 raw per-year p99, Layer 2
+year-dummy bootstrap, Layer 3 secular-component bootstrap as
+`primary_z_slope − year_fe_z_slope`) gave:
 
-- (a) **Real grid improvement.** PJM ORDC reform + transmission
-  investments are genuinely dampening extreme-tail LMP over time.
-  This matters for the projection layer (sub-q2): if real, the
-  projection should apply the *contemporaneous* z_slope rather
-  than the primary (full) z_slope at τ=0.99, since the secular
-  trend would otherwise offset the DC-driven volatility effect.
-- (b) **Sparse-tail artifact.** At τ=0.99 the year-FE decomposition
-  has very few observations per year × quantile cell; the
-  sign-flip could be noise from a small effective sample.
-- (c) **Window-specific.** 2022-2026 is a 4-year window; secular
-  trends inside it are not stable estimates.
+- **Layer 1 directly contradicts case (a) "grid improvement."** 2026
+  partial-year p99 is **4–10× any prior year** across all DOM pnodes
+  (e.g., primary 2026 p99 = 480 vs 2023 p99 = 43). The trajectory is
+  upward, not downward.
+- **Layer 3 at τ=0.99: all 7 pnodes have secular component CIs
+  spanning 0.** The diagnostic cannot distinguish real secular trend
+  from noise at the tail. Combined with Layer 1, the evidence supports
+  case (b) "sparse-tail bootstrap artifact" — the τ=0.99 QR-full sign
+  flip reported in Spec B is a sparse-tail estimator instability, not
+  an interpretable trend.
 
-**What it produces:** Diagnostic analysis — split the panel by year,
-examine year-FE residuals, possibly bootstrap the year-FE
-decomposition. Output: a paragraph in the paper interpreting the
-sign-flip (or rejecting it as artifact).
+**New finding the closure roadmap did not anticipate.** At
+τ=0.90/0.95 the secular component is **positive** with CIs **excluding
+0 on 5/7 non-Ashburn pnodes** (e.g., primary @ τ=0.95: secular
+component +0.168, CI [+0.04, +0.28]). `primary_z_slope >
+year_fe_z_slope` means the primary spec reports a larger response than
+year-FE; year-FE has absorbed something correlated with year. The
+honest framing: year-FE absorbs everything year-correlated (weather,
+generation mix, topology, AND 2026 partial-year selection) without
+separately identifying secular drift vs the 2026 event. **Magnitude
+attribution is unresolved by this diagnostic.**
 
-**Effort estimate:** 1 session (~2-3 hours).
+**Sub-q2 (JLARC projection) implication.** Use **year-FE-residualized
+slope at τ=0.95** as conservative bound for projection. Defer τ=0.99
+projection until a longer historical window stabilizes the tail.
 
-**Closes:** the τ=0.99 question in the 2026-05-14 production-findings
-entry's open list. Important for the JLARC projection layer's choice
-of z_slope (primary vs year-FE).
+### 4. Ashburn TX1 q=0.99 anomaly diagnostic *(DONE 2026-05-14)*
 
-### 4. Ashburn TX1 diagnostic
+> **Sharpening note.** The original framing was about TX1's τ=0.95
+> QR-full z_slope. After Spec B (2026-05-14) the focus shifted to TX1's
+> **q=0.99 sign flip on the Spec B continuous-fit β₁** (positive +0.093
+> at q=0.99 vs negative at q=0.90/0.95/0.995). The LOO + TX2
+> cross-check tests case (b) "outlier-driven over-fit" directly.
 
-**Status:** Open since 2026-05-14 production-findings entry.
+**Status:** Closed by `docs/decisions.md § 2026-05-14 — Sub-q1 item #4:
+Ashburn TX1 99th-pct anomaly diagnostic (descriptive)` (commit
+`fd0065c`).
 
-**Why:** The QR-full z_slope at τ=0.95 for Ashburn TX1 is −0.604
-(CI [−1.22, +0.52], spans 0). The wide CI means the bootstrap can't
-reject zero, but the median sign is the *wrong* direction for a
-DC-adjacent distribution-side pnode. Either:
+**Closure outcome — case (b) RULED OUT; cases (a) and (c) remain
+candidate explanations.**
 
-- (a) **Real distribution-side physics** — at 35 kV, the load-LMP
-  response may differ from the 500 kV transmission cluster's.
-- (b) **Noise** — wide CI consistent with no effect.
+- **TX1 q=0.99 LOO is rock-solid.** Full β₁ = +0.0932; LOO mean
+  +0.0931, stdev 0.0028, range [+0.083, +0.101]; **0 of 175 LOO refits
+  change sign.** Dropping any single exceedance does not flip the
+  positive direction. Case (b) "outlier-driven over-fit" RULED OUT.
+- **TX2 q=0.995 shows 30% sign-change refits**, validating the LOO
+  methodology can detect fragility. The TX1 q=0.99 0-sign-change
+  result is meaningful as fit-stability evidence, not noise floor.
+- **TX2 q=0.99 cross-check is directional, NOT independent.** TX2
+  β₁ = +0.0232 (same positive direction as TX1), LOO 0/175
+  sign-change. But TX1 and TX2 are co-located substation pnodes with
+  the same ~2y coverage window — directional confirmation only.
+- **Caveats beyond LOO** documented in the entry: temporal clustering
+  of q=0.99 exceedances (LOO cannot detect), selection effects from
+  the proposal-filter, generative-model misspecification (Spec B LRT
+  p=0.000 at TX1 q=0.99 suggests strong non-linearity).
 
-**What it produces:** Focused diagnostic — examine Ashburn TX1's
-LMP-vs-Z scatter, check for outlier influence, possibly compare
-with Ashburn TX2 (the second distribution-side pnode).
+**Paper-level implication.** Framed as **"a robust unexplained Ashburn
+q=0.99 anomaly worth investigating,"** NOT a paper-headline mechanism
+finding. Methods-section subsection with explicit open-questions
+framing (temporal clustering check, spline-form re-fit, mechanism
+investigation). Do not lead the paper with this finding.
 
-**Effort estimate:** 1 session (~2 hours). Could be done in parallel
-with item 3.
-
-**Closes:** the Ashburn TX1 question. Methodology footnote for paper;
-if distribution-side physics is real, may inform future work on
-distribution-side pnodes.
+**Open follow-ups** (out of scope for sub-q1 closure, but flagged for
+advisor + paper-writing):
+- Temporal-clustering check on TX1's q=0.99 exceedances (load panel,
+  inspect exceedance-set timestamps).
+- Spline-form re-fit at TX1 q=0.99 (LRT p=0.000 motivates).
+- Independent Ashburn-like 35 kV pnode at a different substation —
+  not available in current dataset.
 
 ### 5. Advisor meeting (Prof Wei / Lihui)
 
@@ -164,16 +216,18 @@ decisions that any of items 1-4 above might need re-doing.
 ## Sequencing
 
 ```
-                          ┌──── 3. τ=0.99 ────┐
-1. Spec B ─→ 2. Resp-var ─┤                   │── 5. Advisor meeting ─→ paper-ready sub-q1
-                          └──── 4. Ashburn ───┘
+                                ┌──── 3. τ=0.99 ✓ ────┐
+1. Spec B ✓ ─→ 2. Components ✓ ─┤                     │── 5. Advisor meeting ─→ paper-ready sub-q1
+                                └──── 4. Ashburn ✓ ───┘
 ```
 
-- Items 3 and 4 are independent of 1 and 2 — can be done in parallel.
-- Item 5 (advisor meeting) is best after 1 completes; items 2, 3, 4
-  can happen before or after the meeting.
-- Total wall time estimate: **3-5 weeks** for paper-publishable
-  confidence, depending on advisor meeting scheduling.
+- Items 1–4 completed in a single sub-q1 batched-diagnostics push
+  (2026-05-14). Original "3-5 weeks" estimate compressed by batching
+  items 2, 3, 4 into one production run + one round of application
+  entries (commits `01ebbd8` / `72456bb` / `fd0065c`).
+- Item 5 (advisor meeting) is the only remaining step. Agenda needs
+  updating to reflect the moderate-τ secular finding (new from item
+  3) and the Ashburn q=0.99 anomaly framing (sharpened from item 4).
 
 ## What "paper-publishable" means here
 

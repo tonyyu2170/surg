@@ -2075,3 +2075,97 @@ Singular headline only at α=0.05. All other tests in the production phase are d
 - Production fit results come in (write the application entry per Rule 2).
 - Advisor input materially shifts framing.
 - A different conditioning variable Z' becomes available (separate scientific question).
+
+## 2026-05-14 — Application of #2 pre-reg: LMP-components decomposition verdict
+
+**Context.** The same-date LMP-components pre-registration (above) locked decision rules before any GPD fit on the 4-component-decomposed LMP ran. This entry applies Rule 2 mechanically to the production outputs in `outputs/gpd_components/`, records the supplementary descriptive evidence, and notes implications for the paper's mechanism narrative.
+
+The headline outcome is **`underpowered_pos_direction`** per Rule 2. Direction is consistent with ORDC's predicted heavier-tail-at-HIGH-Z effect on `system_energy`, but the bootstrap CI spans 0 at the available headline n. **No claim cleared α=0.05.** Paper-level headline framing for sub-q1 is deferred to the advisor meeting (sub-q1 closure item #5); this entry records what the production phase produced, not the paper narrative.
+
+**Production-run config.**
+- Code: `feature/sub-q1-batched-diagnostics` worktree. 240 tests passing pre-run. Production wall time 2h 8m (19:10–21:18 May 14 CDT).
+- 4-component decomposition (`total_lmp`, `system_energy`, `congestion`, `marginal_loss`) at the cluster level (`*_price_rt_cluster_mean`) per `features.py` Task 1-2 pivot.
+- Headline: median-split at 95th-pct LMP on the filtered subset (`passes_proposal_filter=True`), Z = `dom_load_gradient_abs_mw_per_min`, pair-bootstrap n_boot=200 for the shape_diff CI.
+- Pre-reg reference: `docs/decisions.md § 2026-05-14 — Pre-registration: LMP-components decomposition (sub-q1 closure item #2)` (above).
+- CIs reported across `headline.json`, `primary_cluster_supplementary.json`, `cross_pnode.json`, `threshold_sweep.json` come from separately-seeded pair-bootstrap runs of the same underlying test; minor CI differences (a few hundredths) across reporting locations reflect bootstrap variance, not data differences.
+
+### Headline result — Rule 2 application
+
+`system_energy_price_rt_cluster_mean` median-split @ 95th-pct LMP, primary Loudoun cluster, filtered subset:
+
+- n_exc = 102, n_per_half = 51
+- **shape_diff = +0.257**, bootstrap 95% CI: **[−0.543, +0.617]**
+- **Rule 2 outcome:** `underpowered_pos_direction`
+- Paper claim (verbatim from `headline.json`): *"Underpowered on this scope (n_per_half=51): system_energy direction consistent with ORDC's predicted direction (heavier tail at HIGH Z), shape_diff=0.257, CI [−0.543, +0.617] spans 0. Cannot confirm at α=0.05."*
+
+n_per_half = 51 sits one above the Rule 4 floor (50), so the test reports a verdict but the GPD MLE asymptotic geometry is near its convergence boundary. The "underpowered" language is the truthful description; direction is informative as evidence-direction but not as a magnitude confirmation.
+
+### Primary cluster supplementary at 95th-pct (descriptive, no MT correction)
+
+From `outputs/gpd_components/primary_cluster_supplementary.json` — the two non-headline components on the same primary cluster + threshold + filter scope:
+
+| Component | shape_diff | Bootstrap CI 95% | n_exc | Rule 2 outcome |
+|---|---|---|---|---|
+| congestion | −0.133 | [−0.690, +0.297] | 102 | underpowered_neg_direction |
+| marginal_loss | −0.156 | [−0.949, +0.388] | 102 | underpowered_neg_direction |
+
+Both non-headline components point in the OPPOSITE direction from `system_energy` (negative shape_diff = heavier tail at LOW Z, the direction the 2026-05-14 conditional-Z congestion entry rejected at the larger n=789/half scope). At the components scope (n_per_half=51), neither CI clears α=0.05, but the **direction divergence between `system_energy` (+0.257) and `congestion` (−0.133) is the empirical pattern the pre-registered "cancellation hypothesis" Rule 2 row 1 named.** Direction-level support exists; magnitude confirmation at α=0.05 does not.
+
+### Cross-pnode supplementary at 95th-pct (descriptive, no MT correction)
+
+From `outputs/gpd_components/cross_pnode.json`. Three components × five labeled non-primary pnodes (ashburn_tx1/tx2 trigger Rule 4 insufficient_sample on all three components due to n_per_half ≈ 27):
+
+| Pnode | `system_energy` shape_diff [CI] | `congestion` shape_diff [CI] | `marginal_loss` shape_diff [CI] |
+|---|---|---|---|
+| ox | +0.257 [−0.587, +0.603] | −0.096 [−0.767, +0.332] | insufficient_sample |
+| bristers | +0.257 [−0.544, +0.652] | −0.053 [−0.537, +0.390] | insufficient_sample |
+| dom_zonal | +0.257 [−0.533, +0.533] | −0.075 [−0.527, +0.423] | +0.023 [−1.042, +0.323] |
+| ashburn_tx1 | insufficient_sample | insufficient_sample | insufficient_sample |
+| ashburn_tx2 | insufficient_sample | insufficient_sample | insufficient_sample |
+
+**Two structural observations.**
+
+1. **`system_energy` is identical to 13 decimals across all 4 DOM pnodes (primary cluster + ox + bristers + dom_zonal).** This is forced by PJM LMP decomposition: `system_energy_price_rt_<pnode>` is the slack-bus marginal energy price, identical at every node in a balancing area. The `_cluster_mean` aggregation over the Loudoun pnodes also collapses to the same series. **The cross-pnode supplementary test on `system_energy` is therefore one estimate replicated four times — NOT four independent observations.** The small CI differences across pnodes (CIs vary by ~0.1) reflect bootstrap reseeding alone. This is expected behavior, not a bug; it does mean cross-pnode "consistency" on system_energy carries no inferential weight beyond the headline.
+
+2. **`congestion` is the only component with genuine nodal variation across the 4 labeled pnodes.** shape_diff ranges [−0.13, −0.05] — all NEGATIVE. None of the four CIs clear α=0.05 at this n_per_half=51 scope, but the **direction is uniformly consistent across the four pnodes**. This is the genuine cross-pnode evidence (vs system_energy's structural replication) and reinforces the 2026-05-14 conditional-Z congestion rejection (at n_per_half=789, shape_diff = −0.18, CI [−0.37, −0.04]) directionally at higher granularity.
+
+3. **Ashburn pnodes are insufficient_sample on all three components at p95** (n_per_half ≈ 27 from n_exc ≈ 55 due to ~half the panel coverage from the 2026-05-12 archive-mode decision). Cannot contribute components-level evidence at this scope.
+
+### Threshold sweep on primary cluster (descriptive)
+
+From `outputs/gpd_components/threshold_sweep.json`:
+
+| Quantile | n_exc | `system_energy` shape_diff [CI] | `congestion` shape_diff [CI] | `marginal_loss` shape_diff [CI] |
+|---|---|---|---|---|
+| 0.90 | 201–203 | +0.005 [−0.460, +0.316] | −0.140 [−0.463, +0.123] | −0.065 [−0.468, +0.321] |
+| 0.95 (headline) | 102 | +0.257 [−0.444, +0.651] | −0.133 [−0.808, +0.334] | −0.156 [−0.853, +0.291] |
+| 0.99 | 21 | insufficient_sample | insufficient_sample | insufficient_sample |
+
+**Caveat on the p90→p95 magnitude jump on `system_energy`.** The point estimate moves from +0.005 (at n_per_half=100) to +0.257 (at n_per_half=51) — a 50× magnitude increase. The naive read is "direction sharpens at deeper threshold" (consistent with ORDC mechanism kicking in at tighter tail). The more conservative read is that **the GPD ξ MLE near the n_per_half=50 convergence floor is sample-fragile, and the +0.257 estimate sits in that unstable region.** The pre-reg's Rule 4 sets the floor at exactly 50, so n_per_half=51 satisfies the rule formally but the asymptotic likelihood geometry is on the edge. CI widening from [−0.46, +0.32] at p90 to [−0.44, +0.65] at p95 is consistent with both readings; **neither interpretation is supportable at α=0.05.** The honest framing is "direction is suggestive but magnitude is sample-fragile near the convergence floor."
+
+`congestion`'s shape_diff is stable across p90/p95 (−0.13 to −0.14) — that direction-stability is NOT artifact-driven.
+
+### Implication for sub-question 1
+
+The components decomposition adds to sub-q1's mixed answer at the **direction** level without changing the **magnitude / α=0.05** verdict:
+
+- **The opposite-direction pattern across components** (system_energy +0.26, congestion −0.13 on the primary cluster) is the empirical pattern the pre-registered "cancellation hypothesis" (Rule 2 row 1) named. This is direction-level support for the cancellation mechanism story.
+- **No claim cleared α=0.05.** The headline CI on system_energy spans 0; both supplementary tables also span 0. The 2026-05-14 conditional-Z congestion rejection (at scope n=789/half, CI excluding 0) remains the only tail-shape α=0.05 result in sub-q1.
+- **Cross-pnode `system_energy` "consistency" is structural** (zone-wide invariance), NOT independent replication. The genuine nodal-variation evidence is on `congestion` (4 pnodes, all negative, all CIs span 0 at this scope) — direction-consistent but magnitude-unsupported at n_per_half=51.
+- **The threshold-sweep p90→p95 magnitude jump on `system_energy` is sample-fragile** at the GPD MLE convergence boundary, not a clean threshold-effect curve. The direction-sharpens-at-tail reading is suggestive but not supportable.
+
+### Implication for the paper
+
+**Paper-level headline framing for sub-q1 is deferred to the advisor meeting (item #5).** This entry records the mechanical Rule 2 dispatch and the supplementary descriptive evidence; the choice of which finding anchors the paper's abstract is a narrative decision that benefits from advisor input. The candidates with substantive evidence:
+
+- Mean-quantile mechanism (QR-full positive z_slope at moderate τ; total_lmp ≈ 4× congestion) — α=0.05 cleared at τ=0.90/0.95.
+- Median-split congestion conditional-Z rejection (anti-ORDC direction at scope n=789/half) — α=0.05 cleared.
+- Opposite-direction-by-component decomposition (this entry) — directionally suggestive of the cancellation hypothesis, NOT cleared at α=0.05.
+
+What this entry contributes is **direction-level evidence for the cancellation hypothesis without the magnitude confirmation the proposal sought.** Whether the paper leads with this, with the moderate-τ z_slope, or with the median-split rejection — the advisor meeting is the right venue.
+
+### Revisit when
+
+- Advisor input materially shifts framing for the paper's mechanism narrative.
+- A longer historical window enables components-level fits at deeper thresholds (currently n_per_half=10 at p99; n_per_half=51 at p95 is one above the convergence floor).
+- A different conditioning variable Z' becomes available (separate scientific question).

@@ -354,6 +354,29 @@ CROSS_PNODE_PNODES = (
 # ---------------------------------------------------------------------------
 
 
+def _ensure_total_lmp_columns(panel: pd.DataFrame, pnode_labels: tuple[str, ...]) -> pd.DataFrame:
+    """For pnodes missing ``total_lmp_rt_<pnode>``, derive from component sum.
+
+    LMP identity: ``total_lmp = system_energy + congestion + marginal_loss``.
+    ``features.py`` only labels ``total_lmp_rt_cluster_mean`` (the cluster average)
+    plus Ashburn pnodes; non-cluster labeled pnodes (ox, bristers, dom_zonal)
+    have the three components but no labeled total_lmp. This helper materializes
+    the missing columns via the additive identity so ``run_pnode_tail_risk_curves``
+    can use them uniformly.
+    """
+    panel = panel.copy()
+    for pnode in pnode_labels:
+        total_col = f"total_lmp_rt_{pnode}"
+        if total_col in panel.columns:
+            continue
+        se_col = f"system_energy_price_rt_{pnode}"
+        co_col = f"congestion_price_rt_{pnode}"
+        ml_col = f"marginal_loss_price_rt_{pnode}"
+        if all(c in panel.columns for c in (se_col, co_col, ml_col)):
+            panel[total_col] = panel[se_col] + panel[co_col] + panel[ml_col]
+    return panel
+
+
 def run_tail_risk_curves(
     panel: pd.DataFrame,
     *,
@@ -374,6 +397,8 @@ def run_tail_risk_curves(
     tr_dir.mkdir(parents=True, exist_ok=True)
 
     filtered = panel.loc[panel[FILTER_COL] == True].copy()  # noqa: E712
+    # Materialize derived total_lmp columns where features.py didn't label them.
+    filtered = _ensure_total_lmp_columns(filtered, CROSS_PNODE_PNODES)
 
     all_results: list[dict] = []
 

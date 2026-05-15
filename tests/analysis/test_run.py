@@ -129,51 +129,8 @@ def test_run_all_writes_all_outputs(tmp_path: Path):
         assert p.exists(), f"expected output not written: {p}"
 
 
-def test_run_all_writes_tail_risk_curves_outputs(tmp_path: Path):
-    """Smoke test: run_all writes the expected outputs/tail_risk_curves/ files."""
-    from surg.analysis.run import run_all
-    from tests.analysis.test_tar import _make_synthetic_tar
-
-    panel = _make_panel_with_signal(n=2000)
-    events = pd.DataFrame({
-        "event_start_ept": pd.to_datetime(["2024-01-15T03:00:00"] * 5),
-        "event_end_ept":   pd.to_datetime(["2024-01-15T05:30:00"] * 5),
-        "duration": ["2.5 hours"] * 5,
-    })
-
-    # Plant signal in all columns needed by run_all + run_tail_risk_curves
-    for col in [
-        "total_lmp_rt_cluster_mean",
-        "system_energy_price_rt_cluster_mean",
-        "marginal_loss_price_rt_cluster_mean",
-        "congestion_price_rt_ashburn_tx1", "congestion_price_rt_ashburn_tx2",
-        "total_lmp_rt_ashburn_tx1", "total_lmp_rt_ashburn_tx2",
-        "congestion_price_rt_ox", "congestion_price_rt_bristers",
-        "congestion_price_rt_dom_zonal",
-        # Extra columns needed by tail_risk_curves (total_lmp per negative-control pnode)
-        "total_lmp_rt_ox", "total_lmp_rt_bristers", "total_lmp_rt_dom_zonal",
-    ]:
-        synth_extra = _make_synthetic_tar(n=len(panel)+1, c_true=2.0,
-                                          seed=abs(hash(col)) % 1000)
-        panel[col] = synth_extra["Y"].values
-
-    out_root = tmp_path / "outputs"
-
-    run_all(
-        panel=panel,
-        events=events,
-        out_root=out_root,
-        n_boot=30,
-        n_subsample_reps=10,
-        qr_full_n_boot=5,
-        gpd_n_boot=5,
-        continuous_n_boot=5,
-        components_n_boot=5,
-        year_fe_n_boot=5,
-        tail_risk_n_boot=5,  # NEW kwarg
-    )
-
-    tr_dir = out_root / "tail_risk_curves"
-    assert (tr_dir / "primary.json").exists()
-    assert (tr_dir / "cross_pnode_summary.json").exists()
-    assert (tr_dir / "primary.png").exists()
+# NOTE: A standalone test_run_all_writes_tail_risk_curves_outputs was removed
+# 2026-05-15 after Task 8 review — its coverage is a strict subset of
+# test_run_all_writes_all_outputs (above), which now plants the tail_risk_curves
+# columns and asserts the tail_risk outputs as part of the same end-to-end run.
+# Keeping both doubled CI wall time for zero added coverage.

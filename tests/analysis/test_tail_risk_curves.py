@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from surg.analysis.tail_risk_curves import (
+    _ensure_total_lmp_columns,
     aggregate_cross_pnode_summary,
     compute_exceedance_probability_with_ci,
     compute_threshold_percentiles,
@@ -379,3 +380,41 @@ def test_run_tail_risk_curves_writes_all_expected_outputs(tmp_path):
     assert "total_lmp" in primary["results"]
     assert "congestion" in primary["results"]
     assert "filter" in primary  # added by top-level orchestrator
+
+
+def test_ensure_total_lmp_columns_derives_missing_via_lmp_identity():
+    """For a pnode with all 3 components but no labeled total_lmp, derive total_lmp = sum."""
+    panel = pd.DataFrame({
+        "system_energy_price_rt_ox": [10.0, 20.0, 30.0],
+        "congestion_price_rt_ox": [1.0, 2.0, 3.0],
+        "marginal_loss_price_rt_ox": [0.1, 0.2, 0.3],
+        # No total_lmp_rt_ox column present
+    })
+    result = _ensure_total_lmp_columns(panel, ("ox",))
+
+    assert "total_lmp_rt_ox" in result.columns
+    assert list(result["total_lmp_rt_ox"]) == pytest.approx([11.1, 22.2, 33.3])
+    # Source panel unchanged (function returns a copy)
+    assert "total_lmp_rt_ox" not in panel.columns
+
+
+def test_ensure_total_lmp_columns_preserves_existing_columns():
+    """For a pnode that already has total_lmp_rt_<pnode>, the existing column is preserved unchanged."""
+    panel = pd.DataFrame({
+        "total_lmp_rt_ashburn_tx1": [100.0, 200.0],
+        "system_energy_price_rt_ashburn_tx1": [50.0, 60.0],
+        "congestion_price_rt_ashburn_tx1": [40.0, 130.0],
+        "marginal_loss_price_rt_ashburn_tx1": [10.0, 10.0],
+    })
+    result = _ensure_total_lmp_columns(panel, ("ashburn_tx1",))
+
+    # Existing column unchanged, NOT overwritten by the derived sum (100, 200)
+    assert list(result["total_lmp_rt_ashburn_tx1"]) == [100.0, 200.0]
+
+
+def test_ensure_total_lmp_columns_skips_pnodes_without_components():
+    """If components are missing for a pnode, the function leaves the panel as-is without crashing."""
+    panel = pd.DataFrame({"unrelated": [1.0, 2.0]})
+    result = _ensure_total_lmp_columns(panel, ("ox",))
+
+    assert "total_lmp_rt_ox" not in result.columns

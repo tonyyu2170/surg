@@ -2868,3 +2868,131 @@ TBD when plan-writing unlocks.
   sources are most material; commission a brief literature/news
   scan as part of the design phase.
 - A new sub-q is added or the existing scope shifts.
+
+---
+
+## 2026-05-15 (late) — Sub-q1 item #8: 5-min companion run (application)
+
+**Context.** Pre-registration locked the methodology in 2026-05-15
+§ Item #8. Production run executed autonomously per
+`docs/plans/2026-05-15-5min-companion-implementation.md` via the
+`/run-5min-companion` slash command. Sibling worktree
+`../surg-5min-companion/` on `feature/sub-q1-item-8-5min-companion`.
+
+**Joint window achieved (Part A).** 2026-04-13 20:00 → 2026-05-10
+23:55 EPT (27.2 days). 6,855 5-min stamps total; 845 in
+proposal-filter window (shoulder × 2-5 AM). The `inst_load` 30-day
+retention wall capped the upper edge as expected. 5-min LMP delta
+pull through 2026-05-14 succeeded but added no joint-window days
+(bottlenecked by `inst_load` end at 2026-05-10). `inst_load`
+refresh skipped — `surg-pull` CLI does not support the `inst_load`
+feed; existing 27-day archive used.
+
+**Part A findings (per pre-reg expectation: underpowered).** All
+five modules ran end-to-end with `--bootstrap-method=cluster`.
+Cluster count K is data-contiguity-dependent (>10-min gaps =
+boundaries) and was small for full-panel modules — pre-registered
+as below the 50-cluster floor.
+
+- **Item #1 — Spec B (continuous ξ(Z) regression), congestion @
+  cluster_mean, p95 threshold (headline):** β₁ = +0.024,
+  bootstrap 95% CI [−0.013, +0.073], p = 0.16 → **`underpowered`
+  decision-rule outcome**, matching pre-reg. Direction (positive
+  β₁) consistent across the threshold sweep at p90/p95/p99 (point
+  estimates +0.011/+0.024/+0.040, all CIs span 0); p99.5 fit failed
+  (insufficient exceedances — n = 35).
+- **Item #2 — gpd_components decomposition:** **`insufficient_sample`**
+  outcome on the headline (system_energy @ p95 on primary cluster):
+  n_exc = 43, below the n ≥ 50 per-half floor needed for the
+  median-split test. Pre-registered as expected at this n.
+- **Item #3 — year_fe_diagnostic (τ-trend secular component):**
+  **`skip_reason: only 1 distinct year (2026)`**. The 27-day
+  single-month joint window cannot support year-FE estimation by
+  construction. Pre-registered as the single-month-window failure
+  mode; documents the data wall in the most explicit way available.
+- **Item #4 — ashburn_diagnostic (LOO scatter):** LOO finished
+  (deterministic — no bootstrap dependency). Cross-threshold
+  summary CI columns are all `null` because Spec B fits at p95
+  failed for the Ashburn pnodes on this thin window — the LOO
+  beta_1 sweep itself is reported (q=0.9: −0.019, q=0.99: +0.066,
+  q=0.995: +0.159 for tx1) but is not a statistical claim at this
+  sample size.
+- **Item #6 — tail_risk_curves (direct Z → LMP):** computed P(LMP
+  > $X | Z decile) tables for 5 thresholds × 10 deciles × 7 pnodes.
+  Top-Z-decile (z ∈ [19, 79] MW/min, n = 85): P(congestion > $100)
+  = 0.000 (CI [0, 0.043]); P(total_lmp > $100) = 0.012 (1 of 85,
+  CI [0, 0.042]); $250+ thresholds all return p_hat = 0. The
+  hourly item #6 finding ("filter excludes the very events the
+  'crazy LMP' framing targets") replicates at 5-min cadence on the
+  shorter window.
+
+**Cross-resolution summary.** Like-for-like comparator built on the
+24.1-day overlap window (2026-04-13 → 2026-05-07, bounded by the
+on-disk hourly panel's end). Hourly comparator: 580 rows, n_filtered
+= 72 (8 obs/decile, very thin). 4 pnodes × 100 (decile×threshold)
+cells = 400 comparison rows in
+`outputs_5min/cross_resolution_summary.{json,csv}`. The matched
+hourly comparator is itself underpowered at this window length,
+limiting the inferential weight of any 5-min vs hourly delta.
+
+**Part B findings (descriptive, 6-month LMP-only,
+spike-exceedance).** Joined 5-min nodal LMP (2025-11-12 →
+2026-05-14, 582,780 rows × 11 pnodes) with hourly published total
+LMP on (pnode, hour_floor). Headline pnode = PLEASANT VIEW
+(35010371, primary anchor, 50,964 5-min rows × 4,247 matched
+hours):
+
+| Threshold | Pct (5-min) | n 5-min exc | n hourly buckets w/ 5-min exc | n hidden | hidden_fraction |
+|---|---|---|---|---|---|
+| $50 | 66.07 | 17,293 | 2,448 | 839 | **0.343** |
+| $100 | 84.40 | 7,950 | 1,329 | 604 | **0.454** |
+| $250 | 92.28 | 3,932 | 739 | 428 | **0.579** |
+| $500 | 96.98 | 1,539 | 279 | 162 | **0.581** |
+| $1000 | 99.19 | 413 | 81 | 48 | **0.593** |
+
+Hourly aggregation hides ~34–60 % of hour-buckets with 5-min spikes
+across the threshold range. The hidden fraction grows
+monotonically with threshold: rarer events are MORE likely to be
+hidden, because a single 5-min spike is averaged with 11 normal
+prices and the published hourly value does not exceed the
+threshold. Cross-pnode CSV at
+`outputs_5min/lmp_descriptive_6mo/spike_exceedance_comparison/cross_pnode_summary.csv`.
+
+**Limitations.**
+1. **Data-retention wall.** `inst_load` ~30-day retention caps Part
+   A at one month — pre-reg expected this; documented in concrete
+   numbers (27.2 days, 6,855 stamps, 845 in-filter).
+2. **Sub-50 cluster floor** for Part A's cluster bootstrap. K was
+   well below 50 (precise count not measured but small given panel
+   contiguity); CI widths reported are noisier than face value.
+3. **Single-month window** breaks year-FE estimation entirely (item
+   #3 skip_reason).
+4. **Part B is descriptive only** — no inferential CIs (design
+   § 3.4); the hidden-fraction headline is a count-based ratio with
+   no uncertainty interval.
+5. **Cross-resolution comparator window** (24.1 days, 72 in-filter
+   rows) is itself thin. Useful as a like-for-like sanity check,
+   not as an authoritative resolution-effect estimate.
+6. **`inst_load` refresh skipped** because `surg-pull` CLI lacks
+   the `inst_load` feed (it was originally pulled via a one-off
+   script). Existing 27-day archive met the planned window
+   (mid-Apr → mid-May); the missed 5-day refresh would have shifted
+   the upper bound to 2026-05-15 but only Part A's joint window
+   is bottlenecked by `inst_load`, so this is non-load-bearing.
+
+**Headline interpretation.**
+- Part A confirms what pre-reg expected: a 27-day joint window
+  cannot deliver any statistical claim about Z → LMP tail risk; it
+  documents the data wall.
+- Part B delivers an **independently useful descriptive finding
+  about resolution loss**: PJM's hourly publication hides 34 % of
+  the time the price spiked above $50 and 59 % of the time it
+  spiked above $1000, at the primary anchor pnode. This belongs in
+  the SURG report as a 5-min-cadence value-add even when the
+  upstream Z → LMP tail-risk question is unanswerable from the
+  monthly 5-min joint panel.
+
+**Revisit when.** Same conditions as the pre-reg: a longer-history
+5-min DOM-load source surfaces (different PJM feed, advisor's
+private dataset, EIA), or advisor reframes which resolution is the
+headline.

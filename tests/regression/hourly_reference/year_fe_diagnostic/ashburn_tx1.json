@@ -1,0 +1,128 @@
+{
+  "pnode_label": "ashburn_tx1",
+  "response_col": "congestion_price_rt_ashburn_tx1",
+  "z_col": "dom_load_gradient_abs_mw_per_min",
+  "taus": [
+    0.9,
+    0.95,
+    0.99
+  ],
+  "n_total_panel": 31536,
+  "n_after_dropna": 17448,
+  "layer1_raw_per_year": [
+    {
+      "year": 2024,
+      "n_obs": 5641,
+      "p90": 14.75,
+      "p95": 30.97,
+      "p99": 319.78600000000154
+    },
+    {
+      "year": 2025,
+      "n_obs": 8760,
+      "p90": 27.33,
+      "p95": 95.28749999999901,
+      "p99": 674.7075999999996
+    },
+    {
+      "year": 2026,
+      "n_obs": 3047,
+      "p90": 84.19200000000004,
+      "p95": 190.44999999999982,
+      "p99": 586.3911999999999
+    }
+  ],
+  "layer2_year_dummy_bootstrap": {
+    "tau_0.90": {
+      "year_2025": {
+        "point": 9.745136738057226,
+        "ci": [
+          7.665414835873145,
+          12.009251915442686
+        ],
+        "n_boot_converged": 50
+      },
+      "year_2026": {
+        "point": 62.229618610979514,
+        "ci": [
+          50.9727075093847,
+          78.07259603361857
+        ],
+        "n_boot_converged": 50
+      }
+    },
+    "tau_0.90_baseline_year": 2024,
+    "tau_0.95": {
+      "year_2025": {
+        "point": 20.74943360032171,
+        "ci": [
+          16.343710774974404,
+          29.690228325538772
+        ],
+        "n_boot_converged": 50
+      },
+      "year_2026": {
+        "point": 105.74593328380888,
+        "ci": [
+          87.53036271887727,
+          125.28849002052876
+        ],
+        "n_boot_converged": 50
+      }
+    },
+    "tau_0.95_baseline_year": 2024,
+    "tau_0.99": {
+      "year_2025": {
+        "point": 13.426166172123885,
+        "ci": [
+          6.151070958663729,
+          59.821654518686465
+        ],
+        "n_boot_converged": 50
+      },
+      "year_2026": {
+        "point": 20.353401327694883,
+        "ci": [
+          -93.84812122352004,
+          182.1353185032227
+        ],
+        "n_boot_converged": 50
+      }
+    },
+    "tau_0.99_baseline_year": 2024
+  },
+  "layer3_secular_component_bootstrap": {
+    "tau_0.90": {
+      "primary_z_slope": 0.3770860127267248,
+      "year_fe_z_slope": 0.2610018956379454,
+      "secular_component_point": 0.11608411708877941,
+      "secular_component_ci": [
+        -0.09220636081064906,
+        0.3179897864413229
+      ],
+      "n_boot_converged": 50
+    },
+    "tau_0.95": {
+      "primary_z_slope": -0.6040905958057579,
+      "year_fe_z_slope": -0.25492342539200763,
+      "secular_component_point": -0.3491671704137502,
+      "secular_component_ci": [
+        -0.7756182802226761,
+        0.32201499187746546
+      ],
+      "n_boot_converged": 50
+    },
+    "tau_0.99": {
+      "primary_z_slope": -5.571140883214667,
+      "year_fe_z_slope": -5.429948622841465,
+      "secular_component_point": -0.14119226037320232,
+      "secular_component_ci": [
+        -1.508055407915716,
+        1.2645972924293412
+      ],
+      "n_boot_converged": 50
+    }
+  },
+  "layer2_label": "PER-YEAR LEVEL SHIFTS \u2014 descriptive supplementary, not a trend test",
+  "layer3_label": "SECULAR-COMPONENT TREND TEST \u2014 primary_z_slope - year_fe_z_slope per \u03c4"
+}

@@ -1,0 +1,22 @@
+{
+  "captured_at": "2026-05-15",
+  "panel_path": "data/interim/analysis_panel.parquet",
+  "panel_schema_version": 2,
+  "panel_rebuilt_before_capture": true,
+  "panel_rebuild_reason": "On-disk panel was schema v1 (mtime 2026-05-12 23:09); preprocessing code at HEAD is schema v2 (commits 1767a07 + a5bc16e on 2026-05-14 added system_energy + marginal_loss columns). Item #2 and item #6 reference capture both required the v2 columns. Rebuilt via build_analysis_panel() in 5.5s before re-running all captures.",
+  "modules": {
+    "gpd_continuous": {"n_boot": 50, "seed": 42, "captured": true, "pnodes": 7},
+    "gpd_components": {"n_boot": 50, "seed": 42, "captured": true},
+    "year_fe_diagnostic": {"n_boot": 50, "seed": 42, "captured": true, "pnodes": 7},
+    "ashburn_diagnostic": {"seed": 42, "captured": true, "pnodes": 2},
+    "tail_risk_curves": {"n_boot": 50, "seed": 42, "captured": true, "per_pnode_jsons": 4, "cross_pnode_summary": true}
+  },
+  "tolerance_policy": {
+    "point_estimates": "exact (rel diff < 1e-9)",
+    "ci_bounds": "relative tolerance 0.02 (2%)",
+    "rationale": "Refactor changes the order of rng.choice() calls (inline -> dispatch wrapper). Even with the same seed, RNG stream consumption differs, so CI bounds drift slightly. Point estimates do not depend on the RNG and must match exactly. 2% CI tolerance preserves 'no semantic break' as the gate's purpose without demanding bit-identicality that the refactor cannot deliver."
+  },
+  "ci_field_detection_rule": "A leaf key is CI/bootstrap-derived (2% tolerance) if any of: (a) equals 'ci' exactly, (b) ends with '_ci', (c) contains '_ci_', (d) contains 'p_value', (e) contains 'bootstrap', (f) contains 'boot_se' or 'boot_std'. Verified against captured JSONs on 2026-05-15.",
+  "png_files_excluded_from_regression": true,
+  "png_exclusion_note": "PNG files (scatter_overlay.png, per-pnode tail_risk_curves plots) are not numerically diffable; the regression test loads JSON files only."
+}

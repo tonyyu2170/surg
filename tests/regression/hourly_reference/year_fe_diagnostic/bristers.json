@@ -1,0 +1,190 @@
+{
+  "pnode_label": "bristers",
+  "response_col": "congestion_price_rt_bristers",
+  "z_col": "dom_load_gradient_abs_mw_per_min",
+  "taus": [
+    0.9,
+    0.95,
+    0.99
+  ],
+  "n_total_panel": 31536,
+  "n_after_dropna": 31536,
+  "layer1_raw_per_year": [
+    {
+      "year": 2022,
+      "n_obs": 2185,
+      "p90": 13.182000000000002,
+      "p95": 22.315999999999995,
+      "p99": 123.32479999999904
+    },
+    {
+      "year": 2023,
+      "n_obs": 8760,
+      "p90": 9.78,
+      "p95": 16.33199999999997,
+      "p99": 52.3364
+    },
+    {
+      "year": 2024,
+      "n_obs": 8784,
+      "p90": 9.726999999999999,
+      "p95": 17.608500000000003,
+      "p99": 59.02990000000003
+    },
+    {
+      "year": 2025,
+      "n_obs": 8760,
+      "p90": 15.72,
+      "p95": 28.90199999999997,
+      "p99": 91.97349999999994
+    },
+    {
+      "year": 2026,
+      "n_obs": 3047,
+      "p90": 62.43800000000003,
+      "p95": 147.40399999999974,
+      "p99": 488.77179999999953
+    }
+  ],
+  "layer2_year_dummy_bootstrap": {
+    "tau_0.90": {
+      "year_2023": {
+        "point": -2.855031730961848,
+        "ci": [
+          -4.239654148645565,
+          -1.353043917545836
+        ],
+        "n_boot_converged": 50
+      },
+      "year_2024": {
+        "point": -2.9808172408364726,
+        "ci": [
+          -4.069361720749025,
+          -1.468323259511388
+        ],
+        "n_boot_converged": 50
+      },
+      "year_2025": {
+        "point": 2.633828719675421,
+        "ci": [
+          1.1770490156861058,
+          4.1347256224162345
+        ],
+        "n_boot_converged": 50
+      },
+      "year_2026": {
+        "point": 50.689651469954185,
+        "ci": [
+          42.485067012546665,
+          66.40965552044086
+        ],
+        "n_boot_converged": 50
+      }
+    },
+    "tau_0.90_baseline_year": 2022,
+    "tau_0.95": {
+      "year_2023": {
+        "point": -1.3597158979041417,
+        "ci": [
+          -5.731093401880344,
+          0.4570528961486712
+        ],
+        "n_boot_converged": 50
+      },
+      "year_2024": {
+        "point": 0.024810881101643645,
+        "ci": [
+          -3.7747700983552477,
+          1.5142522487364884
+        ],
+        "n_boot_converged": 50
+      },
+      "year_2025": {
+        "point": 9.166199123255524,
+        "ci": [
+          4.758324060085741,
+          11.015857295178025
+        ],
+        "n_boot_converged": 50
+      },
+      "year_2026": {
+        "point": 124.53223583344482,
+        "ci": [
+          110.82483605684847,
+          144.90531822229696
+        ],
+        "n_boot_converged": 50
+      }
+    },
+    "tau_0.95_baseline_year": 2022,
+    "tau_0.99": {
+      "year_2023": {
+        "point": -51.61355828176693,
+        "ci": [
+          -94.55142206612496,
+          0.9051047343036535
+        ],
+        "n_boot_converged": 50
+      },
+      "year_2024": {
+        "point": -41.545318517639316,
+        "ci": [
+          -86.45547909331484,
+          18.15425047228418
+        ],
+        "n_boot_converged": 50
+      },
+      "year_2025": {
+        "point": -35.39132318168049,
+        "ci": [
+          -78.98380221077181,
+          16.761904210184184
+        ],
+        "n_boot_converged": 50
+      },
+      "year_2026": {
+        "point": 341.7312293843597,
+        "ci": [
+          258.4967144394417,
+          450.72319696542854
+        ],
+        "n_boot_converged": 50
+      }
+    },
+    "tau_0.99_baseline_year": 2022
+  },
+  "layer3_secular_component_bootstrap": {
+    "tau_0.90": {
+      "primary_z_slope": 0.40325694200841866,
+      "year_fe_z_slope": 0.2827696490341438,
+      "secular_component_point": 0.12048729297427485,
+      "secular_component_ci": [
+        0.07811617661786807,
+        0.1642265482485241
+      ],
+      "n_boot_converged": 50
+    },
+    "tau_0.95": {
+      "primary_z_slope": 0.5704972657771918,
+      "year_fe_z_slope": 0.34794678497408427,
+      "secular_component_point": 0.22255048080310758,
+      "secular_component_ci": [
+        0.08316361589422572,
+        0.3436900452886434
+      ],
+      "n_boot_converged": 50
+    },
+    "tau_0.99": {
+      "primary_z_slope": 0.6361690377208333,
+      "year_fe_z_slope": 1.1163474320061084,
+      "secular_component_point": -0.4801783942852751,
+      "secular_component_ci": [
+        -1.2027101302603422,
+        0.39659294144426793
+      ],
+      "n_boot_converged": 50
+    }
+  },
+  "layer2_label": "PER-YEAR LEVEL SHIFTS \u2014 descriptive supplementary, not a trend test",
+  "layer3_label": "SECULAR-COMPONENT TREND TEST \u2014 primary_z_slope - year_fe_z_slope per \u03c4"
+}

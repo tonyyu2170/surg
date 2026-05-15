@@ -169,50 +169,27 @@ total).
 - [ ] **Step 4:** Capture the seed values, n_boot, and tolerance
   policy used (for the regression test to replay).
 
-  **NOTE on item #2 (gpd_components):** Reference capture FAILED on
-  the on-disk hourly panel because the panel lacks
-  `system_energy_price_rt_cluster_mean` and
-  `marginal_loss_price_rt_cluster_mean` columns (verified
-  2026-05-15: panel has only congestion + total_lmp at per-pnode
-  resolution; the components-cluster-mean columns require
-  per-pnode component columns at the wide-pivot stage which the
-  panel build omitted). Item #2 is therefore SKIPPED from
-  reference capture; its regression safety net during the
-  autonomous refactor is its existing unit tests.
-
+  **NOTE on panel rebuild (2026-05-15):** The on-disk panel was schema
+  v1 (mtime 2026-05-12 23:09); preprocessing HEAD is schema v2
+  (commits `1767a07` + `a5bc16e` on 2026-05-14 added system_energy +
+  marginal_loss columns). Item #2 and item #6 reference capture both
+  required the v2 columns. **Rebuild before capture:**
   ```bash
-  cat > tests/regression/hourly_reference/CAPTURE_PARAMS.json <<'EOF'
-  {
-    "captured_at": "2026-05-15",
-    "panel_path": "data/interim/analysis_panel.parquet",
-    "panel_sha": null,
-    "modules": {
-      "gpd_continuous": {"n_boot": 50, "seed": 42, "captured": true},
-      "gpd_components": {
-        "captured": false,
-        "skip_reason": "panel lacks system_energy_price_rt_cluster_mean + marginal_loss_price_rt_cluster_mean (verified 2026-05-15). Refactor safety net is the module's existing unit tests."
-      },
-      "year_fe_diagnostic": {"n_boot": 50, "seed": 42, "captured": true},
-      "ashburn_diagnostic": {"seed": 42, "captured": true},
-      "tail_risk_curves": {"n_boot": 50, "seed": 42, "captured": true}
-    },
-    "tolerance_policy": {
-      "point_estimates": "exact (rel diff < 1e-9)",
-      "ci_bounds": "relative tolerance 0.02 (2%)",
-      "rationale": "Refactor changes the order of rng.choice() calls (inline -> dispatch wrapper). Even with the same seed, RNG stream consumption differs, so CI bounds drift slightly. Point estimates do not depend on the RNG and must match exactly. 2% CI tolerance preserves 'no semantic break' as the gate's purpose without demanding bit-identicality that the refactor cannot deliver."
-    },
-    "ci_field_substrings": [
-      "p_value",
-      "ci_95",
-      "ci_low", "ci_high",
-      "boot_se", "boot_std",
-      "_bootstrap_",
-      "_ci_"
-    ],
-    "ci_field_substring_note": "A field is treated as CI/bootstrap-derived (2% tolerance) if its leaf key contains ANY of these substrings. Substring match is more robust than exact match given the actual field naming (e.g., scale_coefficients_bootstrap_ci_95, asymptotic_p_value, beta_1_two_sided_p_value). Verified against the captured gpd_continuous/primary.json on 2026-05-15."
-  }
-  EOF
+  .venv/bin/python -c "
+  from pathlib import Path
+  from surg.preprocessing.build import build_analysis_panel
+  panel = build_analysis_panel(data_root=Path('data/raw'))
+  panel.to_parquet('data/interim/analysis_panel.parquet')
+  "
   ```
+  Takes ~5 seconds. After rebuild, all 5 modules capture cleanly
+  (verified 2026-05-15: 33 reference files written in 15 min).
+
+  Write `CAPTURE_PARAMS.json` with the actual capture parameters and
+  detection rules (see the committed file at
+  `tests/regression/hourly_reference/CAPTURE_PARAMS.json` for the
+  authoritative content; key fields are panel_schema_version,
+  per-module n_boot+seed, tolerance_policy, ci_field_detection_rule).
 
 - [ ] **Step 5:** Commit:
   ```bash
@@ -1304,17 +1281,6 @@ the regression test file skeleton:
   POINT_TOLERANCE_REL = 1e-9
   CI_TOLERANCE_REL = 0.02
 
-  # Substring match (per CAPTURE_PARAMS.json ci_field_substrings).
-  # A leaf key containing ANY of these substrings → 2% CI tolerance.
-  CI_FIELD_SUBSTRINGS = (
-      "p_value",
-      "ci_95",
-      "ci_low", "ci_high",
-      "boot_se", "boot_std",
-      "_bootstrap_",
-      "_ci_",
-  )
-
 
   def _load_json(p: Path) -> dict:
       with open(p) as f:
@@ -1322,10 +1288,19 @@ the regression test file skeleton:
 
 
   def _is_ci_field(key_path: str) -> bool:
-      """Determine whether a JSON path's leaf is a CI/bootstrap-derived
-      field. Substring match on the LAST path segment."""
+      """A leaf key is CI/bootstrap-derived if ANY:
+        (a) exact 'ci', (b) ends '_ci', (c) contains '_ci_',
+        (d) contains 'p_value', (e) contains 'bootstrap',
+        (f) contains 'boot_se' or 'boot_std'.
+      Per CAPTURE_PARAMS.json ci_field_detection_rule."""
       last = key_path.split(".")[-1].split("[")[0]
-      return any(s in last for s in CI_FIELD_SUBSTRINGS)
+      if last == "ci": return True
+      if last.endswith("_ci"): return True
+      if "_ci_" in last: return True
+      if "p_value" in last: return True
+      if "bootstrap" in last: return True
+      if "boot_se" in last or "boot_std" in last: return True
+      return False
 
 
   def _assert_numeric_equivalence(reference, current, path=""):
@@ -1396,20 +1371,9 @@ loop.)
 
 ### Task 11: Refactor `gpd_components.py` (item #2)
 
-**Special case:** No regression-test fixture was captured for item
-#2 (panel-column gap, see Setup-2 Step 4 note). The refactor still
-follows the per-task pattern (inject bootstrap strategy, preserve
-pair-bootstrap default), but Step 3 (regression test) is replaced
-with: **run the module's existing unit tests with
-`--bootstrap-method=pair` (default) and verify all PASS**:
-
-```bash
-.venv/bin/pytest tests/analysis/test_gpd_components.py -v
-```
-
-If the unit tests PASS post-refactor, commit and continue. If they
-FAIL, halt + commit + report (same as the regression-test halt
-behavior in other module tasks).
+Apply the per-task pattern from the section header. Item #2's
+reference fixture WAS captured (after the schema v2 panel rebuild
+during Setup-2), so the regression test applies normally.
 
 ### Task 12: Refactor `year_fe_diagnostic.py` (item #3)
 

@@ -1,0 +1,235 @@
+{
+  "rows": [
+    {
+      "pnode_label": "primary",
+      "tau_key": "tau_0.90",
+      "primary_z_slope": 0.3926761461465773,
+      "year_fe_z_slope": 0.25124242854191525,
+      "secular_component_point": 0.14143371760466206,
+      "secular_component_ci": [
+        0.09757069145827545,
+        0.19796140335466095
+      ]
+    },
+    {
+      "pnode_label": "primary",
+      "tau_key": "tau_0.95",
+      "primary_z_slope": 0.5784798035941847,
+      "year_fe_z_slope": 0.410439928055375,
+      "secular_component_point": 0.16803987553880972,
+      "secular_component_ci": [
+        0.06092569651584512,
+        0.2846655750721128
+      ]
+    },
+    {
+      "pnode_label": "primary",
+      "tau_key": "tau_0.99",
+      "primary_z_slope": 0.3574654140051834,
+      "year_fe_z_slope": 0.6224627762870796,
+      "secular_component_point": -0.2649973622818962,
+      "secular_component_ci": [
+        -0.7832084261149113,
+        0.31320540456701984
+      ]
+    },
+    {
+      "pnode_label": "total_lmp",
+      "tau_key": "tau_0.90",
+      "primary_z_slope": 1.5266721033863746,
+      "year_fe_z_slope": 1.1457925916279237,
+      "secular_component_point": 0.3808795117584509,
+      "secular_component_ci": [
+        0.23469845516663526,
+        0.5238446547956691
+      ]
+    },
+    {
+      "pnode_label": "total_lmp",
+      "tau_key": "tau_0.95",
+      "primary_z_slope": 2.3336979044571535,
+      "year_fe_z_slope": 1.3886274852170573,
+      "secular_component_point": 0.9450704192400963,
+      "secular_component_ci": [
+        0.5805840983985288,
+        1.2273425612852136
+      ]
+    },
+    {
+      "pnode_label": "total_lmp",
+      "tau_key": "tau_0.99",
+      "primary_z_slope": 2.5975956211936477,
+      "year_fe_z_slope": 2.129137225847785,
+      "secular_component_point": 0.46845839534586275,
+      "secular_component_ci": [
+        -1.542206577023639,
+        2.269714183886423
+      ]
+    },
+    {
+      "pnode_label": "ox",
+      "tau_key": "tau_0.90",
+      "primary_z_slope": 0.4331800916824502,
+      "year_fe_z_slope": 0.30558531279752543,
+      "secular_component_point": 0.12759477888492476,
+      "secular_component_ci": [
+        0.08823259146259732,
+        0.18043279506433485
+      ]
+    },
+    {
+      "pnode_label": "ox",
+      "tau_key": "tau_0.95",
+      "primary_z_slope": 0.6116406679537931,
+      "year_fe_z_slope": 0.4084266061452695,
+      "secular_component_point": 0.20321406180852364,
+      "secular_component_ci": [
+        0.04294222295925794,
+        0.32996903782756987
+      ]
+    },
+    {
+      "pnode_label": "ox",
+      "tau_key": "tau_0.99",
+      "primary_z_slope": 0.6552164434976362,
+      "year_fe_z_slope": 0.7702496233957206,
+      "secular_component_point": -0.11503317989808437,
+      "secular_component_ci": [
+        -0.8187445164997401,
+        0.7366589687822449
+      ]
+    },
+    {
+      "pnode_label": "bristers",
+      "tau_key": "tau_0.90",
+      "primary_z_slope": 0.40325694200841866,
+      "year_fe_z_slope": 0.2827696490341438,
+      "secular_component_point": 0.12048729297427485,
+      "secular_component_ci": [
+        0.07811617661786807,
+        0.1642265482485241
+      ]
+    },
+    {
+      "pnode_label": "bristers",
+      "tau_key": "tau_0.95",
+      "primary_z_slope": 0.5704972657771918,
+      "year_fe_z_slope": 0.34794678497408427,
+      "secular_component_point": 0.22255048080310758,
+      "secular_component_ci": [
+        0.08316361589422572,
+        0.3436900452886434
+      ]
+    },
+    {
+      "pnode_label": "bristers",
+      "tau_key": "tau_0.99",
+      "primary_z_slope": 0.6361690377208333,
+      "year_fe_z_slope": 1.1163474320061084,
+      "secular_component_point": -0.4801783942852751,
+      "secular_component_ci": [
+        -1.2027101302603422,
+        0.39659294144426793
+      ]
+    },
+    {
+      "pnode_label": "dom_zonal",
+      "tau_key": "tau_0.90",
+      "primary_z_slope": 0.3544807882380425,
+      "year_fe_z_slope": 0.17515255843846944,
+      "secular_component_point": 0.17932822979957308,
+      "secular_component_ci": [
+        0.10591115869410171,
+        0.251846514490027
+      ]
+    },
+    {
+      "pnode_label": "dom_zonal",
+      "tau_key": "tau_0.95",
+      "primary_z_slope": 0.1947590346150747,
+      "year_fe_z_slope": 0.07968937569644563,
+      "secular_component_point": 0.11506965891862908,
+      "secular_component_ci": [
+        -0.09802511264469942,
+        0.289298984075285
+      ]
+    },
+    {
+      "pnode_label": "dom_zonal",
+      "tau_key": "tau_0.99",
+      "primary_z_slope": -0.39543226780169505,
+      "year_fe_z_slope": -0.006336776443276904,
+      "secular_component_point": -0.38909549135841814,
+      "secular_component_ci": [
+        -0.9624495090697799,
+        0.8038290457472157
+      ]
+    },
+    {
+      "pnode_label": "ashburn_tx1",
+      "tau_key": "tau_0.90",
+      "primary_z_slope": 0.3770860127267248,
+      "year_fe_z_slope": 0.2610018956379454,
+      "secular_component_point": 0.11608411708877941,
+      "secular_component_ci": [
+        -0.09220636081064906,
+        0.3179897864413229
+      ]
+    },
+    {
+      "pnode_label": "ashburn_tx1",
+      "tau_key": "tau_0.95",
+      "primary_z_slope": -0.6040905958057579,
+      "year_fe_z_slope": -0.25492342539200763,
+      "secular_component_point": -0.3491671704137502,
+      "secular_component_ci": [
+        -0.7756182802226761,
+        0.32201499187746546
+      ]
+    },
+    {
+      "pnode_label": "ashburn_tx1",
+      "tau_key": "tau_0.99",
+      "primary_z_slope": -5.571140883214667,
+      "year_fe_z_slope": -5.429948622841465,
+      "secular_component_point": -0.14119226037320232,
+      "secular_component_ci": [
+        -1.508055407915716,
+        1.2645972924293412
+      ]
+    },
+    {
+      "pnode_label": "ashburn_tx2",
+      "tau_key": "tau_0.90",
+      "primary_z_slope": 0.37067243390490034,
+      "year_fe_z_slope": 0.357422616731796,
+      "secular_component_point": 0.013249817173104361,
+      "secular_component_ci": [
+        -0.08505727420282438,
+        0.10516297795150141
+      ]
+    },
+    {
+      "pnode_label": "ashburn_tx2",
+      "tau_key": "tau_0.95",
+      "primary_z_slope": 0.11881134170629082,
+      "year_fe_z_slope": 0.28212177173438135,
+      "secular_component_point": -0.16331043002809054,
+      "secular_component_ci": [
+        -0.5079056906713968,
+        0.08240685371315518
+      ]
+    },
+    {
+      "pnode_label": "ashburn_tx2",
+      "tau_key": "tau_0.99",
+      "primary_z_slope": -2.272148558716708,
+      "year_fe_z_slope": -1.539477955516972,
+      "secular_component_point": -0.7326706031997361,
+      "secular_component_ci": [
+        -4.057132581107269,
+        3.3131719368423487
+      ]
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "pnodes": [
+    {
+      "pnode_label": "ashburn_tx1",
+      "response_col": "congestion_price_rt_ashburn_tx1",
+      "entries": [
+        {
+          "threshold_quantile": 0.9,
+          "beta_1": null,
+          "beta_1_ci_95": [
+            null,
+            null
+          ],
+          "convergence_status": "insufficient_bootstrap_reps"
+        },
+        {
+          "threshold_quantile": 0.95,
+          "beta_1": null,
+          "beta_1_ci_95": [
+            null,
+            null
+          ],
+          "convergence_status": "insufficient_bootstrap_reps"
+        },
+        {
+          "threshold_quantile": 0.99,
+          "beta_1": null,
+          "beta_1_ci_95": [
+            null,
+            null
+          ],
+          "convergence_status": "insufficient_bootstrap_reps"
+        },
+        {
+          "threshold_quantile": 0.995,
+          "beta_1": null,
+          "beta_1_ci_95": [
+            null,
+            null
+          ],
+          "convergence_status": "insufficient_bootstrap_reps"
+        }
+      ]
+    },
+    {
+      "pnode_label": "ashburn_tx2",
+      "response_col": "congestion_price_rt_ashburn_tx2",
+      "entries": [
+        {
+          "threshold_quantile": 0.9,
+          "beta_1": null,
+          "beta_1_ci_95": [
+            null,
+            null
+          ],
+          "convergence_status": "insufficient_bootstrap_reps"
+        },
+        {
+          "threshold_quantile": 0.95,
+          "beta_1": null,
+          "beta_1_ci_95": [
+            null,
+            null
+          ],
+          "convergence_status": "insufficient_bootstrap_reps"
+        },
+        {
+          "threshold_quantile": 0.99,
+          "beta_1": null,
+          "beta_1_ci_95": [
+            null,
+            null
+          ],
+          "convergence_status": "insufficient_bootstrap_reps"
+        },
+        {
+          "threshold_quantile": 0.995,
+          "beta_1": null,
+          "beta_1_ci_95": [
+            null,
+            null
+          ],
+          "convergence_status": "insufficient_bootstrap_reps"
+        }
+      ]
+    }
+  ]
+}

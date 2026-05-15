@@ -1,0 +1,345 @@
+{
+  "pnode_label": "dom_zonal",
+  "response_col": "congestion_price_rt_dom_zonal",
+  "threshold_col": "dom_load_gradient_abs_mw_per_min",
+  "n_total_panel": 31536,
+  "n_after_dropna": 31536,
+  "threshold_sweep": [
+    {
+      "threshold_quantile": 0.9,
+      "threshold_value": 16.668108,
+      "n_exceedances": 3154,
+      "linear": {
+        "convergence_status": "insufficient_bootstrap_reps",
+        "shape_coefficients": [
+          0.6816525105357509,
+          -0.004330185341861301
+        ],
+        "shape_coefficients_bootstrap_ci_95": [
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ]
+        ],
+        "scale_coefficients": [
+          3.4684288964804733,
+          -0.018798860779152018
+        ],
+        "scale_coefficients_bootstrap_ci_95": [
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ]
+        ],
+        "beta_1_two_sided_p_value": null
+      },
+      "spline": {
+        "convergence_status": "insufficient_bootstrap_reps",
+        "shape_coefficients": [
+          0.5514070672851027,
+          0.08887707780047258,
+          -0.013003921890797925,
+          0.0004492044618939782
+        ],
+        "shape_coefficients_bootstrap_ci_95": [
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ]
+        ],
+        "scale_coefficients": [
+          3.4679389058012893,
+          -0.018631902208860567
+        ],
+        "scale_coefficients_bootstrap_ci_95": [
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ]
+        ],
+        "beta_1_two_sided_p_value": null
+      },
+      "likelihood_ratio_test": {
+        "chi2": 11.576998594817269,
+        "df": 2,
+        "asymptotic_p_value": 0.003062574743376456
+      }
+    },
+    {
+      "threshold_quantile": 0.95,
+      "threshold_value": 40.213932,
+      "n_exceedances": 1577,
+      "linear": {
+        "convergence_status": "insufficient_bootstrap_reps",
+        "shape_coefficients": [
+          0.259357297315904,
+          -0.0035245493058559192
+        ],
+        "shape_coefficients_bootstrap_ci_95": [
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ]
+        ],
+        "scale_coefficients": [
+          4.350321927276236,
+          -0.013770083188618441
+        ],
+        "scale_coefficients_bootstrap_ci_95": [
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ]
+        ],
+        "beta_1_two_sided_p_value": null
+      },
+      "spline": {
+        "convergence_status": "insufficient_bootstrap_reps",
+        "shape_coefficients": [
+          0.25380440952273775,
+          0.025775803877883134,
+          -0.0063182395889134334,
+          0.00026153599333885553
+        ],
+        "shape_coefficients_bootstrap_ci_95": [
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ]
+        ],
+        "scale_coefficients": [
+          4.346012757004379,
+          -0.012476006456667734
+        ],
+        "scale_coefficients_bootstrap_ci_95": [
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ]
+        ],
+        "beta_1_two_sided_p_value": null
+      },
+      "likelihood_ratio_test": {
+        "chi2": 6.799861870014865,
+        "df": 2,
+        "asymptotic_p_value": 0.03337557496456445
+      }
+    },
+    {
+      "threshold_quantile": 0.99,
+      "threshold_value": 187.52320430000063,
+      "n_exceedances": 316,
+      "linear": {
+        "convergence_status": "insufficient_bootstrap_reps",
+        "shape_coefficients": [
+          0.19527336522896555,
+          -0.01623077923272659
+        ],
+        "shape_coefficients_bootstrap_ci_95": [
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ]
+        ],
+        "scale_coefficients": [
+          4.716055460509212,
+          0.0013649600562467166
+        ],
+        "scale_coefficients_bootstrap_ci_95": [
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ]
+        ],
+        "beta_1_two_sided_p_value": null
+      },
+      "spline": {
+        "convergence_status": "insufficient_bootstrap_reps",
+        "shape_coefficients": [
+          0.28507746936139433,
+          -0.042125594415256436,
+          8.893812257239956e-05,
+          8.388623282611341e-05
+        ],
+        "shape_coefficients_bootstrap_ci_95": [
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ]
+        ],
+        "scale_coefficients": [
+          4.768401402527159,
+          -0.009534263865322305
+        ],
+        "scale_coefficients_bootstrap_ci_95": [
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ]
+        ],
+        "beta_1_two_sided_p_value": null
+      },
+      "likelihood_ratio_test": {
+        "chi2": 2.6818021914446035,
+        "df": 2,
+        "asymptotic_p_value": 0.26160982684241363
+      }
+    },
+    {
+      "threshold_quantile": 0.995,
+      "threshold_value": 270.35761795,
+      "n_exceedances": 158,
+      "linear": {
+        "convergence_status": "insufficient_bootstrap_reps",
+        "shape_coefficients": [
+          0.3087176137685117,
+          -0.025713007549292087
+        ],
+        "shape_coefficients_bootstrap_ci_95": [
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ]
+        ],
+        "scale_coefficients": [
+          4.700159462297638,
+          0.0012791645189389128
+        ],
+        "scale_coefficients_bootstrap_ci_95": [
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ]
+        ],
+        "beta_1_two_sided_p_value": null
+      },
+      "spline": {
+        "convergence_status": "insufficient_bootstrap_reps",
+        "shape_coefficients": [
+          0.26305095541961687,
+          -0.0281415994128393,
+          0.0012936099780103496,
+          7.632708533897852e-05
+        ],
+        "shape_coefficients_bootstrap_ci_95": [
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ]
+        ],
+        "scale_coefficients": [
+          4.942123487251845,
+          -0.05486004927329446
+        ],
+        "scale_coefficients_bootstrap_ci_95": [
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ]
+        ],
+        "beta_1_two_sided_p_value": null
+      },
+      "likelihood_ratio_test": {
+        "chi2": 1.0243226702207266,
+        "df": 2,
+        "asymptotic_p_value": 0.5991991081925871
+      }
+    }
+  ]
+}

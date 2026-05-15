@@ -112,4 +112,14 @@ def build_joint_5min_panel(data_root: Path) -> pd.DataFrame:
     # Filter columns (cadence-independent: depends on month/hour only)
     panel = add_filter_columns(panel)
 
+    # Schema-required event columns. The 5-min joint window is too short
+    # for sync_reserve_events analysis to be meaningful, but the schema
+    # validator and downstream code expect the columns. Stub them with
+    # event-inactive defaults; if a future Part A run wants real event
+    # data, plumb load_sync_reserve_events + add_sync_event_columns in.
+    panel["sync_reserve_event_active"] = False
+    panel["sync_reserve_event_id"] = pd.NA
+    panel["hours_to_next_sync_event"] = pd.NA
+    panel["hours_since_last_sync_event"] = pd.NA
+
     return panel.sort_values("datetime_beginning_ept").reset_index(drop=True)

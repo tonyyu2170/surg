@@ -202,6 +202,38 @@ def test_tail_risk_curves_pair_bootstrap_equivalence():
 
 
 # ---------------------------------------------------------------------------
+# Item #4: ashburn_diagnostic (no bootstrap — LOO is deterministic)
+# ---------------------------------------------------------------------------
+
+def test_ashburn_diagnostic_pair_equivalence():
+    """Sub-q1 item #4 (ashburn_diagnostic): no bootstrap calls — LOO is
+    deterministic. The Spec B inputs are pre-captured; this test verifies
+    the LOO + cross-threshold summary outputs are unchanged."""
+    from surg.analysis.ashburn_diagnostic import run_ashburn_diagnostic
+
+    panel = _hourly_panel_or_skip()
+    ref_dir = REF_DIR / "ashburn_diagnostic"
+    spec_b_ref_dir = REF_DIR / "gpd_continuous"
+    with TemporaryDirectory() as tmp:
+        out_dir = Path(tmp) / "ashburn_diagnostic"
+        run_ashburn_diagnostic(
+            panel=panel,
+            out_dir=out_dir,
+            spec_b_results_dir=spec_b_ref_dir,
+            seed=42,
+        )
+        for ref_file in sorted(ref_dir.glob("*.json")):
+            cur_file = out_dir / ref_file.name
+            if not cur_file.exists():
+                raise AssertionError(
+                    f"Refactored module missing reference output: {ref_file.name}"
+                )
+            ref = _load_json(ref_file)
+            cur = _load_json(cur_file)
+            _assert_numeric_equivalence(ref, cur, ref_file.name)
+
+
+# ---------------------------------------------------------------------------
 # Item #3: year_fe_diagnostic
 # ---------------------------------------------------------------------------
 

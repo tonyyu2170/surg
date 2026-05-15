@@ -111,6 +111,8 @@ def fit_single_component_median_split(
     n_boot: int = 200,
     seed: int = 0,
     filter_col: str | None = None,
+    bootstrap_method: str = "pair",
+    island_ids: pd.Series | None = None,
 ) -> ComponentsHeadlineResult:
     """Median-split conditional-Z test on a single (component, pnode, threshold)."""
     sub = panel.dropna(subset=[response_col, z_col]).copy()
@@ -119,6 +121,10 @@ def fit_single_component_median_split(
 
     Y = sub[response_col].to_numpy()
     Z = sub[z_col].to_numpy()
+    sub_island_ids = (
+        island_ids.loc[sub.index].to_numpy()
+        if island_ids is not None else None
+    )
 
     if len(Y) == 0:
         return _insufficient(component, pnode_label, threshold_quantile, n_exc=0, n_per_half=0)
@@ -137,6 +143,8 @@ def fit_single_component_median_split(
         split_quantiles=(0.5,),
         n_boot=n_boot,
         seed=seed,
+        bootstrap_method=bootstrap_method,
+        island_ids=sub_island_ids,
     )
     shape_diff = float(result.extreme_contrast)
     ci_95 = (
@@ -226,6 +234,8 @@ def run_gpd_components(
     threshold_sweep_qs: tuple[float, ...] = (0.90, 0.95, 0.99),
     n_boot: int = 200,
     seed: int = 0,
+    bootstrap_method: str = "pair",
+    island_ids: pd.Series | None = None,
 ) -> None:
     """End-to-end orchestrator for sub-q1 closure item #2.
 
@@ -248,6 +258,8 @@ def run_gpd_components(
         n_boot=n_boot,
         seed=seed,
         filter_col=filter_col,
+        bootstrap_method=bootstrap_method,
+        island_ids=island_ids,
     )
     headline_payload = _result_to_dict(headline)
     headline_payload["rule_1_singular_headline"] = (
@@ -272,6 +284,8 @@ def run_gpd_components(
             n_boot=n_boot,
             seed=seed + 1,
             filter_col=filter_col,
+            bootstrap_method=bootstrap_method,
+            island_ids=island_ids,
         )
         primary_supp.append(_result_to_dict(r))
     (out_dir / "primary_cluster_supplementary.json").write_text(
@@ -295,6 +309,8 @@ def run_gpd_components(
                 n_boot=n_boot,
                 seed=seed + seed_idx,
                 filter_col=filter_col,
+                bootstrap_method=bootstrap_method,
+                island_ids=island_ids,
             )
             cross_pnode_results.append(_result_to_dict(r))
             seed_idx += 1
@@ -317,6 +333,8 @@ def run_gpd_components(
                 n_boot=n_boot,
                 seed=seed + seed_idx,
                 filter_col=filter_col,
+                bootstrap_method=bootstrap_method,
+                island_ids=island_ids,
             )
             sweep_results.append(_result_to_dict(r))
             seed_idx += 1

@@ -221,6 +221,8 @@ def run_all(
             out_dir=out_root / "gpd_components",
             n_boot=components_n_boot,
             seed=seed,
+            bootstrap_method=bootstrap_method,
+            island_ids=panel_island_ids,
         )
 
     # Sub-q1 closure item #3: τ=0.99 secular sign-flip diagnostic (descriptive).

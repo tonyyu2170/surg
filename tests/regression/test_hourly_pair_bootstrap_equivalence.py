@@ -202,6 +202,37 @@ def test_tail_risk_curves_pair_bootstrap_equivalence():
 
 
 # ---------------------------------------------------------------------------
+# Item #2: gpd_components
+# ---------------------------------------------------------------------------
+
+def test_gpd_components_pair_bootstrap_equivalence():
+    """Sub-q1 item #2 (gpd_components): refactor preserves
+    pair-bootstrap output byte-for-byte."""
+    from surg.analysis.gpd_components import run_gpd_components
+
+    panel = _hourly_panel_or_skip()
+    ref_dir = REF_DIR / "gpd_components"
+    with TemporaryDirectory() as tmp:
+        out_dir = Path(tmp) / "gpd_components"
+        run_gpd_components(
+            panel=panel,
+            out_dir=out_dir,
+            n_boot=50,
+            seed=42,
+            bootstrap_method="pair",
+        )
+        for ref_file in sorted(ref_dir.glob("*.json")):
+            cur_file = out_dir / ref_file.name
+            if not cur_file.exists():
+                raise AssertionError(
+                    f"Refactored module missing reference output: {ref_file.name}"
+                )
+            ref = _load_json(ref_file)
+            cur = _load_json(cur_file)
+            _assert_numeric_equivalence(ref, cur, ref_file.name)
+
+
+# ---------------------------------------------------------------------------
 # Item #1: gpd_continuous (Spec B)
 # ---------------------------------------------------------------------------
 

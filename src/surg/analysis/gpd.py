@@ -355,6 +355,8 @@ def gpd_quantile_split_on_z(
     split_quantiles: tuple[float, ...] = (0.25, 0.5, 0.75),
     n_boot: int = 200,
     seed: int = 0,
+    bootstrap_method: str = "pair",
+    island_ids: np.ndarray | pd.Series | None = None,
 ) -> GPDQuantileSplitResult:
     """N-way GPD fit conditional on Z-quantile groups within exceedances of Y.
 
@@ -435,24 +437,63 @@ def gpd_quantile_split_on_z(
         ))
     extreme_contrast = fits[-1].shape - fits[0].shape
 
-    # Bootstrap: pair-resample exceedance indices, recompute edges per rep,
-    # refit all groups. Skip reps where any group ends up with < 10 obs.
+    # Bootstrap: pair-resample exceedance indices (preserves byte-for-byte
+    # equivalence with the pre-refactor implementation; regression test
+    # gate). Cluster mode resamples whole islands among exceedance rows
+    # for the 5-min companion (sub-q1 item #8).
     rng = np.random.default_rng(seed)
     n_exc = len(Y_exc)
     contrasts: list[float] = []
-    for _ in range(n_boot):
-        idx = rng.integers(0, n_exc, size=n_exc)
-        Y_b = Y_exc[idx]
-        Z_b = Z_exc[idx]
-        edges_b = tuple(float(np.quantile(Z_b, q)) for q in split_quantiles)
-        masks_b = _assign_groups(Z_b, edges_b)
-        if any(m.sum() < 10 for m in masks_b):
-            continue
-        try:
-            shapes_b = [fit_gpd(Y_b[m], threshold=threshold).shape for m in masks_b]
-        except ValueError:
-            continue
-        contrasts.append(shapes_b[-1] - shapes_b[0])
+
+    if bootstrap_method == "pair":
+        for _ in range(n_boot):
+            idx = rng.integers(0, n_exc, size=n_exc)
+            Y_b = Y_exc[idx]
+            Z_b = Z_exc[idx]
+            edges_b = tuple(float(np.quantile(Z_b, q)) for q in split_quantiles)
+            masks_b = _assign_groups(Z_b, edges_b)
+            if any(m.sum() < 10 for m in masks_b):
+                continue
+            try:
+                shapes_b = [fit_gpd(Y_b[m], threshold=threshold).shape for m in masks_b]
+            except ValueError:
+                continue
+            contrasts.append(shapes_b[-1] - shapes_b[0])
+    elif bootstrap_method == "cluster":
+        if island_ids is None:
+            raise ValueError(
+                "bootstrap_method='cluster' requires island_ids aligned to Y"
+            )
+        ids_arr = np.asarray(island_ids)
+        if len(ids_arr) != len(Y_arr):
+            raise ValueError(
+                f"island_ids length {len(ids_arr)} must match Y length "
+                f"{len(Y_arr)}"
+            )
+        ids_exc = ids_arr[exceed_mask]
+        unique_ids = np.unique(ids_exc)
+        K = len(unique_ids)
+        groups_by_island: dict[int, tuple[np.ndarray, np.ndarray]] = {
+            int(iid): (Y_exc[ids_exc == iid], Z_exc[ids_exc == iid])
+            for iid in unique_ids
+        }
+        for _ in range(n_boot):
+            sampled = rng.choice(unique_ids, size=K, replace=True)
+            Y_b = np.concatenate([groups_by_island[int(iid)][0] for iid in sampled])
+            Z_b = np.concatenate([groups_by_island[int(iid)][1] for iid in sampled])
+            if len(Y_b) == 0:
+                continue
+            edges_b = tuple(float(np.quantile(Z_b, q)) for q in split_quantiles)
+            masks_b = _assign_groups(Z_b, edges_b)
+            if any(m.sum() < 10 for m in masks_b):
+                continue
+            try:
+                shapes_b = [fit_gpd(Y_b[m], threshold=threshold).shape for m in masks_b]
+            except ValueError:
+                continue
+            contrasts.append(shapes_b[-1] - shapes_b[0])
+    else:
+        raise ValueError(f"Unknown bootstrap_method: {bootstrap_method!r}")
 
     if len(contrasts) < 20:
         ci: tuple[float, float] = (float("nan"), float("nan"))

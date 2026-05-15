@@ -17,6 +17,7 @@ from surg.analysis.gpd_continuous import run_gpd_continuous_z
 from surg.analysis.gpd_components import run_gpd_components
 from surg.analysis.year_fe_diagnostic import run_year_fe_diagnostic, write_cross_pnode_summary
 from surg.analysis.ashburn_diagnostic import run_ashburn_diagnostic
+from surg.analysis.tail_risk_curves import run_tail_risk_curves
 from surg.analysis.mechanism import run_mechanism
 from surg.analysis.robustness import subsample_bootstrap
 from surg.preprocessing.loaders import load_sync_reserve_events
@@ -53,6 +54,9 @@ def run_all(
     skip_year_fe_diagnostic: bool = False,
     skip_ashburn_diagnostic: bool = False,
     ashburn_loo_skip: bool = False,
+    tail_risk_n_boot: int = 200,
+    skip_tail_risk_curves: bool = False,
+    tail_risk_loo_skip: bool = False,
 ) -> None:
     """Run the full Phase 3 analysis pipeline.
 
@@ -189,6 +193,18 @@ def run_all(
                 spec_b_results_dir=out_root / "gpd_continuous",
             )
 
+    # Sub-q1 closure item #6: direct Z → LMP tail-risk characterization.
+    if not skip_tail_risk_curves:
+        if tail_risk_loo_skip and (out_root / "tail_risk_curves" / "primary.json").exists():
+            print("tail_risk_curves outputs exist; skipping (--tail-risk-loo-skip).")
+        else:
+            print("Running tail_risk_curves (sub-q1 item #6)...")
+            run_tail_risk_curves(
+                panel=panel,
+                out_root=out_root,
+                n_boot=tail_risk_n_boot,
+            )
+
     # Note: leave_one_season_out (robustness.py) is intentionally NOT called
     # from run_all per the plan's "Out of scope" section — the panel does not
     # yet carry an explicit _season_id column. The function remains importable
@@ -228,6 +244,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    help="Skip sub-q1 item #4 (ashburn_diagnostic) orchestrator.")
     p.add_argument("--ashburn-loo-skip", action="store_true",
                    help="Soft idempotency: skip ashburn LOO if outputs already exist.")
+    p.add_argument("--tail-risk-n-boot", type=int, default=200,
+                   help="Bootstrap reps for sub-q1 item #6 (tail_risk_curves) CIs.")
+    p.add_argument("--skip-tail-risk-curves", action="store_true",
+                   help="Skip sub-q1 item #6 (tail_risk_curves) orchestrator.")
+    p.add_argument("--tail-risk-loo-skip", action="store_true",
+                   help="Soft idempotency: skip tail_risk_curves if output already exists.")
     return p
 
 
@@ -253,6 +275,9 @@ def main(argv: list[str] | None = None) -> int:
         skip_year_fe_diagnostic=args.skip_year_fe_diagnostic,
         skip_ashburn_diagnostic=args.skip_ashburn_diagnostic,
         ashburn_loo_skip=args.ashburn_loo_skip,
+        tail_risk_n_boot=args.tail_risk_n_boot,
+        skip_tail_risk_curves=args.skip_tail_risk_curves,
+        tail_risk_loo_skip=args.tail_risk_loo_skip,
     )
     print(f"wrote analysis outputs to {args.out_root}/")
     return 0

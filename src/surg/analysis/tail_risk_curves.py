@@ -407,6 +407,7 @@ def run_tail_risk_curves(
 
     # Cross-pnode summary
     summary = aggregate_cross_pnode_summary(all_results)
+    summary["filter"] = FILTER_DESC   # propagate provenance to cross-pnode summary too
     with open(tr_dir / "cross_pnode_summary.json", "w") as f:
         json.dump(_json_serializable(summary), f, indent=2)
 

@@ -4,7 +4,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from surg.analysis.tail_risk_curves import compute_z_deciles
+from surg.analysis.tail_risk_curves import (
+    compute_exceedance_probability_with_ci,
+    compute_threshold_percentiles,
+    compute_z_deciles,
+)
 
 
 def test_compute_z_deciles_returns_11_edges_and_correct_bin_indices():
@@ -37,9 +41,6 @@ def test_compute_z_deciles_handles_ties_at_boundary():
     assert (bin_indices[:500] == 0).all(), "all tied zeros should land in bin 0 under right=True"
 
 
-from surg.analysis.tail_risk_curves import compute_threshold_percentiles
-
-
 def test_compute_threshold_percentiles_returns_dict_per_threshold():
     """For known thresholds in a uniform [0, 100] distribution, the percentile-of-score should match the threshold itself."""
     panel = pd.DataFrame({"resp": np.linspace(0, 100, 10001)})
@@ -60,3 +61,62 @@ def test_compute_threshold_percentiles_handles_threshold_above_max():
     panel = pd.DataFrame({"resp": np.linspace(0, 100, 1001)})
     out = compute_threshold_percentiles(panel, "resp", [200.0])
     assert out[200.0] == pytest.approx(1.0)
+
+
+def test_exceedance_probability_point_estimate_matches_empirical():
+    """Point estimate is sum(resp > threshold) / n; matches naive count for any (Z, resp) panel."""
+    rng = np.random.default_rng(seed=42)
+    panel = pd.DataFrame({
+        "z": rng.uniform(0, 1, size=1000),
+        "resp": rng.normal(loc=50, scale=20, size=1000),
+    })
+    mask = np.ones(1000, dtype=bool)  # all rows
+    threshold = 60.0
+
+    p_hat, n_exc, n_total, ci_low, ci_high = compute_exceedance_probability_with_ci(
+        panel, response_col="resp", threshold=threshold, z_bin_mask=mask, n_boot=50, seed=0
+    )
+
+    expected_p_hat = (panel["resp"] > threshold).sum() / len(panel)
+    assert p_hat == pytest.approx(float(expected_p_hat))
+    assert n_exc == (panel["resp"] > threshold).sum()
+    assert n_total == 1000
+    assert ci_low <= p_hat <= ci_high
+
+
+def test_exceedance_probability_zero_exceedances_returns_p_hat_zero():
+    """When no observation exceeds the threshold, p_hat=0; CI lower=0; CI upper is Wilson exact."""
+    panel = pd.DataFrame({
+        "z": np.arange(100),
+        "resp": np.zeros(100),  # nothing exceeds threshold > 0
+    })
+    mask = np.ones(100, dtype=bool)
+
+    p_hat, n_exc, n_total, ci_low, ci_high = compute_exceedance_probability_with_ci(
+        panel, response_col="resp", threshold=100.0, z_bin_mask=mask, n_boot=50, seed=0
+    )
+
+    assert p_hat == 0.0
+    assert n_exc == 0
+    assert n_total == 100
+    assert ci_low == 0.0
+    # Wilson exact upper bound for (0, 100) at alpha=0.05 is ~0.036
+    assert 0.0 < ci_high < 0.10
+
+
+def test_exceedance_probability_ci_includes_point_estimate():
+    """For a normal-power bin, the 95% CI should bracket the point estimate."""
+    rng = np.random.default_rng(seed=7)
+    panel = pd.DataFrame({
+        "z": rng.uniform(0, 1, size=500),
+        "resp": rng.exponential(scale=50, size=500),
+    })
+    mask = np.ones(500, dtype=bool)
+    threshold = 50.0
+
+    p_hat, _, _, ci_low, ci_high = compute_exceedance_probability_with_ci(
+        panel, response_col="resp", threshold=threshold, z_bin_mask=mask, n_boot=200, seed=11
+    )
+
+    assert ci_low <= p_hat <= ci_high
+    assert ci_high - ci_low < 0.15  # for n=500, CI width should be reasonable

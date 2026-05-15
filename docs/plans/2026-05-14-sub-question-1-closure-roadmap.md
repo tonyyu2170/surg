@@ -6,11 +6,10 @@
 > phase transition in DOM congestion pricing?" — to **paper-publishable
 > confidence**. Brainstormed scope + sequencing with the user in-session.
 >
-> **Closure status as of 2026-05-14 night:** Items 1, 2, 3, 4 all DONE.
-> Items 5 (advisor meeting) and 6 (direct Z → LMP tail-risk
-> characterization, added late tonight) remain as open closure steps.
-> Item 6 sequenced BEFORE item 5 so the advisor sees the complete
-> sub-q1 picture (mechanism + descriptive characterization).
+> **Closure status as of 2026-05-15 early morning:** Items 1, 2, 3, 4,
+> 6 all DONE. Item 5 (advisor meeting) remains as the only open
+> closure step. Item 6 sequenced before item 5 per design so the
+> advisor sees the complete sub-q1 picture together.
 > Commits (chronological):
 > - Item 1 — Spec B continuous ξ(Z): `fe2cb94` (FF-merged earlier).
 > - Item 2 — LMP-components decomposition (reframed from "response-
@@ -24,13 +23,19 @@
 >   (c) remain candidate. Framed as "robust unexplained anomaly worth
 >   investigating" for methods-section subsection.
 > - Item 5 — Advisor meeting: agenda needs updating; not yet scheduled.
-> - Item 6 — Direct Z → LMP tail-risk characterization: **added
->   2026-05-14 night** after the user clarified the sub-q1 framing
->   (*"what range of load variance causes LMP to essentially go crazy"*
->   is fundamentally a descriptive characterization of the conditional
->   Z → LMP distribution, not a mechanism test). Items #1-4 stay as
->   mechanism supporting evidence; item #6 adds the direct empirical
->   answer. Design pending brainstorm.
+> - Item 6 — Direct Z → LMP tail-risk characterization: **DONE**
+>   (commit `6e15f3c`). **Methodological finding rather than the
+>   intended descriptive answer:** within the proposal-filter scope
+>   (n_total_filtered=2027), exceedance probability is 0.000 for
+>   $250+ thresholds across all 10 Z deciles and all 7 pnodes, with
+>   only 10 of 2027 observations exceeding $100 on total_lmp. The
+>   filter excludes the very events the "crazy LMP" framing targets.
+>   Two follow-up paths flagged for advisor input: (a) re-run with
+>   calibrated smaller thresholds within the filter scope, or (b)
+>   raw-panel analysis via the newly-scoped sub-q3 (event correlation).
+>   Mechanism work in items #1-4 unaffected. See `docs/decisions.md
+>   § 2026-05-15 — Sub-q1 item #6: Direct Z → LMP tail-risk
+>   characterization (descriptive)`.
 
 ## What's already done (as of 2026-05-14)
 
@@ -197,7 +202,7 @@ advisor + paper-writing):
 - Independent Ashburn-like 35 kV pnode at a different substation —
   not available in current dataset.
 
-### 6. Direct Z → LMP tail-risk characterization *(added 2026-05-14 night)*
+### 6. Direct Z → LMP tail-risk characterization *(DONE 2026-05-15)*
 
 > **Why this item exists.** Items #1-4 are **mechanism tests** — they
 > ask *why* LMP gets crazy at high Z (ORDC scarcity, cancellation
@@ -209,51 +214,45 @@ advisor + paper-writing):
 > conditional 95th-pct LMP) but don't directly produce the artifact
 > the framing wants.
 
-**Status:** Added 2026-05-14 night. Design pending brainstorm; not yet
-executed.
+**Status:** Closed by `docs/decisions.md § 2026-05-15 — Sub-q1 item #6:
+Direct Z → LMP tail-risk characterization (descriptive)` (commit
+`6e15f3c`).
 
-**What it produces (target):** A binned or smooth characterization of
-the conditional Z → LMP distribution, specifically focused on the
-upper tail. Final form to be determined in brainstorm; candidate
-outputs include:
+**Closure outcome — methodological finding rather than the intended
+descriptive answer.** Within the proposal-filter scope
+(n_total_filtered=2027), exceedance probability is 0.000 for $250+
+thresholds across all 10 Z deciles and all 7 pnodes; only 10 of 2027
+observations exceed $100 on total_lmp (distributed across moderate
+deciles 5/6/8/9, with zero in the top decile). The filter scope's
+LMP distribution is concentrated in $0-$100 — 99.5th-percentile of
+total_lmp ≈ $100, congestion ≤ $100 everywhere — so the chosen
+$-thresholds are above the filter's effective range.
 
-- Z-bin × P(LMP > $threshold) table, for several thresholds (e.g.,
-  $200, $500, $1000) — answers "in which Z range does P(crazy LMP)
-  exceed N%?"
-- Z-bin × conditional quantile of LMP (50th, 95th, 99th) — answers
-  "at what Z does the 99th-pct LMP cross $X?"
-- Tail expectation E[LMP | LMP > cutoff, Z bin] — answers "given
-  that LMP is already in the tail, how much worse is it at high Z?"
+This is descriptive evidence in its own right (the proposal-filter
+does its job by excluding the very events the "crazy LMP" framing
+targets), but it is not the curve the design spec targeted. The
+mechanism work in items #1-4 is **unaffected** — those tests measure
+tail-shape changes within the filter's effective LMP range, not
+absolute $-threshold crossings.
 
-**Why before item #5 (advisor meeting):** The advisor sees the
-complete sub-q1 picture (mechanism + descriptive characterization)
-before weighing in on paper framing. Calendar latency on advisor
-scheduling absorbs the implementation time. If item #6 surfaces an
-unexpected pattern (e.g., the "crazy region" is at LOW Z, opposite
-the proposal's prediction), advisor framing shifts.
+**Outputs produced:** 5 JSONs + 4 PNGs + 1 CSV under
+`outputs/tail_risk_curves/` (gitignored, locally reproducible via
+`surg-analyze --tail-risk-n-boot 200`). All curves visually flat at
+zero except for sparse $100 exceedances on total_lmp.
 
-**Design decisions pending brainstorm:**
-- Z binning strategy (quantile vs equally-spaced MW/min vs
-  physically-meaningful breakpoints from ORDC-curve documentation)
-- "Crazy" cutoff(s) — $200 / $500 / $1000 thresholds; conditional
-  quantile-based; tail expectation
-- Response variable(s) — total_lmp, congestion, components-decomposed
-- Pnode scope — primary cluster only, all 7, voltage-stratified
-- Filter — proposal-filter (consistency with prior mechanism work)
-  vs raw panel (a separate descriptive view)
-- Pre-reg discipline — descriptive only, or pre-committed binning
-  + thresholds to avoid post-hoc cherry-picking (per the discipline
-  used in items #2-4)
-- Output artifact — table, plot, both; static, interactive
+**Follow-up paths flagged for advisor input:**
+- **(a)** Re-run item #6 with calibrated smaller thresholds within
+  the filter scope (e.g., $25, $50, $75, $100, $150). Pre-reg-wise
+  exploratory.
+- **(b)** Raw-panel analysis via sub-q3 (event correlation, new
+  addition tonight). Methodologically clean for the "where do crazy
+  events occur" question because sub-q3 will have explicit
+  supply-side event flags.
 
-**Effort estimate:** Half-day implementation; brainstorm + plan add
-~1 hour.
-
-**Closes:** the direct empirical answer to the user's stated sub-q1
-framing. Items #1-4 stay as mechanism supporting evidence in the
-paper. Without item #6, the paper would have substantial *why*
-evidence but no clean *where* artifact answering the user's
-own question.
+**Implication for sub-q2 (JLARC projection):** Anchor at the
+moderate-quantile z_slope evidence (year-FE @ τ=0.95) rather than at
+absolute $-threshold exceedance probabilities. Consistent with item
+#3 entry's recommendation.
 
 ### 5. Advisor meeting (Prof Wei / Lihui)
 
@@ -284,7 +283,7 @@ decisions that any of items 1-4 above might need re-doing.
 
 ```
                                 ┌──── 3. τ=0.99 ✓ ────┐
-1. Spec B ✓ ─→ 2. Components ✓ ─┤                     │── 6. Z-bin tail-risk ─→ 5. Advisor meeting ─→ paper-ready sub-q1
+1. Spec B ✓ ─→ 2. Components ✓ ─┤                     │── 6. Z-bin tail-risk ✓ ─→ 5. Advisor meeting ─→ paper-ready sub-q1
                                 └──── 4. Ashburn ✓ ───┘
 ```
 

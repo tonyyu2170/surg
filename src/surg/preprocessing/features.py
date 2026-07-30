@@ -46,7 +46,11 @@ def add_load_gradient_columns(
     return out
 
 
-def pivot_lmp_long_to_pnode_columns(long_df: pd.DataFrame) -> pd.DataFrame:
+def pivot_lmp_long_to_pnode_columns(
+    long_df: pd.DataFrame,
+    *,
+    index_col: str = "datetime_beginning_ept",
+) -> pd.DataFrame:
     """Pivot long-format LMP (one row per pnode per hour) to wide.
 
     Output: one row per `datetime_beginning_ept`, with up to four columns
@@ -61,16 +65,18 @@ def pivot_lmp_long_to_pnode_columns(long_df: pd.DataFrame) -> pd.DataFrame:
 
     pnode_id is used in the column name (not pnode_name) because the LMP
     feed truncates pnode_name (see docs/pjm-api-constraints.md).
+
+    index_col: timestamp column to pivot on (5-min panel passes "interval_start_utc").
     """
     if long_df.empty:
-        return pd.DataFrame({"datetime_beginning_ept": pd.Series(dtype="datetime64[ns]")})
+        return pd.DataFrame({index_col: pd.Series(dtype="datetime64[ns]")})
 
     value_cols = [c for c in _VALUE_COLS_PIVOTED if c in long_df.columns]
     if not value_cols:
-        return pd.DataFrame({"datetime_beginning_ept": pd.Series(dtype="datetime64[ns]")})
+        return pd.DataFrame({index_col: pd.Series(dtype="datetime64[ns]")})
 
     pivoted = long_df.pivot_table(
-        index="datetime_beginning_ept",
+        index=index_col,
         columns="pnode_id",
         values=value_cols,
     )

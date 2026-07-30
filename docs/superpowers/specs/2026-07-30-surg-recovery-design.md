@@ -122,8 +122,16 @@ rebuilds `.env` with 5 keys. Then poll `GET /api_usage` per account to
 determine whether July quota headroom remains or the pull starts Aug 1
 (free tier resets per calendar month).
 
-Also fix `.env.example`, which documents only `PJM_API_KEY`. That
+Also fix `.env.example`, which documented only `PJM_API_KEY`. That
 omission is why losing the other four keys was silent.
+
+**Key naming.** The pre-loss convention was asymmetric: the acquisition
+module read the unsuffixed `GRIDSTATUS_API_KEY`, and the launch script
+overrode it per-account from `GRIDSTATUS_API_KEY_2/_3/_4`. Account 1 was
+therefore whichever key happened to sit in the bare variable. Adopt
+symmetric `GRIDSTATUS_API_KEY_1..4` instead, and have the restored
+launch script inject account 1 the same way as the others. The module
+keeps reading `GRIDSTATUS_API_KEY`; only the script changes.
 
 Verify: all 5 keys present; `GET /api_usage` returns a usage period and
 remaining allowance for each account.
@@ -139,8 +147,15 @@ uses `--start --end --pnodes --skip-load --data-root`. Constraints are
 already documented in `docs/gridstatus-api-constraints.md`, which is in
 `origin/main`.
 
+**Do not "fix" the key lookup.** The module must keep reading the single
+`GRIDSTATUS_API_KEY`; the per-account override belongs in the launch
+script. Making `gridstatus_pull.py` read `GRIDSTATUS_API_KEY_1` directly
+would break the multi-account strategy, which depends on one process per
+account each seeing a different value in the same variable.
+
 Verify: acquisition tests pass; a dry-run pull against a 1-day window
-returns rows matching the documented schema.
+returns rows matching the documented schema; the module reads only
+`GRIDSTATUS_API_KEY`.
 
 ### Phase 3 — Re-pull data (long pole, quota-gated)
 
@@ -154,9 +169,22 @@ returns rows matching the documented schema.
 
 Three pnodes only, because the free tier caps at 500K rows/account/month
 against roughly 380K rows per pnode: `LOUDOUN` (35010365),
-`PLEASANT VIEW` (35010371), `GOOSECRE` (1356178195). Account 1 covers
-Jun 2025 → Jun 2026; accounts 2/3/4 cover Feb 2023 → Jun 2025, with
-`--skip-load` on 3 and 4 so load is pulled once.
+`PLEASANT VIEW` (35010371), `GOOSECRE` (1356178195).
+
+Window split, confirmed against `~/surg-run-logs/surg-gridstatus-backfill-account2.log`:
+
+- **Accounts 2/3/4 — `2023-02-07 → 2025-06-24`** (the log's first and last
+  chunk boundaries). `--skip-load` on 3 and 4 so load is pulled once.
+- **Account 1 — `2025-06-24 → Jun 2026`**, the complement. Matches the
+  July design note "3 pnodes × 1yr".
+
+Chunking observed in the logs: LMP in 7-day chunks (~2,013 rows per
+pnode-week), load in 30-day chunks (~8,600 rows).
+
+**Quota headroom is tight.** Account 2 wrote roughly 248K LMP rows plus
+250K load rows — about **498K against the 500K cap**. Splitting load off
+the other accounts was not optional and must be preserved. Re-check
+`GET /api_usage` before launching rather than assuming a full allowance.
 
 **Hourly, PJM Data Miner 2:** the locked 11-pnode set (6 EHV
 Loudoun-cluster nodes, both Ashburn 35 kV buses, OX and BRISTERS as
@@ -224,9 +252,15 @@ Re-run the analysis and check against recorded values. These come from
 the memory directory and the agendas, and function as a regression
 suite:
 
+The two panels are separate targets and must not be checked against each
+other. Every row states its resolution — the same implicitness caused the
+figure-label bug fixed in `c4a64e7`.
+
+**5-min panel (gridstatus, 3 pnodes, Feb 2023 – Jun 2026):**
+
 | Quantity | Expected |
 |---|---|
-| 5-min panel rows | 350,789 |
+| Panel rows | 350,789 |
 | DOM load growth, Feb 2023 → Jun 2026 | +21.5% |
 | Ramp p90 | 24.22 → 25.28 MW/min |
 | Ramp p90 as % of load, by year | 0.1850% → 0.1596% |
@@ -234,7 +268,23 @@ suite:
 | 2024 τ=0.90 z_slope, load-controlled | −0.0266 [−0.0416, −0.0103] |
 | P(cong > $100) at 20–22 GW, by year | 1.89 / 5.58 / 5.03 / 37.80% |
 | Congestion p95, load decile 1 → 10 | $8.14 → $254.36 |
-| Ashburn TX1 p99 vs SKFFSCRK p99 | $611.37 vs $96.13 |
+
+**Hourly panel (PJM Data Miner 2, 11 pnodes):**
+
+| Quantity | Expected | Status |
+|---|---|---|
+| Ashburn TX1 p99 vs SKFFSCRK p99 | $611.37 vs $96.13 | Diagnostic, not pass/fail |
+| SKFFSCRK–cluster vs Ashburn–cluster corr | +0.870 vs +0.209 | Pass/fail |
+
+SKFFSCRK is **not in the 5-min pull**, so the Ashburn comparison cannot
+be evaluated until the hourly re-pull completes. Its absence after a
+gridstatus-only pull is expected, not a restoration failure.
+
+The Ashburn rows are diagnostic rather than pass/fail because they carry
+an unresolved coverage question (`n=17,448` vs `31,536` for the other
+pnodes), flagged in the 2026-07-30 memory as "verify before it ships in
+F7". A quantity with an open coverage question is a weak regression
+target.
 
 Reproducing these proves the restoration. Divergence localises the gap.
 

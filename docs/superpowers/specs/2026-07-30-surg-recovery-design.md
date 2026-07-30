@@ -312,8 +312,7 @@ Carried forward unchanged; they are advisor calls, not recovery work.
 - Whether to acquire a non-DOM control pnode. Every pnode in both panels
   sits inside DOM, so the system-wide component of the 2026 escalation
   cannot currently be separated from a Dominion-specific one.
-- Whether to filter the ~3,193-spike class. Recommendation was not to;
-  never ruled on.
+- Whether to filter the ~3,193-spike class. Heavily leaning on no. Keep them in.
 
 Standing sub-q2 warning: projecting 2026 exceedance rates forward would
 extrapolate an unidentified, possibly transient, possibly system-wide

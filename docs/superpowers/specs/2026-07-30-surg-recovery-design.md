@@ -117,10 +117,14 @@ Verify: `~/surg-recovery-2026-07-30/` exists and is ~232 MB;
 
 ### Phase 1 — Unblock data (user action, then verification)
 
-User logs into 4 gridstatus.io accounts and the PJM API portal and
-rebuilds `.env` with 5 keys. Then poll `GET /api_usage` per account to
-determine whether July quota headroom remains or the pull starts Aug 1
-(free tier resets per calendar month).
+User logs into 6 gridstatus.io accounts and the PJM API portal and
+rebuilds `.env` with 7 keys (`PJM_API_KEY` plus `GRIDSTATUS_API_KEY_1..6`).
+Four were lost with `.env`; accounts 5 and 6 are newly provisioned to
+carry the fourth pnode and a dedicated load account — see Phase 3.
+
+Then poll `GET /api_usage` per account to determine whether July quota
+headroom remains or the pull starts Aug 1 (free tier resets per calendar
+month).
 
 Also fix `.env.example`, which documented only `PJM_API_KEY`. That
 omission is why losing the other four keys was silent.
@@ -129,12 +133,12 @@ omission is why losing the other four keys was silent.
 module read the unsuffixed `GRIDSTATUS_API_KEY`, and the launch script
 overrode it per-account from `GRIDSTATUS_API_KEY_2/_3/_4`. Account 1 was
 therefore whichever key happened to sit in the bare variable. Adopt
-symmetric `GRIDSTATUS_API_KEY_1..4` instead, and have the restored
+symmetric `GRIDSTATUS_API_KEY_1..6` instead, and have the restored
 launch script inject account 1 the same way as the others. The module
 keeps reading `GRIDSTATUS_API_KEY`; only the script changes.
 
-Verify: all 5 keys present; `GET /api_usage` returns a usage period and
-remaining allowance for each account.
+Verify: all 7 keys present; `GET /api_usage` returns a usage period and
+remaining allowance for each of the 6 accounts.
 
 ### Phase 2 — Rebuild the acquisition layer
 
@@ -167,24 +171,61 @@ returns rows matching the documented schema; the module reads only
   **2023-02-07**, which is why the panel does not reach the proposal's
   2020 start.
 
-Three pnodes only, because the free tier caps at 500K rows/account/month
-against roughly 380K rows per pnode: `LOUDOUN` (35010365),
-`PLEASANT VIEW` (35010371), `GOOSECRE` (1356178195).
+**Four pnodes** (decided 2026-07-30, up from the pre-loss three):
 
-Window split, confirmed against `~/surg-run-logs/surg-gridstatus-backfill-account2.log`:
+| pnode | id | Role |
+|---|---|---|
+| `LOUDOUN` | 35010365 | Loudoun cluster, 500 kV EHV |
+| `PLEASANT VIEW` | 35010371 | Loudoun cluster, 500 kV EHV |
+| `GOOSECRE` | 1356178195 | Loudoun cluster, 500 kV EHV |
+| `SKFFSCRK` | 1356178201 | **New** — rural 500 kV control |
 
-- **Accounts 2/3/4 — `2023-02-07 → 2025-06-24`** (the log's first and last
-  chunk boundaries). `--skip-load` on 3 and 4 so load is pulled once.
-- **Account 1 — `2025-06-24 → Jun 2026`**, the complement. Matches the
-  July design note "3 pnodes × 1yr".
+SKFFSCRK is added because it is the direct counterpart in the
+Ashburn-vs-rural contrast and previously existed only at hourly
+resolution, which is why that comparison could not be made at 5-min. The
+account capacity to carry it did not exist before; six accounts are now
+provisioned.
 
-Chunking observed in the logs: LMP in 7-day chunks (~2,013 rows per
-pnode-week), load in 30-day chunks (~8,600 rows).
+The other two candidates considered — Ashburn TX1 and a non-DOM control
+pnode — were **not** added. The non-DOM control remains deferred, and is
+still the item that would settle the 2026 attribution question.
 
-**Quota headroom is tight.** Account 2 wrote roughly 248K LMP rows plus
-250K load rows — about **498K against the 500K cap**. Splitting load off
-the other accounts was not optional and must be preserved. Re-check
-`GET /api_usage` before launching rather than assuming a full allowance.
+### Quota arithmetic
+
+**Requests, not rows, are the binding constraint** (250/month/account).
+Measured from `~/surg-run-logs/surg-gridstatus-backfill-account2.log`:
+125 chunk-requests covered `2023-02-07 → 2025-06-24` for one pnode. LMP
+is chunked at 7 days (~2,013 rows per pnode-week), load at 30 days
+(~8,600 rows).
+
+Extrapolating to the full `2023-02-07 → 2026-06-30` window (1,239 days):
+**177 requests and ~356K rows per pnode**; load is 41 requests and ~353K
+rows.
+
+**Load cannot share an account with a pnode.** Account 2's backfill
+finished at 251K LMP + 249K load = **exactly the 500K cap**. Over the
+full window the same pairing would be 356K + 353K = 709K, well over. So
+load gets a dedicated account:
+
+| Account | Carries | Requests | Rows |
+|---|---|---|---|
+| 1 | LOUDOUN | 177 | ~356K |
+| 2 | PLEASANT VIEW | 177 | ~356K |
+| 3 | GOOSECRE | 177 | ~356K |
+| 4 | SKFFSCRK | 177 | ~356K |
+| 5 | `pjm_load` only | 41 | ~353K |
+| 6 | spare / retry budget | — | — |
+
+Every cell is inside both caps. This is a single-pass full-window pull
+and supersedes the pre-loss two-pass structure (accounts 2/3/4 covering
+`2023-02-07 → 2025-06-24` with `--skip-load`, account 1 covering the
+complement), which existed only because fewer accounts were available.
+
+**Quota resets per calendar month.** Accounts 1–4 were spent on
+2026-07-29, so the earliest clean launch is **2026-08-01 00:00 UTC**.
+Poll `GET /api_usage` per account before launching rather than assuming
+either a full allowance or an exhausted one — accounts 5 and 6 are newly
+provisioned and may have July headroom.
 
 **Hourly, PJM Data Miner 2:** the locked 11-pnode set (6 EHV
 Loudoun-cluster nodes, both Ashburn 35 kV buses, OX and BRISTERS as
@@ -195,7 +236,14 @@ Known environment issue: NU DNS NXDOMAINs `api.pjm.com`; the `/etc/hosts`
 workaround is recorded in the memory directory.
 
 Verify: 5-min panel row count near 350,789; `pjm_load` `dom` column
-present from 2023-02-07.
+present from 2023-02-07; four pnode column groups rather than three.
+
+**The row-count target is unchanged by the fourth pnode.** The panel is
+wide — one row per 5-min timestamp, one column group per pnode. 1,239
+days × 288 intervals = 356,832 upper bound against 350,789 recorded, the
+difference being gaps and DST. SKFFSCRK adds columns, not rows. A row
+count that scales toward ~470K would mean the builder emitted long
+format and something is wrong.
 
 ### Phase 4 — Graft the bundle, selectively
 
@@ -256,7 +304,11 @@ The two panels are separate targets and must not be checked against each
 other. Every row states its resolution — the same implicitness caused the
 figure-label bug fixed in `c4a64e7`.
 
-**5-min panel (gridstatus, 3 pnodes, Feb 2023 – Jun 2026):**
+**5-min panel (gridstatus, 4 pnodes, Feb 2023 – Jun 2026):**
+
+Recorded values below come from the pre-loss **3-pnode** panel. The three
+original pnodes must reproduce them exactly; SKFFSCRK is new and has no
+recorded baseline, so it is characterised rather than verified.
 
 | Quantity | Expected |
 |---|---|
@@ -276,9 +328,12 @@ figure-label bug fixed in `c4a64e7`.
 | Ashburn TX1 p99 vs SKFFSCRK p99 | $611.37 vs $96.13 | Diagnostic, not pass/fail |
 | SKFFSCRK–cluster vs Ashburn–cluster corr | +0.870 vs +0.209 | Pass/fail |
 
-SKFFSCRK is **not in the 5-min pull**, so the Ashburn comparison cannot
-be evaluated until the hourly re-pull completes. Its absence after a
-gridstatus-only pull is expected, not a restoration failure.
+**Ashburn TX1 is not in the 5-min pull**, so the Ashburn-vs-SKFFSCRK
+comparison cannot be evaluated until the hourly re-pull completes. Its
+absence after a gridstatus-only pull is expected, not a restoration
+failure. SKFFSCRK itself is now in both panels (added 2026-07-30), which
+means the contrast can additionally be characterised at 5-min resolution
+once Ashburn is available at that resolution — it is not yet.
 
 The Ashburn rows are diagnostic rather than pass/fail because they carry
 an unresolved coverage question (`n=17,448` vs `31,536` for the other

@@ -2869,6 +2869,518 @@ TBD when plan-writing unlocks.
   scan as part of the design phase.
 - A new sub-q is added or the existing scope shifts.
 
+## 2026-07-18 — Sub-q1 5-min two-sided companion: pre-registration
+
+**Design:** `docs/superpowers/specs/2026-07-17-5min-two-sided-companion-design.md`
+(commit `6492184`). This entry locks every spec BEFORE any 5-min pull
+or result computation. Data limitation, disclosed once here and once in
+the eventual methods/limitations section: Z is measured via gridstatus's
+`pjm_load.dom` column, which is empirically identical to PJM's
+Southern-Region aggregate 5-min load.
+
+**Window (locked):** `2025-06-24T04:00Z -> 2026-06-24T04:00Z` (1 year,
+verified against `latest_available_time_utc` on 2026-07-18 — both
+`pjm_load` and `pjm_lmp_real_time_5_min` report availability through
+2026-07-18, well past the window's end, so the design's default window
+is kept unchanged).
+
+**Panel:** Z = `(dom_t − dom_{t−1}) / 5` MW/min, no smoothing, native
+5-min cadence. LMP = `pjm_lmp_real_time_5_min` for pnodes 35010365
+(LOUDOUN), 35010371 (PLEASANT VIEW), 1356178195 (GOOSECRE); cluster =
+mean over these 3 (narrower than the hourly 6-pnode cluster —
+disclosed). Filter = shoulder months × 2–5 AM EPT, unchanged.
+
+**Pnode filter validation (pre-pull check, 2026-07-18):** the pull
+design filters `pjm_lmp_real_time_5_min` by `location_id` (not
+`location_short_name`, the only form previously empirically validated
+per `docs/gridstatus-api-constraints.md`'s 2026-05-15 probe). Before
+committing quota to the full pull, a 1-day/1-pnode probe (LOUDOUN,
+35010365, 2026-03-02) confirmed `location_id` filtering returns exactly
+the requested pnode (283/283 rows, zero cross-contamination) with the
+LMP identity (`energy+congestion+loss == lmp`) holding exactly (0
+violations). `location_id` filtering is confirmed safe to use for the
+full pull.
+
+**Test 1 — QR-full z_slope** (τ = 0.90/0.95/0.99; primary read at 0.95;
+responses: 3 per-pnode congestion + cluster congestion + cluster
+total_lmp; iid pair-bootstrap, qr_n_boot=500, seed=42, matching the
+hourly method for comparability; year-FE auto-skipped, 1-year window):
+- Hourly prior: positive slope, CI excluding 0, on 5/7 response labels
+  at τ=0.90/0.95.
+- CONFIRMS: ≥2 of the 3 per-pnode congestion fits at τ=0.95 have
+  positive z_slope with bootstrap CI excluding 0.
+- CONTRADICTS: ≥2 of 3 have negative z_slope with CI excluding 0.
+- UNDERPOWERED/MIXED: anything else.
+
+**Test 2 — Spec A median-split GPD on cluster congestion**
+(threshold_quantile=0.95, z_split=median, n_boot=1000, seed=42):
+- (a) Full-panel, iid exceedance bootstrap — direct comparator to the
+  hourly prior shape_diff = −0.180, CI [−0.371, −0.044].
+  CONFIRMS the hourly rejection: shape_diff < 0 with 95% CI excluding 0.
+  CONTRADICTS: shape_diff > 0 with CI excluding 0. Else UNDERPOWERED.
+- (b) In-filter, island-cluster bootstrap (night-islands ≈ 180;
+  above the 10-cluster floor enforced in code). Same rules; secondary
+  read.
+
+**Test 3 — Decile tail-risk curves** (in-filter; thresholds
+$100/$250/$500/$1000/$2000; n_boot=1000, seed=42): descriptive only.
+Report decile monotonicity and d10/d1 exceedance ratios next to the
+hourly item #6/#9 values; no confirm/contradict rule.
+
+**Quota discipline:** preflight `GET /api_usage`; abort if remaining
+monthly rows < 430,000 OR remaining monthly requests < 150 (both
+independently guarded in `check_quota()`). ~420,480 rows, ~54 requests
+expected for the full pull. As of this entry, 2/250 requests and
+812/500,000 rows have been used this billing period (metadata check +
+pnode-filter probe above) — comfortable headroom remains.
+
+**Revisit when:** the results entry lands (same title, "results"
+suffix), or the advisor meeting (item #5, deferred to post-run/pre-sub-q2)
+reframes which resolution is the headline.
+
+## 2026-07-19 — Sub-q1 5-min two-sided companion: results
+
+**Data limitation, disclosed per the pre-reg:** Z is measured via
+gridstatus's `pjm_load.dom` column, empirically identical to PJM's
+Southern-Region aggregate 5-min load. Additionally, the pull found
+~0.1-0.4% sparse interval gaps in both `pjm_load` and
+`pjm_lmp_real_time_5_min` (identical missing timestamps across all 3
+pnodes, scattered across the year) — a genuine upstream feed gap, not
+recoverable via re-pull (`docs/gridstatus-api-constraints.md`). Panel:
+105,019 rows; the 52 gap-adjacent rows have their gradient NaN-masked
+rather than computed across a missing interval.
+
+**Correction to the pre-reg's Test 1 framing:** the pre-reg stated
+"year-FE auto-skipped, 1-year window." This is incorrect — the window
+runs 2025-06-24 → 2026-06-24, crossing a calendar-year boundary, so the
+panel contains 2 distinct years and `run_qr_full`'s year-FE spec ran
+normally (it only skips when < 2 distinct years are present, per its own
+guard). Both specs are reported below for transparency; they agree
+qualitatively.
+
+**Test 1 — QR-full z_slope @ τ=0.95.** Verdict per Task 13's
+pre-registered rule: **UNDERPOWERED/MIXED**. All 5 responses have
+bootstrap CI spanning 0 in both the primary and year-FE specifications:
+
+| Response | Primary z_slope | Primary 95% CI | Year-FE z_slope | Year-FE 95% CI |
+|---|---|---|---|---|
+| loudoun (congestion) | −0.0013 | [−0.0275, +0.0034] | −0.0119 | [−0.0561, +0.0181] |
+| pleasant_view (congestion) | −0.0029 | [−0.0271, +0.0014] | −0.0057 | [−0.0293, +0.0033] |
+| goosecre (congestion) | −0.0028 | [−0.0282, +0.0016] | −0.0058 | [−0.0299, +0.0022] |
+| cluster (congestion) | −0.0031 | [−0.0295, +0.0007] | −0.0055 | [−0.0330, +0.0024] |
+| cluster (total_lmp) | +0.0040 | [−0.0870, +0.1060] | +0.0399 | [−0.1018, +0.1655] |
+
+0/3 per-pnode congestion fits reach the pre-reg's ≥2/3-with-CI-excluding-0
+bar in either specification. Materially weaker than the hourly companion
+(positive + significant on 5/7 labels at the same τ).
+
+**Test 2 — Spec A median-split GPD on cluster congestion.** Verdict per
+Task 13: **UNDERPOWERED** on both variants.
+
+| Variant | shape_diff | 95% CI | one-sided p (H1: diff > 0) |
+|---|---|---|---|
+| (a) Full-panel, iid bootstrap | −0.034 | [−0.100, +0.033] | 0.834 |
+| (b) In-filter, island-cluster bootstrap | −0.022 | [−0.346, +0.250] | 0.576 |
+
+Both point estimates run the same direction as the hourly Spec A
+rejection (shape_diff = −0.180, CI [−0.371, −0.044]) — heavier tail at
+*low* Z, not high — but neither CI excludes 0 at 5-min resolution. (The
+listed p-value tests only the original proposal's hypothesized direction,
+shape_diff > 0; the verdict above is based on the CI, per the pre-reg's
+actual rule, not this p-value.)
+
+**Test 3 — Decile tail-risk curves** (in-filter, descriptive, no
+confirm/contradict rule). At the $100 threshold: no monotonic increase
+toward decile 10. Congestion is flat (d10/d1 = 1.0: decile 1 p̂=0.0046,
+decile 10 p̂=0.0046, n_exc=3 both); total_lmp *decreases* at the top
+decile (d10/d1 = 0.5: decile 1 p̂=0.0213, decile 10 p̂=0.0107). Identical
+across all 3 pnodes and the cluster mean — this is partly by construction
+(Z is a shared, system-wide covariate, so decile bins are identical
+across pnode-analyses by design) and partly a genuine empirical finding
+(the specific 5-min intervals where congestion crosses $100 coincide
+across all 3 nodes, consistent with a shared, corridor-wide transmission
+constraint rather than node-specific events). At $250, exceedances are
+near-zero across all deciles for congestion. Does not replicate the
+hourly item #9 post-hoc finding of a ~3× exceedance lift (different
+calibration — top decile here vs. top 1% there — so not a direct
+contradiction, but the pattern doesn't extend cleanly to this
+resolution).
+
+**Overall read.** All three pre-registered tests come back weaker at
+5-min resolution than their hourly counterparts. Where a direction
+exists (Test 2), it's consistent with the hourly Spec A rejection, not
+the original proposal's hypothesis. No new confirmatory evidence for a
+load-volatility → LMP-tail-risk mechanism at native 5-min granularity in
+this 1-year, 3-pnode window.
+
+**Post-hoc notes (not part of the pre-registered verdicts):** QR-full fit
+runtimes varied substantially by pnode (21-39 min each at qr_n_boot=500)
+— a data characteristic, not a code issue, useful for future 5-min run
+time-budgeting.
+
+**Verification note:** before writing this entry, the underlying
+computations were independently spot-checked — a manual `QuantReg` refit
+reproduced loudoun's primary-spec z_slope exactly, and a manual
+decile/exceedance-rate computation on the raw panel reproduced the
+Test 3 cluster/congestion numbers exactly. Source code for `qr_full.py`,
+`gpd.py`, `tail_risk_curves.py`, and the `run_5min.py` orchestrator wiring
+was read and confirmed to match the pre-reg's design (response-column
+mapping, bootstrap modes, shape_diff direction).
+
+**Pointers:** `outputs/fivemin/{qr_full,gpd,tail_risk_curves}/`. Panel:
+`data/interim/analysis_panel_5min.parquet` (105,019 rows).
+
+**Revisit when:** the advisor meeting (item #5) reframes which
+resolution is the headline for the sub-q1 paper.
+
+---
+
+## 2026-07-20 — Sweep output directories relocated under `outputs/sweeps/`
+
+**Context.** The 2026-05-13 entry above ("Application of pre-reg +
+diagnosis of threshold non-localizability") references seven
+directories at the repo top level: `outputs_n300/`, `outputs_widened/`,
+`outputs_widened_12_7am/`, and four `outputs_sweep_*/` variants.
+These were cluttering the project root as loose top-level directories.
+
+**Decision.** Moved all seven into `outputs/sweeps/`, dropping the
+`outputs_` prefix: `outputs_n300/` → `outputs/sweeps/n300/`,
+`outputs_widened/` → `outputs/sweeps/widened/`,
+`outputs_widened_12_7am/` → `outputs/sweeps/widened_12_7am/`,
+`outputs_sweep_1_5am/` → `outputs/sweeps/sweep_1_5am/`,
+`outputs_sweep_2_6am/` → `outputs/sweeps/sweep_2_6am/`,
+`outputs_sweep_11pm_6am/` → `outputs/sweeps/sweep_11pm_6am/`,
+`outputs_sweep_11pm_7am/` → `outputs/sweeps/sweep_11pm_7am/`.
+Contents unchanged, only the location moved. Still covered by the
+`outputs_*/` / `outputs/` `.gitignore` rules either way.
+
+**Rationale.** Pure filesystem housekeeping, not a methodology change;
+no code or script references the old paths. Per this log's append-only
+convention, the 2026-05-13 entry's directory names were left as-is
+rather than edited — this entry is the pointer to their current
+location.
+
+**Revisit when:** never expected to; noted here only so the 2026-05-13
+entry's directory references remain resolvable.
+
+## 2026-07-21 — 2024-07-10 NERC ride-through event verified against a supplemental targeted pull
+
+**Context.** `docs/plans/2026-07-20-jlarc-external-context-update.md`
+§4 flagged a NERC-reported incident — 2024-07-10, ~19:05 EPT, a
+transmission fault near Fairfax caused ~1,500 MW of data-center load
+to trip offline within milliseconds, with a documented price crash at
+the Beaumeade substation (external source: gridstatus.io blog,
+system-wide energy price ~$134→$56.70/MWh within 5 minutes) — as
+"possibly directly checkable" against this project's own data, since
+the date falls inside the hourly panel's coverage (2022-10-02 →
+2026-05-07) and the geography is the Loudoun cluster this project
+already tracks.
+
+Neither production panel can check it directly: the hourly panel
+covers the date but averages over 60 minutes, which erases a 5-minute
+step change (the afternoon's congestion swings on 2024-07-10 are not
+visually distinguishable from the same-magnitude swings on the
+unremarkable day before, 2024-07-09 — both are heat-wave/ORDC
+dynamics). The production 5-min panel (`analysis_panel_5min.parquet`)
+only spans 2025-06-24 → 2026-06-23 and doesn't reach back to mid-2024.
+
+**Finding.** A small supplemental pull was made (same 3 locked
+Loudoun-cluster pnodes — LOUDOUN/PLEASANT VIEW/GOOSECRE — one week,
+2024-07-07 → 2024-07-14, ~8K rows / 4 requests against the gridstatus.io
+Free tier) and written to
+`data/interim/analysis_panel_5min_event_week.parquet` (gitignored,
+NOT the production panel). Independently re-verified directly against
+that parquet (not just the plotting script's docstring claims):
+
+- `dom_load_mw` drops from 21,718.18 (19:00 EPT) to 20,239.56 (19:05
+  EPT) — **−1,478.6 MW in 5 minutes**, matching NERC's ~1,500 MW figure
+  almost exactly.
+- `dom_load_gradient_abs_mw_per_min` = **295.72 MW/min** at that
+  interval — the maximum value anywhere in the pulled week, and far
+  above the 90th-percentile Z threshold used throughout the hourly
+  analysis (13.4 MW/min).
+- `system_energy_price_rt_cluster_mean` = **$56.70** at 19:05 EPT,
+  down from $136.76 at 19:00 — the endpoint matches gridstatus.io's
+  externally-reported system-wide figure ($56.70) to the penny. This
+  is expected, not coincidental: system_energy is a zone-wide invariant
+  (established in the 2026-05-15 item #2 entry above — identical across
+  every pnode in a balancing area), so this project's own pull and the
+  external source are measuring the same underlying series.
+- `total_lmp_rt_cluster_mean` (this project's Loudoun-cluster mean, a
+  different series from the externally-reported Beaumeade-specific
+  number) peaks near $186 at 18:55 and falls to a ~$50–70 plateau
+  within ~10 minutes — same direction and rough magnitude as the
+  external report, not an exact match since it's a different node.
+
+Figure `outputs/figures/00c_event_week_grid_reliability.png` (built by
+`scripts/plot_subq1_results.py::fig0c_event_week`) visualizes this.
+
+**A second reported event was checked and NOT located.** The same
+JLARC external-context doc also cites a ~1,800 MW Loudoun/Fairfax
+event in "2026-02" (no exact date given in the secondary sources).
+Scanning the production 5-min panel's full February 2026 window found
+no comparable signature — the largest `|Z|` anywhere that month is
+~124 MW/min (2026-02-04 02:35), an order of magnitude below the
+~360 MW/min a discrete 1,800 MW/5-min step would imply. Either the
+event's exact date/time is wrong as reported, it didn't register as a
+DOM-zone-wide load step of that scale, or it needs a targeted pull
+outside Feb 2026 — not pursued further; flag as unconfirmed rather
+than force a match.
+
+**Rationale for logging this now.** This is a real, priced,
+geographically-in-scope event that lands inside the project's own
+panel window and pnode set — a much stronger anchor than the decile-
+level tail-risk null (item #6) for the "crazy LMP" framing, and
+directly relevant to the advisor-meeting agenda's Item 5 (filter-scope
+limitation) and to sub-q3's eventual "real-world incident correlation"
+framing once it unlocks. Recording it here rather than leaving it as
+an undocumented script diff, per this log's standing convention.
+
+**Revisit when:** the advisor meeting decides whether this event
+belongs in the sub-q1 paper as a supporting illustration (Item 5) or
+is better saved for sub-q3; or if the second (Feb 2026) event's exact
+timestamp is later pinned down and can be similarly pulled.
+
+## 2026-07-21 — Second NERC event's date corrected: February 2025, not February 2026
+
+**Context.** The entry immediately above (this same date) scanned the
+production 5-min panel's full February 2026 window for a ~1,800 MW
+Loudoun/Fairfax load-loss event cited in
+`docs/plans/2026-07-20-jlarc-external-context-update.md` §4, found
+nothing, and logged it as "unconfirmed." Continuing that thread as
+ungated sub-q2 background research, the date itself was re-checked
+against additional sources.
+
+**Finding.** The "2026-02" date in the external-context doc was wrong.
+Provenance, stated honestly: only one source was both directly read
+and explicit about the date — DediRock (a secondary hosting-provider
+blog) states "February 2025." Utility Dive's article was also directly
+read but does *not* state a specific date (only "incidents... in 2024
+and 2025"); techtimes.com 403'd to fetch and was never actually read,
+despite appearing in search summaries; RTO Insider was seen only via a
+WebSearch result summary, not a direct fetch. So this is not "four
+sources confirm" — it's one direct-read confirmation plus a stronger
+**constraint argument**: multiple outlets independently describe this
+as the *second* such Northern Virginia data-center load-loss incident,
+occurring less than a year after 2024-07-10. February 2026 would be 19
+months later, violating that constraint; February 2025 (7 months
+later) satisfies it. A government PDF that might have offered primary
+confirmation (`ferc.gov/.../2025-04/...Large Load
+Integration_1.pdf`) was fetched but returned unreadable binary
+content, not usable text.
+
+Treat **February 2025** as well-supported, not primary-source-
+confirmed. This means the prior entry's February 2026 scan was
+checking the wrong month entirely; its "no comparable signature"
+conclusion doesn't bear on whether the real event happened, just that
+it didn't happen when we thought it did.
+
+February 2025 falls inside this project's **hourly panel**'s coverage
+(2022-10-02 → 2026-05-07), so it was checked directly:
+`data/interim/analysis_panel.parquet` filtered to 2025-02-01 →
+2025-02-28 shows no hour with an anomalous load or price signature
+that month — max `dom_load_gradient_abs_mw_per_min` is ~26.3 (2025-02-24
+09:00 EPT), an order of magnitude below the 295.7 MW/min seen for the
+verified 2024-07-10 event, and no single-hour system-energy-price step
+exceeds -$262 (2025-02-05 11:00, not obviously event-shaped). This is
+consistent with, not contrary to, the finding already logged for
+2024-07-10: hourly averaging erases a discrete 5-minute step of this
+kind (the July 2024 event was invisible in the hourly panel too — see
+the entry above, "Neither production panel can check it directly").
+February 2025 also falls outside the 5-min panel's coverage
+(2025-06-24 → 2026-06-23), so no direct 5-min check is possible with
+data already on hand.
+
+**Exact day within February 2025 not found.** Six-plus secondary
+sources were checked (Utility Dive, DediRock, RTO Insider, techtimes,
+American Public Power Association, EnerKnol, gridstatus.io's own
+blog); none give a day-level date. NERC's primary PDFs return 403 to
+automated fetch, same limitation already noted for the 2024-07-10
+research pass.
+
+**Rationale for logging this now.** A wrong date sitting uncorrected
+in the external-context doc would misdirect anyone (including the
+advisor) trying to cross-check it against this project's data, and
+already caused one wasted scan (the entry above). Correcting it here,
+with a strikethrough-and-correction inline in the source doc too, so
+neither copy is silently wrong going forward.
+
+**Not pursued:** a wide-window supplemental 5-min pull across all of
+February 2025 to localize the exact day/hour, the same technique used
+for 2024-07-10. That earlier pull was one week (~8K rows / 4 requests)
+because the date was already known; a full-month blind scan would cost
+substantially more of the gridstatus.io Free-tier monthly quota (500K
+rows / 250 requests) for a date this project doesn't currently need
+pinned to the hour — the month-level correction is enough to keep the
+external-context doc accurate. Worth reconsidering if the advisor
+meeting decides this second event should anchor a paper illustration
+alongside 2024-07-10 (Item 5).
+
+**Revisit when:** a primary NERC source surfaces with the exact date,
+or the advisor meeting decides this event needs day-level pinning for
+the paper.
+
+## 2026-07-21 — Sub-q3 event-catalog scan: `sync_reserve_event_active` discovered as an existing ground-truth signal
+
+**Context.** With sub-q1 closed pending only the advisor meeting, and
+sub-q2 plan-writing gated on that meeting, the user asked to start
+ungated reconnaissance for sub-q3 ("are crazy LMP events tied to
+real-world incidents?") — confirmed via AskUserQuestion as background
+scanning only, not sub-q3 methodology/plan-writing. Full writeup:
+`docs/plans/2026-07-21-subq3-event-catalog-scan.md`.
+
+**Finding.** `data/interim/analysis_panel.parquet` already contains
+`sync_reserve_event_active` / `sync_reserve_event_id` — PJM's own
+record of synchronized-reserve deployment events, 37 unique events
+(39 event-hours) spanning 2023-01-26 to 2026-03-05. This is a
+distinct signal from the verified 2024-07-10 NERC ride-through event
+(demand-side voltage disturbance): the 2024-07-10 event does not
+appear in this flag at all, confirming the two are different event
+mechanisms (generation-shortfall reserve deployment vs. data-center
+voltage ride-through). Cross-tabbed against the proposal filter
+(shoulder season × 2-5am window): only 2 of 39 event-hours pass both
+conditions, and neither shows an elevated price/gradient signature —
+consistent with item #6's finding that the filter's scope excludes
+price extremes even when a real PJM event coincides with it.
+
+A naive top-N-by-`dom_load_gradient_abs_mw_per_min` scan (excluding
+known event dates) mostly just re-finds the 09:00 EPT daily load ramp
+across many dates — a diurnal artifact, not real anomalies. Ranking
+by congestion price instead surfaced two new, externally-corroborated
+candidate events: **2022-12-23 ~17:00 EPT (Winter Storm Elliott** —
+total_lmp cluster mean ≈$4,130, matches PJM's own after-action report
+of ~46,000 MW forced outages and prices exceeding the $3,700/MWh cap)
+and **2026-01-31 evening → 2026-02-01 early morning** (multi-hour
+congestion spike, several hours flagged `sync_reserve_event_active`,
+matching a PJM-confirmed extreme-cold event where PJM obtained a DOE
+§202(c) order authorizing it to direct data centers specifically onto
+backup generation — see the plan doc for full sourcing and provenance
+caveats on each claim).
+
+**Rationale for logging now.** The `sync_reserve_event_active` column
+is a real analytical resource for sub-q3 that nobody had used before
+this scan, and its near-total non-overlap with the current proposal
+filter (2/39 event-hours) is a load-bearing fact for whatever
+correlation window sub-q3 eventually adopts — worth having on record
+before that design conversation happens, not rediscovered from
+scratch.
+
+**Extended same session, per explicit user instruction** ("go through
+all of them extensively and autonomously, dont worry about
+time/quota"). Widened from an hour-level top-15 scan to a day-level
+top-30 scan (avoids one multi-hour event crowding out separate events
+in an hourly ranking) and searched every resulting candidate date
+against external reporting. Five more events confirmed, bringing the
+total to seven distinct corroborated events/clusters:
+
+- **2022-12-24** — Winter Storm Elliott's second day (total_lmp
+  ≈$4,125, nearly matching 12-23); the hour-level scan had missed it.
+- **2025-01-22/23** — PJM's all-time hourly winter demand record
+  (~143,714 MW), capping an Arctic Outbreak that began Jan 18, 2025.
+- **2024-01-20** — a second, distinct January 2024 PJM Cold Weather
+  Alert (Jan 20-22), separate from an earlier Jan 14-17 polar-vortex
+  alert.
+- **2024-05-26** — a documented severe-weather/tornado outbreak
+  (60 wind-damage reports region-wide, EF1 tornado in Salem, VA;
+  Wikipedia: "Tornado outbreak of May 25-27, 2024"). The only
+  confirmed event where the panel signature is price-driven without
+  an elevated load gradient.
+- **2026-01-24 → 02-09** — the Jan 2025 event's twin: the broader
+  "January-February 2026 North American cold wave" (Jan 17-Feb 11,
+  Wikipedia, directly fetched), confirming the already-logged
+  01-31/02-01 DOE-order spike was the peak of a 3-week elevated-
+  congestion regime, not an isolated event. A storm name ("Winter
+  Storm Fern") surfaced in two independent sources but not the
+  Wikipedia article itself — treated as probable, not certain.
+
+**Also confirmed rigorously (not just asserted):** the earlier "naive
+gradient-ranking mostly finds the diurnal ramp" observation — 31/50
+panel-wide top-gradient rows fall at hour 09:00 EPT, with hour-9
+gradient systematically elevated (mean 8.59 vs. 6.40 MW/min panel-
+wide).
+
+**Equally important negative result.** Eight more candidate dates/
+clusters (2025-05-01→03 — the single largest unexplained congestion
+value in the panel outside confirmed events at $1,020; three more May
+2024 dates besides the confirmed 05-26; 2023-10-26; 2023-11-29;
+2025-04-14; 2025-11-18; 2025-12-15; 2026-04-04/15/16) were searched
+with equal effort (general event search, NOAA storm-events-database
+search by name, PJM transmission-outage and Market Monitor search,
+Dominion-specific news) and came back with **no** external
+corroboration. The closest finding was structural, not incident-
+specific: PJM's own 2025 Market Monitor report places Dominion zone's
+real-time congestion component highest of any PJM zone for the first
+three quarters of 2025. Read together with the confirmed-event list,
+this splits the panel's congestion spikes into two populations: a
+minority traceable to documented external incidents, and a majority
+consistent with routine (if elevated) congestion in a structurally
+constrained zone rather than discrete newsworthy events. Roughly
+40-45% of the ~17 investigated candidates confirmed — a sub-q3
+methodology should expect this hit rate, not treat the unconfirmed
+majority as a search failure.
+
+**Revisit when:** sub-q3 plan-writing unlocks and the correlation-
+window / event-category-scope decision (ride-through vs. sync-reserve,
+filter-scoped vs. full-panel, how to treat the "no external cause
+found" majority) needs to be made formally.
+
+## 2026-07-21 — Sub-q1 item #6 follow-up path (a): calibrated-threshold tail-risk recompute (exploratory)
+
+**Context.** Item #6's original run (`docs/decisions.md`, 2026-05-15
+entry) tested exceedance thresholds $100-$2000, all above the
+proposal-filter's actual data range (99.5th-pct total_lmp ≈ $100),
+producing an all-zero curve — a methodological finding about filter
+scope, not the descriptive Z→LMP curve the design intended. The
+roadmap (`docs/plans/2026-05-14-sub-question-1-closure-roadmap.md`,
+item #6) flagged two follow-up paths for advisor input: (a) recompute
+at calibrated smaller thresholds, (b) raw-panel analysis via sub-q3.
+Path (b) was pursued today as ungated sub-q3 reconnaissance (entry
+above); on reflection (advisor-tool consult), path (a) is the same
+kind of ungated reconnaissance — a mechanical rerun of an existing,
+already-DONE module with different threshold inputs, not new sub-q1
+methodology. Run via a one-off script calling
+`run_tail_risk_curves()` directly (no CLI flag exists for custom
+thresholds) with `thresholds=[25, 50, 75, 100, 150]`, `n_boot=200`,
+same panel/filter/seed as the original. Output written to
+`outputs/tail_risk_curves_calibrated/` (gitignored), kept separate
+from the original item #6 outputs.
+
+**Finding.** Real (non-degenerate) curves this time. For the primary
+pnode's total_lmp response at **$50**: P(exceed | Z decile) rises
+through the top deciles — decile 8: 8.9%, decile 9: 9.9%, decile 10:
+15.3% (CI [10.3%, 19.7%], n_exc=31/203) — and decile 10's CI does not
+overlap deciles 1/3/4/6/7 (upper bounds 0.064-0.094). At **$75 and
+$100**, the pattern does not hold: decile 10 drops to 0.025 (@ $75)
+and 0.0 (@ $100), while several middle deciles (5, 8, 9) retain small
+positive exceedance probabilities at $100 that decile 10 does not.
+Congestion's curve is far sparser (only visible at $25, p_hat ≤ 0.03
+everywhere, ~6 exceedances per decile) and doesn't show a clean
+decile-10 pattern at all. Full per-decile tables with CIs for all 7
+pnodes are in `outputs/tail_risk_curves_calibrated/tail_risk_curves/`.
+
+**Rationale for treating this as exploratory, not a result.** No
+pre-registration, no multiple-testing correction across the 5
+thresholds × 2 response variables × 7 pnodes, small per-decile n
+(~200), and the pattern doesn't replicate across adjacent thresholds
+($50 vs $75/$100) — textbook conditions for a post-hoc finding that
+wouldn't survive a stricter test. It does NOT confirm the proposal's
+"heavier tail at high Z" hypothesis (that question was already
+formally tested and rejected by Spec A/B on congestion); it's a
+different, complementary descriptive object — the actual shape of
+$-exceedance-probability-by-decile that item #6 was designed to
+produce and the original thresholds prevented. Not used to revise any
+existing framing.
+
+**Not decided here:** whether this curve becomes paper content, gets
+re-run pre-registered with a chosen headline threshold, or is
+superseded by the advisor's input on item #6's original (a) vs (b)
+choice. Producing the curve is reconnaissance; using it is the
+advisor's call, per the same line already applied to sub-q2's
+napkin-math and today's sub-q3 scan.
+
+**Revisit when:** the advisor meeting (item #5) addresses item #6's
+follow-up-path question directly.
+
 ---
 
 ## 2026-05-15 (late) — Sub-q1 item #8: 5-min companion run (application)
@@ -3377,3 +3889,268 @@ The implementation has been audited (5/5 sanity checks pass: filter-
 skip plumbing, in-filter byte-equivalent reproduction, total_lmp
 derivation, Z range expectations, full-panel coverage). The
 extreme-tail finding is a real feature of the data, not a bug.
+
+---
+
+---
+
+## 2026-07-29 — Backfill executed; 2-5am/shoulder-season filter dropped for future analysis
+
+**Context.** The Feb 2023 → Jun 2025 backfill (previous entry) executed
+same day via accounts 2/3/4 (account `GRIDSTATUS_API_KEY` was found
+nearly depleted — 68,137 rows / 60 requests remaining — and excluded).
+`surg-gridstatus-validate` initially failed on duplicate keys (1,943
+load rows, 6,048 LMP rows); root cause: a leftover `2024-07-07_to_2024-07-14`
+probe-week chunk (pre-dating this session) didn't align with the
+backfill's regular 7-day/30-day grid, so skip-if-exists didn't
+recognize the overlap. The 4 stale files were deleted (data/ is
+gitignored and reproducible) and validation passed on `unique_keys`
+(0/0). One remaining validation finding, not fixed: 631 missing LMP
+intervals per pnode (identical window across all 3 independent
+pnodes, starting 2023-11-27T15:45, ~2.2 days) and 4,398 missing +
+35 extra load intervals — consistent with the already-documented
+sparse-interval-gap behavior of the gridstatus real-time feed, not a
+pull defect; `build_5min.py` already NaN-masks gradient rows adjacent
+to spine gaps. `analysis_panel_5min.parquet` rebuilt over the full
+window: 350,789 rows (was 105,019 — ~3.3x).
+
+**Decision.** For future analysis (not retroactive to the already-
+pre-registered 5-min companion re-run on this extended panel, which
+ran unchanged), drop the coarse `passes_proposal_filter` (shoulder-
+season months × 2-5am window) as a default restriction. New analysis
+work should default to the full panel unless a specific test has its
+own pre-registered reason to subset.
+
+**Rationale.** The coarse filter was designed as a signal-isolation
+heuristic (CLAUDE.md "Signal-isolation strategy"), but sub-q1 item #6
+already found it excludes the very events the "crazy LMP" framing
+targets (0/2027 filtered observations exceed $250 across all deciles
+and pnodes). Sub-q3's mandate is explicitly to "sharpen the coarse
+2-5am × shoulder filter" against real-world event correlation — a
+full, unfiltered panel is the natural starting point for that work.
+The current 5-min companion re-run's own design already runs QR-full
+and one Spec A branch on the full panel (only Spec A's `in_filter`
+variant and tail-risk-curves are filter-gated), so this decision
+mainly formalizes a direction the pre-registered design was already
+moving toward.
+
+**Revisit when:** sub-q3 design work begins in earnest and needs a
+concrete replacement targeting criterion (event catalog windows,
+`sync_reserve_event_active`, etc.) rather than "no filter."
+---
+
+## 2026-07-29 — Workstream C: two price channels, do not conflate
+
+> **RECONSTRUCTED, not replayed.** The original entry was committed in
+> `2179bbc` (lost with the working directory) and no `Edit` for it survives
+> in the recovery transcripts. Rebuilt 2026-07-30 from
+> `project_state_2026-07-29-workstream-c-shipped` in the recovery archive's
+> memory directory. Figures are as recorded there; the surrounding prose is
+> new. Treat quantities as attested-by-memory, not re-derived.
+
+**Context.** The advisor meeting (sub-q1 item #5) happened; its outcome
+split the remaining work into four workstreams: **A** unfiltered
+tail-risk analysis, **B** attribution (data-center vs. weather, deferred
+by the user until after C), **C** PJM primary-source LMP research, and
+**D** nano-nuclear / SMR co-location (research-only, gated by sub-q2).
+This entry records C. Deliverable: `docs/pjm-lmp-formation.md`, now a
+third standing reference alongside `gridstatus-api-constraints.md` and
+this file. PJM manuals vendored to `docs/pjm-sources/` (M11 rev137,
+M12 rev57, M03 rev71) because the reference cites section numbers that
+move between revisions.
+
+**The finding that reframes sub-q1 — there are two price channels.**
+
+- **Scarcity channel → system energy.** Verified empirically
+  **locationally uniform** across our 3 pnodes (max difference
+  9.09e-13 over 350,174 rows; for contrast, marginal loss differs by up
+  to $22.60). Load *volatility* has **no** route into it: M11 §4.3 sets
+  the reserve requirement from the largest single *contingency*, and the
+  only load→requirement channel is gated on a Hot/Cold Weather Alert
+  during on-peak hours.
+- **Congestion channel → locational**, and load ramps **do** have a
+  mechanism: M11 §2.2 prices the effect of "consumption by the resource
+  on transmission line loadings".
+
+**Consequence.** The `total_lmp > $250` tail-risk nulls were correct
+**for the scarcity channel**, and they close the proposal's
+ORDC-threshold framing. But the **QR-full positive z_slope on congestion
+at τ=0.90/0.95 is the surviving positive finding and the live thread** —
+not leftover noise. Spec A's low-Z rejection reverts to **unexplained**:
+it is a congestion result that the scarcity story cannot explain in
+either direction. An earlier draft overreached to "volatility doesn't
+price"; that was corrected in both files before commit.
+
+**Three corrections logged.**
+1. The ORDC penalty is *not* confined to system energy — M11 §2.2
+   qualifies both components; the allocation rule remains unknown.
+2. $850 / $300 are Step 1 / Step 2 of *every* reserve demand curve, not
+   SR / PR values.
+3. $850 is not a meaningful LMP threshold — which is why the JLARC
+   napkin math found it uninformative.
+
+**Two items handed to workstream A.** PJM's 5-min price targets the
+interval **end**, and RT SCED dispatches against a *forecast* over a
+ten-minute look-ahead, so prices can **lead** load — the 2026-07-29
+diagnostic only tested price-lags-Z. Separately, `dom_load_mw` is zonal
+while congestion responds to nodal injection patterns.
+
+**Revisit when.** Workstream A completes, or the ORDC allocation rule
+between congestion and system energy is located in PJM source material.
+
+---
+
+## 2026-07-30 — Extended-panel interpretation: the premise is weak and congestion is level-driven
+
+> **RECONSTRUCTED, not replayed.** Original committed in `0e39d51`
+> (lost). Rebuilt from `project_state_2026-07-30-extended-panel-interpreted`
+> in the recovery archive's memory directory.
+
+**Context.** Interpretation of the extended ~3.4-year 5-min panel
+(Feb 2023 → Jun 2026) plus the no-filter tail-risk run.
+
+**1. The proposal's premise is weak.** DOM load grew **+21.5%** over the
+panel, but ramp volatility did not: p90 moved 24.22 → 25.28 MW/min, and
+**normalized by contemporaneous load it FELL every year**
+(0.1850% → 0.1596%). Trend tests are null (OLS p=0.153, Spearman
+p=0.168). A typical 5-min ramp moves **0.32%** of zonal load. The
+project was premised on load growth bringing volatility growth; on this
+panel it did not.
+
+**2. Congestion is level-driven, not volatility-driven.** Hours with
+congestion > $500 sit at the **99.1st percentile of load but only the
+45.9th of ramp**. corr(load, congestion) = **+0.188**;
+corr(|ramp|, congestion) = **+0.008**. By load decile, system energy
+rises smoothly $17 → $62, while congestion behaves as a *switch*:
+median ~$0.30 across nine deciles, then p95 $8.14 → **$254.36** in the
+tenth. This matches `pjm-lmp-formation.md` §6/§9: the
+load-volatility → reserve-depletion chain is **UNSUPPORTED**, and the
+ramp channel exists only into congestion.
+
+**3. Location matters.** Ashburn TX1 p99 **$611.37**, with 4.71% of
+hours > $100, against SKFFSCRK (rural) $96.13 / 0.96%. SKFFSCRK–cluster
+correlation is **+0.870** but Ashburn–cluster only **+0.209** — Ashburn
+is decoupled from the rest of the cluster. Hourly panel only; the 5-min
+panel has just 3 pnodes. **Caveat:** Ashburn n=17,448 vs 31,536 — the
+coverage gap must be verified before this ships in F7.
+
+**4. Effect size is small.** Across the whole observed Z span
+(ΔZ ≈ 29.3 MW/min) the τ=0.95 slopes imply a q95 shift of only
+**$1.91 pooled / $4.44 in 2025**, against **$71.20** needed to reach
+$100. The implied shift decays with τ; at τ=0.99 congestion is already
+$170 pooled.
+
+**5. No-filter tail-risk is a non-result, not a refutation.** Flat at
+$100 (d10/d1 = 0.98), with a small real lift at $5–$25. The $100 test
+resolves ±19% against a predicted 2–5% lift, so it lacks the power to
+refute anything at that threshold.
+
+**Load-data artifacts.** Roughly 4 extreme reversion excursions
+(> 1,500 MW) are artifacts — they move system energy $0–4, where the
+confirmed-real 2024-07-10 NERC trip (1,479 MW) moved it **$81**. The
+broader ~3,193-spike class is **NOT** established as artifactual. Of the
+three evidence lines originally offered, two (forward-fill signature,
+minute clustering) collapsed under testing; only the price-response test
+held. See the separate 2026-07-30 ruling below.
+
+**Structural limitation.** Per-facility / sub-zonal load is
+unobtainable: DOM resolves to a single `load_area`, per-customer load is
+confidential, and PJM dispatches against unpublished State-Estimator
+*bus* loads (§5). This is a structural limit, not an acquisition gap.
+
+**Revisit when.** The advisor rules on which QR specification is
+primary, or a non-DOM control pnode becomes available.
+
+---
+
+## 2026-07-30 — Amendment: the pre-registered z_slope sign-flips under a load-level control
+
+> **RECONSTRUCTED, not replayed.** Original committed in `857a758`
+> (lost). Rebuilt from
+> `project_state_2026-07-30-extended-panel-interpreted`.
+
+**Finding.** Adding a contemporaneous load-*level* control flips the sign
+of the pre-registered `z_slope` in **all 10 subset × τ cells**.
+
+Day-block bootstrap results: pooled **−0.0605 [−0.0904, −0.0331]** and
+**−0.1215 [−0.1920, −0.0672]**; 2026 negative at both τ; 2024 negative
+at τ=0.90; **2023 and 2025 null**.
+
+The sharpest case is **2024 at τ=0.90**: pre-registered
+**+0.0367 [+0.0107, +0.0665]** against load-controlled
+**−0.0266 [−0.0416, −0.0103]** — the same data producing opposite,
+individually significant signs.
+
+**Caveat, and why this is not simply a correction.** Z is dLoad/dt, the
+derivative of the very control being added, so load level is a
+confounder-or-mediator depending on the causal question. The two
+specifications answer **different questions**, and neither is declared
+primary here. Which one is primary is an **advisor call** and is added to
+the sub-q1 item #5 agenda.
+
+**Revisit when.** The advisor meeting rules on primary specification.
+
+---
+
+## 2026-07-30 — The 2026 escalation is largely system-wide; do not attribute it to data centers
+
+> **RECONSTRUCTED, not replayed.** Original committed in `d77c96a`
+> (lost). Rebuilt from
+> `project_state_2026-07-30-extended-panel-interpreted`.
+
+**Finding.** Holding load fixed at 20–22 GW — a band well sampled in all
+four years — P(congestion > $100) runs
+**1.89% / 5.58% / 5.03% / 37.80%** across 2023 / 2024 / 2025 / 2026.
+The escalation is therefore not a simple consequence of more load.
+
+But it is a step change in **both** components at once, dated to
+January 2026: congestion p90 **$20.46 → $231.29** *and* system energy p90
+**$86.32 → $292.19**. System energy is locationally uniform across PJM
+(established in the workstream C entry above), so its tripling **cannot**
+be a NOVA phenomenon.
+
+**Ruling.** The driver is **unidentified**, and no non-DOM control pnode
+exists in either panel to isolate it. **Do not attribute the 2026
+escalation to data centers** in any write-up. Any such attribution would
+be unsupported by this panel.
+
+**Warning carried into sub-q2.** Projecting 2026 exceedance rates forward
+would extrapolate an unidentified, possibly system-wide, possibly
+transient shift as though it were data-center load growth. Sub-q2 must
+not do this without first identifying the driver.
+
+**Revisit when.** A non-DOM control pnode is acquired (deferred, not
+rejected), or the January 2026 driver is identified from PJM
+market-operations sources.
+
+---
+
+## 2026-07-30 — Reversion-spike class: standing recommendation NOT to filter (no user ruling yet)
+
+> **RECONSTRUCTED during recovery.** This records the *status* of an open
+> question so the research record is the single source of truth. It is
+> deliberately NOT written as a settled decision.
+
+**Question.** Whether to filter the ~3,193-spike class in `dom_load_mw`
+before analysis.
+
+**Status: OPEN. Recommendation is NOT to filter; the user has not ruled.**
+`docs/superpowers/specs/2026-07-30-surg-recovery-design.md` lists this
+under "Research questions this recovery does not settle" as "heavily
+leaning on no. Keep them in", and the 2026-07-30 memory entry records
+"recommended NOT to filter; user never ruled."
+
+**Evidence behind the recommendation.**
+- Roughly **4** extreme reversion excursions (> 1,500 MW) *are* artifacts:
+  they move system energy only $0–4, whereas the confirmed-real
+  2024-07-10 NERC trip (1,479 MW) moved it **$81**.
+- The broader **~3,193-spike class is NOT established as artifactual**.
+  Of the three evidence lines originally advanced, two — the forward-fill
+  signature and the minute-clustering pattern — **collapsed under
+  testing**. Only the price-response test held.
+
+Filtering on evidence this weak would remove real events, so the burden
+of proof sits with filtering, not with keeping.
+
+**Revisit when.** The user rules, or a decisive test separates the spike
+class from real load excursions.

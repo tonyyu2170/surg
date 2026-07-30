@@ -77,3 +77,32 @@ def test_pnode_batches_empty_input():
 def test_pnode_batches_invalid_size():
     with pytest.raises(ValueError):
         list(pnode_batches([1, 2, 3], batch_size=0))
+
+
+from datetime import datetime, timezone
+
+from surg.acquisition.chunking import utc_datetime_chunks
+
+
+def test_utc_datetime_chunks_half_open_contiguous():
+    start = datetime(2025, 6, 24, 4, tzinfo=timezone.utc)
+    end = datetime(2025, 8, 24, 4, tzinfo=timezone.utc)
+    chunks = list(utc_datetime_chunks(start, end, days=30))
+    assert chunks[0][0] == start
+    assert chunks[-1][1] == end
+    for (s1, e1), (s2, e2) in zip(chunks, chunks[1:]):
+        assert e1 == s2  # contiguous, non-overlapping
+    for s, e in chunks:
+        assert (e - s).days <= 30
+
+
+def test_utc_datetime_chunks_single_short_window():
+    start = datetime(2025, 6, 24, 4, tzinfo=timezone.utc)
+    end = datetime(2025, 6, 25, 4, tzinfo=timezone.utc)
+    assert list(utc_datetime_chunks(start, end, days=30)) == [(start, end)]
+
+
+def test_utc_datetime_chunks_rejects_reversed():
+    start = datetime(2025, 6, 24, 4, tzinfo=timezone.utc)
+    with pytest.raises(ValueError):
+        list(utc_datetime_chunks(start, start, days=30))

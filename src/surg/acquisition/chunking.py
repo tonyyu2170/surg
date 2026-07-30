@@ -13,7 +13,7 @@ queries — the major efficiency under the 6/min rate limit.
 from __future__ import annotations
 
 from collections.abc import Iterator, Sequence
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 
 def date_chunks(
@@ -59,3 +59,26 @@ def pnode_batches(
         raise ValueError(f"batch_size must be >= 1, got {batch_size}")
     for i in range(0, len(pnode_ids), batch_size):
         yield list(pnode_ids[i : i + batch_size])
+
+
+def utc_datetime_chunks(
+    start: datetime,
+    end: datetime,
+    days: int = 30,
+) -> Iterator[tuple[datetime, datetime]]:
+    """Yield contiguous half-open [chunk_start, chunk_end) UTC windows.
+
+    Used by the gridstatus pull: the query API takes exact datetimes, so
+    unlike `date_chunks` there is no calendar-year constraint and windows
+    are half-open (end exclusive) to avoid boundary-row duplication.
+    """
+    if end <= start:
+        raise ValueError(f"end ({end}) must be > start ({start})")
+    if days < 1:
+        raise ValueError(f"days must be >= 1, got {days}")
+    step = timedelta(days=days)
+    cur = start
+    while cur < end:
+        nxt = min(cur + step, end)
+        yield (cur, nxt)
+        cur = nxt

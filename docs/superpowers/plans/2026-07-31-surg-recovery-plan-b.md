@@ -125,23 +125,61 @@ print('CONFIRMED: ops 8,9,10 are mutation scaffolding; replay ops 0-7 only')
 
 Expected: `CONFIRMED: ops 8,9,10 are mutation scaffolding; replay ops 0-7 only`
 
-- [ ] **Step 2: Deduplicate the chain, then replay ops 0–7 only**
+- [ ] **Step 2: Replay ops 0–7 only**
 
-The archive stores hook-rejected edits as if they applied, and because `old_string` is usually a substring of `new_string`, naive replay double-inserts silently. Deduplicate by `(old_string, new_string)` first.
+`replay.py` cannot do this on its own. Its interface is positional — `replay.py <chain> <dest> [--from-base]` — with **no op-range selector and no dedup flag**; the dedup rule in the Plan A notes is a manual instruction, not a feature. This chain also has **no `Write` baseline** (all 11 ops are `Edit`), so a bare invocation would exit 2.
+
+Use this snippet instead. It mirrors `replay.py`'s exact match/skip semantics (`count == 0` → skip; `count > 1` without `replace_all` → skip) while restricting to ops 0–7 and deduplicating by `(old_string, new_string)` first:
 
 ```bash
 cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
-python3 /Users/turdy/surg-recovery-2026-07-30/replay.py \
-  --chain /Users/turdy/surg-recovery-2026-07-30/edit-chains/_worktree-surg-gridstatus-5min__src__surg__analysis__gpd.py.json \
-  --target src/surg/analysis/gpd.py \
-  --dedup --ops 0-7
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+CHAIN = Path("/Users/turdy/surg-recovery-2026-07-30/edit-chains/"
+             "_worktree-surg-gridstatus-5min__src__surg__analysis__gpd.py.json")
+DEST = Path("src/surg/analysis/gpd.py")
+
+ops = json.loads(CHAIN.read_text())["ops"][:8]   # ops 0-7 only; 8-10 are scaffolding
+
+seen, deduped = set(), []
+for o in ops:
+    if o["op"] != "Edit":
+        continue
+    key = (o["old_string"], o["new_string"])
+    if key in seen:            # hook-rejected duplicate; replaying it double-inserts
+        print("  DEDUP: dropping repeated edit")
+        continue
+    seen.add(key)
+    deduped.append(o)
+
+text = DEST.read_text()        # from-base: gpd.py already exists in the tree
+applied = skipped = 0
+for o in deduped:
+    old, new = o["old_string"], o["new_string"]
+    count = text.count(old)
+    if count == 0:
+        print(f"  SKIP (no match): {old[:70]!r}")
+        skipped += 1
+        continue
+    if count > 1 and not o.get("replace_all"):
+        print(f"  SKIP (ambiguous, {count} matches): {old[:70]!r}")
+        skipped += 1
+        continue
+    text = text.replace(old, new) if o.get("replace_all") else text.replace(old, new, 1)
+    applied += 1
+
+DEST.write_text(text)
+print(f"{DEST}: applied={applied} skipped={skipped}")
+PY
 ```
 
 Expected: `applied=7 skipped=0`.
 
-Read `replay.py --help` first and correct the flag names if they differ; the intent is "dedupe by (old_string, new_string), then apply only ops 0 through 7."
+**This is empirically established, not hoped for.** The 2026-07-30 run reported `applied=9 skipped=2` against this same base, which means ops 0 through 8 all matched and applied — op8 applying is precisely what injected the bug. Ops 0–7 are therefore known to apply cleanly here.
 
-**If any op skips, stop.** That is a real base mismatch, not scaffolding. Report which op and its `old_string` rather than hand-reconciling.
+**If any op skips, stop.** Given the above, a skip means the base has changed since 2026-07-30 — a real anomaly. Report which op and its `old_string` rather than hand-reconciling.
 
 - [ ] **Step 3: Verify no duplicate definitions were introduced**
 
@@ -156,14 +194,21 @@ Expected: each `def` count is exactly `1`; `GOOD: no intentional-bug line presen
 
 - [ ] **Step 4: Replay the companion test chain**
 
+All 3 ops are `Edit`, so `--from-base` is required (positional args, no `--dedup` flag — dedup is manual):
+
 ```bash
 python3 /Users/turdy/surg-recovery-2026-07-30/replay.py \
-  --chain /Users/turdy/surg-recovery-2026-07-30/edit-chains/_worktree-surg-gridstatus-5min__tests__analysis__test_gpd.py.json \
-  --target tests/analysis/test_gpd.py \
-  --dedup
+  /Users/turdy/surg-recovery-2026-07-30/edit-chains/_worktree-surg-gridstatus-5min__tests__analysis__test_gpd.py.json \
+  tests/analysis/test_gpd.py --from-base
 ```
 
-Expected: `applied=3 skipped=0`.
+Expected: `applied=3 skipped=0`. Then confirm no edit was double-inserted:
+
+```bash
+grep -c "def test_gpd_conditional_on_z_cluster_bootstrap_duplicates_rows" tests/analysis/test_gpd.py
+```
+
+Expected: `1`.
 
 - [ ] **Step 5: Run the GPD tests**
 
@@ -175,19 +220,21 @@ Expected: PASS.
 
 - [ ] **Step 6: Prove the restoration with the author's own mutation test**
 
-A green suite proves little here. Re-inject op8's mutation and confirm the restored test catches it. Insert this line immediately after the `drawn = rng.choice(unique_clusters, size=len(unique_clusters), replace=True)` line in `gpd.py`:
+A green suite proves little here. The chain restored in Step 4 contains the exact test the original author wrote to catch this mutation — `test_gpd_conditional_on_z_cluster_bootstrap_duplicates_rows`, whose docstring reads: *"Locks in the correct cluster-bootstrap mechanic: a cluster id drawn twice by rng.choice must contribute its exceedance rows twice to the resampled arrays (not deduplicated)."* That is precisely what `np.unique(drawn)` breaks.
+
+Re-inject op8's mutation. Insert this line immediately after the `drawn = rng.choice(unique_clusters, size=len(unique_clusters), replace=True)` line in `gpd.py`:
 
 ```python
             drawn = np.unique(drawn)  # TEMPORARY mutation probe — remove after this step
 ```
 
-Then run:
+Then run that test specifically:
 
 ```bash
-python -m pytest tests/analysis/test_gpd.py -v
+python -m pytest tests/analysis/test_gpd.py::test_gpd_conditional_on_z_cluster_bootstrap_duplicates_rows -v
 ```
 
-Expected: **FAIL.** The cluster-bootstrap test must catch this. If it passes, the restored test is not exercising the resampling path and Task 1 is not actually complete — report that rather than proceeding.
+Expected: **FAIL.** If it passes, the restoration is not faithful — the test is not reaching the resampling path. Report that rather than proceeding.
 
 - [ ] **Step 7: Remove the mutation probe and confirm green again**
 
@@ -274,17 +321,26 @@ Unskips tests/analysis/test_run_5min.py, which was gated on this chain."
 
 - [ ] **Step 1: Replay both worktree chains**
 
+Both chains are all-`Edit` with no `Write` baseline, so `--from-base` is required. Arguments are positional; there is no `--dedup` flag.
+
 ```bash
 cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
-python3 /Users/turdy/surg-recovery-2026-07-30/replay.py \
-  --chain /Users/turdy/surg-recovery-2026-07-30/edit-chains/_worktree-surg-gridstatus-5min__src__surg__analysis__tail_risk_curves.py.json \
-  --target src/surg/analysis/tail_risk_curves.py --dedup
-python3 /Users/turdy/surg-recovery-2026-07-30/replay.py \
-  --chain /Users/turdy/surg-recovery-2026-07-30/edit-chains/_worktree-surg-gridstatus-5min__tests__analysis__test_tail_risk_curves.py.json \
-  --target tests/analysis/test_tail_risk_curves.py --dedup
+R=/Users/turdy/surg-recovery-2026-07-30
+python3 $R/replay.py \
+  $R/edit-chains/_worktree-surg-gridstatus-5min__src__surg__analysis__tail_risk_curves.py.json \
+  src/surg/analysis/tail_risk_curves.py --from-base
+python3 $R/replay.py \
+  $R/edit-chains/_worktree-surg-gridstatus-5min__tests__analysis__test_tail_risk_curves.py.json \
+  tests/analysis/test_tail_risk_curves.py --from-base
 ```
 
 Expected: `applied=2 skipped=0` for each.
+
+At 2 ops each these chains carry no repeated `(old_string, new_string)` pairs, so no manual dedup is needed — but confirm nothing double-inserted before committing:
+
+```bash
+git diff --stat src/surg/analysis/tail_risk_curves.py tests/analysis/test_tail_risk_curves.py
+```
 
 - [ ] **Step 2: Check for the known hardcoded-label bug**
 
@@ -754,7 +810,9 @@ The 2026-07-30 memory flagged `n=17,448` for Ashburn against `31,536` for the ot
 
 177 requests against a 250/month cap means one botched launch costs a calendar month, with only account 6 as spare for four pnodes. This gate spends **~2 requests** of account 6's expiring July headroom to prove the pipeline end-to-end before the real launch.
 
-**Must complete before 8pm EDT today (2026-07-31).**
+**Critical path: this task depends only on Task 4 (`--skip-lmp`) and Task 5 (the poller).** It does *not* depend on Tasks 1, 2, 3 or 6. An executor working strictly in numeric order will spend the afternoon on Task 1's twelve steps and reach this too late. Do Tasks 4 and 5 first if the 8pm boundary is close.
+
+**Target: before 8pm EDT today (2026-07-31)** — but this is a soft deadline, not a hard one. Missing it costs nothing of consequence: the gate then runs on account 6's fresh *August* allowance, spending ~3 of 250 requests on the spare account. The gate's value is being before the **launch**, not before the **reset**. Do not rush Task 4 to beat the clock — a hurried `--skip-lmp` is exactly the defect this gate exists to catch.
 
 - [ ] **Step 1: Record account 6's pre-gate usage**
 
@@ -989,6 +1047,15 @@ Recorded 5-min values come from the pre-loss **3-pnode** panel. The three origin
 | Congestion p95, load decile 1 → 10 | $8.14 → $254.36 |
 
 Record each as reproduced / diverged with the observed value. **Divergence localises the gap — it is diagnostic information, not a failure to hide.** Report divergences rather than tuning anything to match.
+
+**Do not assume a divergence is a code defect.** The gridstatus evaluation measured **99.07% equivalence with PJM, i.e. ~0.9% republication**: gridstatus warehouses as-reported values, and PJM revises. Re-pulling the same historical window today can legitimately return slightly different numbers than the pre-loss pull. A target coming back +0.031 against a recorded +0.0367 may be data revision rather than a restoration failure.
+
+Cheap discriminator — run it before hunting through code:
+
+- Compare the **raw** per-pnode series (mean, p50, p95, row count) for the three original pnodes against their recorded aggregates. If the raw series have shifted in the same direction and rough magnitude as the derived statistics, suspect **republication**.
+- If the raw series match but only derived statistics move, suspect **code**.
+
+State which of the two the evidence supports for every divergence recorded.
 
 - [ ] **Step 2: Check the hourly panel targets**
 

@@ -1170,15 +1170,21 @@ git rev-list --count origin/main..main   # expect 0
 
 ---
 
+## Decisions closed on 2026-07-31
+
+Previously open; ruled by the user during planning. Log each in `docs/decisions.md` as part of Task 12 Step 3.
+
+- **SKFFSCRK role — CLOSED.** Pulled as the 4th 5-min pnode; hourly 6-node cluster pooling retained as pre-registered. Geographically rural, electrically coupled. See correction C3.
+- **Spike filtering — CLOSED: do not filter.** The ~3,193-spike class stays in. These are the scarcity events the research question targets; removing them would remove the signal. This also keeps every recorded Phase 7 target reproducible, since all were computed unfiltered. Open since May, now formally ruled.
+- **Hourly window — CLOSED: unchanged at 2022-10-02 → 2026-05-11.** Not extended to match the 5-min window. It is pre-registered, hourly findings are lower-priority, and the 5-min panel already covers 2026 at higher resolution, so the escalation work does not depend on extending it.
+
 ## Open items carried forward, not settled by this plan
 
 Advisor calls, not recovery work:
 
-- Which QR specification is primary — pre-registered or load-controlled. The two disagree in sign on the headline 2024 τ=0.90 row.
+- Which QR specification is primary — pre-registered or load-controlled. The two disagree in sign on the headline 2024 τ=0.90 row. This is the largest open research question and it gates interpretation, not execution.
 - Whether identifying the January 2026 driver belongs in sub-q1.
-- Whether to acquire a non-DOM control pnode. Every pnode in both panels sits inside DOM, so the system-wide component of the 2026 escalation cannot currently be separated from a Dominion-specific one.
-- Whether to filter the ~3,193-spike class. Heavily leaning no — keep them in. **Open, never ruled.**
-- The SKFFSCRK role question from Task 12.
+- Whether to acquire a non-DOM control pnode. Every pnode in both panels sits inside DOM, so the system-wide component of the 2026 escalation cannot currently be separated from a Dominion-specific one. Correction C3 sharpens this: a geographically-rural node tracking the cluster is suggestive of a system-wide component, but cannot settle it from inside DOM alone.
 
 **Standing sub-q2 warning:** projecting 2026 exceedance rates forward would extrapolate an unidentified, possibly transient, possibly system-wide shift as though it were data-center load growth.
 

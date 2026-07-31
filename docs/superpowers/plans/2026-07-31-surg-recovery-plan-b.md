@@ -65,18 +65,27 @@ The spec adds SKFFSCRK as a **fourth** pnode. If SKFFSCRK is appended to `FIVEMI
 
 The constant is also **duplicated** — defined identically at `gridstatus_pull.py:31` and `schema_5min.py:13`. Task 3 splits pull-set from cluster-set explicitly.
 
-### C3 — SKFFSCRK's role is contradictory across documents, and the Phase 7 hourly gate is partly circular
+### C3 — SKFFSCRK is geographically rural but electrically coupled; that gap is a result, not a defect
 
-The recovery spec (line 181) calls SKFFSCRK a "**rural 500 kV control**" and makes "SKFFSCRK–cluster correlation +0.870 vs Ashburn–cluster +0.209" a **pass/fail** row in Phase 7.
+**Resolved by the user, 2026-07-31.** SKFFSCRK is pulled as the fourth 5-min pnode, and the hourly 6-node cluster pooling stays exactly as pre-registered.
 
-But the project's own locked hourly design treats SKFFSCRK as a **cluster member**:
+The tension that prompted this: the recovery spec calls SKFFSCRK a "rural 500 kV control", while the project's own locked design treats it as a cluster member —
 
+- `docs/decisions.md:157-167` — the locked n=11 table lists SKFFSCRK under **"Primary nodal — transmission"**, with OX and BRISTERS as the **"Control / outside-cluster"** tier.
 - `docs/decisions.md:298` — "Pool the 6-pnode Loudoun transmission cluster (LOUDOUN, PLEASANT VIEW, GOOSECRE, BRAMBLET, MOSBY, **SKFFSCRK**) by mean."
-- `docs/decisions.md:194` — "Loudoun-area cluster (LOUDOUN/MOSBY/BRAMBLET/**SKFFSCRK**)".
+- `docs/decisions.md:151` — LOUDOUN, MOSBY, BRAMBLET and SKFFSCRK "all came back within ~$5/MWh mean LMP and ~$3/MWh mean congestion of each other."
 - `src/surg/preprocessing/build.py:34` — `LOUDOUN_CLUSTER_IDS` includes `1356178201`.
-- `src/surg/acquisition/targets.py:37` — `Pnode(1356178201, "SKFFSCRK", "primary_transmission", "EHV")`.
 
-If SKFFSCRK is one of the six nodes being averaged into the cluster, then correlating SKFFSCRK against that cluster is substantially **self-correlation**, and +0.870 is close to uninformative as a pass/fail gate. Task 12 resolves this before it reaches a figure. It is a research-design question, not an engineering one — it is flagged for the advisor, and Task 12 only gathers the evidence needed to decide.
+**Both descriptions are true.** SKFFSCRK sits in a markedly more rural area geographically, yet prices within ~$3/MWh of the urban cluster because it is on the same 500 kV EHV network inside the same congestion pocket. Electrical distance is not geographic distance. That a geographically-rural node tracks the cluster at +0.870 is **evidence for the system-wide character of the 2026 escalation**, not a failure of the control — and it is consistent with the standing finding that the escalation must never be attributed to data centers.
+
+Two consequences carried into the tasks:
+
+1. **The hourly cluster stays 6-node, as pre-registered.** Amending a pre-registered aggregation mid-project carries a research-integrity cost the ~$3/MWh tightness does not justify. Every recorded Phase 7 hourly target therefore remains reproducible.
+2. **The +0.870 correlation is still partly self-correlation**, because SKFFSCRK is inside the cluster it is correlated against. This is **disclosed, not corrected**: Task 12 reports the SKFFSCRK-held-out correlation alongside it as a diagnostic.
+
+**Deliberate asymmetry to preserve:** SKFFSCRK is *inside* the 6-node hourly cluster and *outside* the 3-node 5-min cluster-set. This is correct. The 5-min cluster was only ever the three pulled nodes, and SKFFSCRK's role at 5-min resolution is explicitly as the comparison node (correction C2). Do not "fix" this to make the two panels match.
+
+**Priority note (user, 2026-07-31):** hourly findings are lower-priority than the 5-min work. Task 6 still runs in parallel because it is cheap and unblocked, but it should not gate anything on the 5-min track.
 
 ---
 
@@ -1062,7 +1071,7 @@ State which of the two the evidence supports for every divergence recorded.
 | Quantity | Expected | Status |
 |---|---|---|
 | Ashburn TX1 p99 vs SKFFSCRK p99 | $611.37 vs $96.13 | Diagnostic, not pass/fail |
-| SKFFSCRK–cluster vs Ashburn–cluster corr | +0.870 vs +0.209 | See Task 12 before treating as pass/fail |
+| SKFFSCRK–cluster vs Ashburn–cluster corr | +0.870 vs +0.209 | Pass/fail — the 6-node cluster is retained, so this is reproducible |
 
 The Ashburn rows are diagnostic because of the unresolved coverage question (`n=17,448` vs `31,536`). A quantity with an open coverage question is a weak regression target.
 
@@ -1096,19 +1105,21 @@ git commit -m "docs(decisions): Plan B restoration verification against recorded
 
 ---
 
-## Task 12: Resolve the SKFFSCRK role contradiction
+## Task 12: Document the SKFFSCRK geographic/electrical split and disclose the self-correlation
 
-Correction **C3**. Evidence-gathering only — the call itself is the user's, with the advisor.
+Correction **C3**, now **resolved** (user, 2026-07-31): SKFFSCRK is pulled as the fourth 5-min pnode; the hourly 6-node cluster pooling stays as pre-registered. This task documents the interpretation and discloses the self-correlation — it does **not** change any aggregation.
 
-- [ ] **Step 1: Assemble the conflicting evidence**
+- [ ] **Step 1: Assemble the evidence for the write-up**
 
 ```bash
 grep -n "SKFFSCRK\|1356178201" docs/decisions.md src/surg/preprocessing/build.py src/surg/acquisition/targets.py
 ```
 
+Expected: the locked n=11 table (cluster tier), the 6-node pooling decision, and the ~$3/MWh tightness note at `decisions.md:151`.
+
 - [ ] **Step 2: Quantify how much of +0.870 is self-correlation**
 
-If SKFFSCRK is one of the six nodes averaged into the hourly cluster, recompute the correlation with SKFFSCRK **held out** of the cluster mean. Correct the panel path and column names to what the hourly builder actually emits:
+SKFFSCRK is one of the six nodes averaged into the hourly cluster, so recompute the correlation with SKFFSCRK **held out** of the cluster mean. This is a **disclosure diagnostic — the reported 6-node figure stays primary.** Correct the panel path and column names to what the hourly builder actually emits:
 
 ```python
 import pandas as pd
@@ -1121,9 +1132,13 @@ print("with SKFFSCRK in cluster:  ", skf.corr(df[cluster_all].mean(axis=1)))
 print("with SKFFSCRK held out:    ", skf.corr(df[cluster_holdout].mean(axis=1)))
 ```
 
-- [ ] **Step 3: Write it up for the advisor**
+- [ ] **Step 3: Write the interpretation into `docs/decisions.md`**
 
-State plainly: SKFFSCRK is pooled into the Loudoun cluster by the locked hourly design, the recovery spec calls it a rural control, and Phase 7 uses SKFFSCRK–cluster correlation as pass/fail. Give both correlations from Step 2. The open question is whether SKFFSCRK is a cluster member or a control — it cannot be both, and figure F7 depends on the answer.
+Record, as a dated entry: SKFFSCRK is **geographically rural but electrically coupled** — same 500 kV EHV network, same congestion pocket, within ~$3/MWh mean congestion of the cluster. Both correlations from Step 2, with the 6-node figure primary and the held-out figure disclosed beside it. State that the 6-node pre-registered pooling is **retained unchanged**, and that SKFFSCRK sits inside the hourly cluster and outside the 3-node 5-min cluster-set by design.
+
+Frame the substantive point plainly: a geographically-rural node tracking the urban cluster this closely is **evidence that congestion in this pocket is network-wide rather than localized to where the data centers physically sit**. That is consistent with, and reinforces, the standing finding that the 2026 escalation must not be attributed to data centers.
+
+Do **not** describe this as a contradiction or an unresolved question — it is a documented interpretation.
 
 - [ ] **Step 4: Commit**
 

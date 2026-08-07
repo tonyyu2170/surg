@@ -4447,10 +4447,21 @@ twelve points sit at 1.6–2.5%. Per the spec gate criterion, **correlations on
 HB_PAN and HB_WEST are uninterpretable** and the FWEST inversion above rests
 partly on them. Medians are $18.51–$23.69, p99 $189–$290.
 
-**This corroborates the DOM result in a second, unrelated market.** DOM: load
-+21.5%, volatility flat/falling, congestion level-driven. ERCOT: load +36.7%,
-normalized volatility −20.7%, level dominant 132/135. Two independently
-governed markets, same qualitative answer.
+**This corroborates the DOM result in a second, unrelated market.** DOM
+(this file, 2026-07-30): load **+21.5%**, p90 ramp 24.22 → 25.28 MW/min but
+normalized volatility falling every year (0.1850% → 0.1596%), trend tests null,
+congestion level-driven. ERCOT: load +36.7%, normalized volatility −20.7%,
+level dominant 132/135. Two independently governed markets, same qualitative
+answer.
+
+**The two panels are not the same object, and the corroboration is only as
+strong as that allows.** DOM is **5-minute resolution over ~3.4 years**
+(Feb 2023 → Jun 2026); ERCOT here is **hourly over ~9.6 years** (2017 → Jul
+2026). Hourly differencing cannot see the sub-hourly ramps the DOM measure is
+built from, and the two windows overlap only partially. That the normalized
+trend points the same way in both is meaningful precisely because the
+measurements are so different — but it is agreement in *direction*, across
+different instruments, not a matched comparison.
 
 **Do not claim the two are directly comparable.** `level_vs_volatility` has
 **no time controls**. Load level and price both carry strong diurnal and

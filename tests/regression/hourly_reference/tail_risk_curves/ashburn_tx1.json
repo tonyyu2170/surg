@@ -1061,5 +1061,6 @@
       }
     ]
   },
-  "filter": "passes_proposal_filter == True"
+  "filter": "passes_proposal_filter == True",
+  "resolution": "hourly"
 }

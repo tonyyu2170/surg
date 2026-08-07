@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pandas as pd
 import pytest
 
@@ -23,14 +25,61 @@ def test_original_column_is_dropped():
     assert "Hour Ending" not in out.columns
 
 
-def test_dst_duplicate_hour_is_flagged_not_dropped():
-    # Fall-back: the 02:00 hour-ending value appears twice.
+def test_hour_ending_24_becomes_23_same_day():
+    # ERCOT closes every day with `24:00`, which `%H` (00-23) cannot parse.
+    df = pd.DataFrame({"Hour Ending": ["12/31/2024 24:00"]})
+    out = hour_ending_to_beginning(df)
+    assert out["datetime_beginning_cpt"].iloc[0] == pd.Timestamp("2024-12-31 23:00")
+
+
+def test_year_seam_has_no_gap_or_overlap():
+    # Each annual file runs 01:00 -> 24:00, so the seam is HE24 then HE01.
+    # An off-by-one here silently misaligns a whole year against DOM.
+    df = pd.DataFrame({"Hour Ending": ["12/31/2024 24:00", "01/01/2025 01:00"]})
+    out = hour_ending_to_beginning(df)
+    assert list(out["datetime_beginning_cpt"]) == [
+        pd.Timestamp("2024-12-31 23:00"),
+        pd.Timestamp("2025-01-01 00:00"),
+    ]
+
+
+def test_dst_repeated_hour_is_flagged_not_dropped():
+    # Fall-back: ERCOT disambiguates the repeated hour with a ` DST` suffix.
+    # It does not emit two identical labels.
     df = pd.DataFrame(
-        {"Hour Ending": ["11/03/2024 02:00", "11/03/2024 02:00", "11/03/2024 03:00"]}
+        {
+            "Hour Ending": [
+                "11/03/2024 02:00",
+                "11/03/2024 02:00 DST",
+                "11/03/2024 03:00",
+            ]
+        }
     )
     out = hour_ending_to_beginning(df)
     assert len(out) == 3, "duplicate DST hour must be preserved, not silently dropped"
     assert out["dst_transition_hour"].tolist() == [True, True, False]
+    assert out["datetime_beginning_cpt"].iloc[1] == pd.Timestamp("2024-11-03 01:00")
+
+
+def test_datetime_valued_cell_is_parsed_not_nulled():
+    # Native_Load_2022.xlsx stores exactly one cell as a real datetime rather
+    # than text (row 8016). A bare `.str` accessor yields NaT there silently.
+    # This is that row and its two real neighbours.
+    df = pd.DataFrame(
+        {
+            "Hour Ending": [
+                "11/30/2022 24:00",
+                datetime(2022, 12, 1, 1, 0),
+                "12/01/2022 02:00",
+            ]
+        }
+    )
+    out = hour_ending_to_beginning(df)
+    assert list(out["datetime_beginning_cpt"]) == [
+        pd.Timestamp("2022-11-30 23:00"),
+        pd.Timestamp("2022-12-01 00:00"),
+        pd.Timestamp("2022-12-01 01:00"),
+    ]
 
 
 def test_non_dst_rows_are_not_flagged():

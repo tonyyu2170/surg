@@ -20,13 +20,41 @@ def hour_ending_to_beginning(df: pd.DataFrame) -> pd.DataFrame:
 
     Duplicate timestamps (DST fall-back) are preserved and flagged in
     `dst_transition_hour` rather than dropped.
+
+    Three properties of the real archives rule out a plain `strptime`:
+
+    * Hour-ending runs **1-24**, so every day ends `24:00`, which `%H`
+      (00-23) rejects. The hour is therefore parsed as an integer and
+      applied as an offset rather than as a time-of-day field.
+    * The fall-back hour carries a trailing ` DST` suffix (one row per
+      year), not a duplicated label.
+    * `Native_Load_2022.xlsx` stores one cell as a real `datetime` among
+      8,759 strings. A bare `.str` accessor returns NaT on it silently, so
+      non-text cells are formatted back to the text shape first.
+
+    `date + (hour - 1)` is correct across the whole 0-24 range: `24:00`
+    maps to 23:00 the same day, and an Excel-rolled `00:00` maps back to
+    23:00 the previous day.
     """
     if "Hour Ending" not in df.columns:
         raise KeyError("Hour Ending column not found in ERCOT load frame")
 
     out = df.copy()
-    ending = pd.to_datetime(out["Hour Ending"], format="%m/%d/%Y %H:%M")
-    out["datetime_beginning_cpt"] = ending - pd.Timedelta(hours=1)
+    raw = out["Hour Ending"]
+
+    is_text = raw.map(lambda value: isinstance(value, str))
+    labels = pd.Series(index=raw.index, dtype=object)
+    labels[is_text] = raw[is_text].str.strip()
+    if (~is_text).any():
+        labels[~is_text] = pd.to_datetime(raw[~is_text]).dt.strftime("%m/%d/%Y %H:%M")
+
+    labels = labels.str.replace(r"\s+DST$", "", regex=True)
+    parts = labels.str.split(" ", n=1, expand=True)
+
+    dates = pd.to_datetime(parts[0], format="%m/%d/%Y")
+    hours_ending = parts[1].str.slice(0, 2).astype(int)
+
+    out["datetime_beginning_cpt"] = dates + pd.to_timedelta(hours_ending - 1, unit="h")
     out["dst_transition_hour"] = out["datetime_beginning_cpt"].duplicated(keep=False)
     return out.drop(columns=["Hour Ending"])
 

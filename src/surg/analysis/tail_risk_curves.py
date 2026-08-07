@@ -279,6 +279,22 @@ def aggregate_cross_pnode_summary(per_pnode_results: list[dict]) -> dict:
     }
 
 
+def _plot_suptitle(per_pnode: dict) -> str:
+    """Figure caption for a per-pnode result dict.
+
+    `resolution` is read from the result rather than hardcoded: this
+    plotter is shared by the hourly and 5-min entrypoints. Result dicts
+    written before the key existed were all hourly runs, so that is the
+    fallback.
+    """
+    return (
+        f"{per_pnode['pnode_label']}: P(LMP > $X) by Z decile "
+        f"(filter: {per_pnode.get('filter', '')}, "
+        f"n_boot={per_pnode['n_boot']}, "
+        f"{per_pnode.get('resolution', 'hourly')})"
+    )
+
+
 def plot_tail_risk_curves(per_pnode: dict, out_path: Path) -> None:
     """2-panel chart: P(LMP > $X | Z decile) for total_lmp + congestion.
 
@@ -293,7 +309,6 @@ def plot_tail_risk_curves(per_pnode: dict, out_path: Path) -> None:
     import matplotlib.pyplot as plt
     from matplotlib.cm import viridis
 
-    pnode_label = per_pnode["pnode_label"]
     thresholds = per_pnode["thresholds"]
     edges = per_pnode["decile_edges_mw_per_min"]
     threshold_pcts = per_pnode["threshold_percentiles"]
@@ -333,11 +348,7 @@ def plot_tail_risk_curves(per_pnode: dict, out_path: Path) -> None:
         ax.legend(title="threshold $ (pct)", loc="upper left", fontsize=8)
 
     axes[0].set_ylabel("P(LMP > $threshold)")
-    filter_desc = per_pnode.get("filter", "")
-    fig.suptitle(
-        f"{pnode_label}: P(LMP > $X) by Z decile "
-        f"(filter: {filter_desc}, n_boot={per_pnode['n_boot']}, hourly)"
-    )
+    fig.suptitle(_plot_suptitle(per_pnode))
     fig.tight_layout()
     fig.savefig(out_path, dpi=120)
     plt.close(fig)
@@ -426,23 +437,53 @@ def run_tail_risk_curves(
     bootstrap_method: str = "pair",
     pnode_labels: tuple[str, ...] | None = None,
     filter_col: str | None = "passes_proposal_filter",
+    pnode_to_response: dict[str, dict[str, str]] | None = None,
+    cross_pnode_pnodes: tuple[str, ...] | None = None,
+    plotted_pnodes: tuple[str, ...] | None = None,
+    z_col: str = Z_COL,
+    resolution: str = "hourly",
 ) -> None:
     """Top-level orchestrator: applies the proposal-filter (or skips it),
     runs all per-pnode + cross-pnode analyses, writes outputs to disk.
 
     Writes 5 JSONs + 4 PNGs + 1 CSV under ``out_root/tail_risk_curves/``.
 
-    Sub-q1 item #8 additions:
-    - bootstrap_method: "pair" (default; preserves hourly behavior) or
-      "cluster" (5-min companion: resample whole 3-hour islands).
-    - pnode_labels: subset of CROSS_PNODE_PNODES to process. None = all.
-    Sub-q1 item #9 addition: ``filter_col=None`` skips the filter and
-    operates on the full panel. The default
-    ``filter_col="passes_proposal_filter"`` preserves item #6's
-    in-filter behavior.
+    Sub-q1 item #8: ``bootstrap_method`` is "pair" (default; preserves
+    hourly behavior) or "cluster" (5-min companion: resample whole 3-hour
+    islands). ``pnode_labels`` selects a subset to process.
+    Sub-q1 item #9: ``filter_col=None`` skips the filter and operates on
+    the full panel.
+    5-min companion: ``pnode_to_response`` / ``cross_pnode_pnodes`` /
+    ``plotted_pnodes`` / ``z_col`` retarget the routine at a panel whose
+    pnode labels and Z column differ from the hourly ones, and
+    ``resolution`` is stamped into each result so the shared plotter can
+    label the figure correctly instead of hardcoding "hourly".
     """
     if thresholds is None:
         thresholds = DEFAULT_THRESHOLDS.copy()
+    if pnode_to_response is None:
+        pnode_to_response = PNODE_TO_RESPONSE
+    if plotted_pnodes is None:
+        plotted_pnodes = PER_PNODE_PLOTTED
+
+    # `pnode_labels` (item #8) and `cross_pnode_pnodes` (5-min worktree)
+    # are two names for the same knob, arrived at independently. Accept
+    # either; refuse a conflicting pair rather than silently picking one.
+    if (
+        cross_pnode_pnodes is not None
+        and pnode_labels is not None
+        and tuple(cross_pnode_pnodes) != tuple(pnode_labels)
+    ):
+        raise ValueError(
+            "cross_pnode_pnodes and pnode_labels were both given and differ: "
+            f"{tuple(cross_pnode_pnodes)!r} vs {tuple(pnode_labels)!r}"
+        )
+    if cross_pnode_pnodes is not None:
+        pnodes_to_process = tuple(cross_pnode_pnodes)
+    elif pnode_labels is not None:
+        pnodes_to_process = tuple(pnode_labels)
+    else:
+        pnodes_to_process = tuple(CROSS_PNODE_PNODES)
 
     tr_dir = Path(out_root) / "tail_risk_curves"
     tr_dir.mkdir(parents=True, exist_ok=True)
@@ -453,8 +494,13 @@ def run_tail_risk_curves(
     else:
         filtered = panel.loc[panel[filter_col] == True].copy()  # noqa: E712
         filter_desc = f"{filter_col} == True"
-    # Materialize derived total_lmp columns where features.py didn't label them.
-    filtered = _ensure_total_lmp_columns(filtered, CROSS_PNODE_PNODES)
+
+    # Materialize derived total_lmp columns where features.py didn't label
+    # them. Scoped to the pnodes actually processed: the hourly full run
+    # passes none of the selectors, so this is identical to the previous
+    # `CROSS_PNODE_PNODES` behavior there, while the 5-min panel (whose
+    # labels are not the hourly ones) no longer KeyErrors.
+    filtered = _ensure_total_lmp_columns(filtered, pnodes_to_process)
 
     # Compute island_ids on the filtered panel (only needed for cluster
     # bootstrap; identify_islands assigns one int per filtered row based
@@ -469,16 +515,12 @@ def run_tail_risk_curves(
     else:
         island_ids = None
 
-    pnodes_to_process = (
-        pnode_labels if pnode_labels is not None else CROSS_PNODE_PNODES
-    )
-
     all_results: list[dict] = []
 
     for pnode_label in pnodes_to_process:
-        response_cols = PNODE_TO_RESPONSE[pnode_label]
+        response_cols = pnode_to_response[pnode_label]
         # Drop NA rows in either response column for this pnode
-        cols = list(response_cols.values()) + [Z_COL]
+        cols = list(response_cols.values()) + [z_col]
         sub = filtered.dropna(subset=cols)
         # Slice island_ids to match `sub`'s row index (dropna preserves
         # index labels)
@@ -490,7 +532,7 @@ def run_tail_risk_curves(
             panel=sub,
             pnode_label=pnode_label,
             response_cols=response_cols,
-            z_col=Z_COL,
+            z_col=z_col,
             thresholds=thresholds,
             n_deciles=10,
             n_boot=n_boot,
@@ -498,11 +540,13 @@ def run_tail_risk_curves(
             bootstrap_method=bootstrap_method,
             island_ids=sub_island_ids,
         )
-        # Inject filter provenance (per-pnode orchestrator can't know this)
+        # Inject filter + resolution provenance (the per-pnode routine
+        # can't know either — both come from how it was invoked).
         result["filter"] = filter_desc
+        result["resolution"] = resolution
         all_results.append(result)
 
-        if pnode_label in PER_PNODE_PLOTTED:
+        if pnode_label in plotted_pnodes:
             # Write per-pnode JSON
             with open(tr_dir / f"{pnode_label}.json", "w") as f:
                 json.dump(_json_serializable(result), f, indent=2)

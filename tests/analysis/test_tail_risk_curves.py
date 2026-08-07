@@ -8,6 +8,7 @@ import pytest
 
 from surg.analysis.tail_risk_curves import (
     _ensure_total_lmp_columns,
+    _plot_suptitle,
     aggregate_cross_pnode_summary,
     compute_exceedance_probability_with_ci,
     compute_threshold_percentiles,
@@ -322,6 +323,47 @@ def test_plot_tail_risk_curves_writes_png(tmp_path):
     assert out_path.stat().st_size > 5_000  # non-trivial PNG
 
 
+def test_plot_suptitle_reports_the_panel_resolution():
+    """Caption states the run's own resolution — it must not be hardcoded.
+
+    The 5-min companion runs reused this plotter and every PNG came out
+    labelled "hourly"; this pins the label to the result dict.
+    """
+    base = {"pnode_label": "cluster", "n_boot": 1000, "filter": "none"}
+
+    fivemin = _plot_suptitle({**base, "resolution": "5-min"})
+    assert "5-min" in fivemin
+    assert "hourly" not in fivemin
+
+    assert "hourly" in _plot_suptitle({**base, "resolution": "hourly"})
+    # Legacy result dicts predate the key; they were all hourly runs.
+    assert "hourly" in _plot_suptitle(base)
+
+
+def test_run_tail_risk_curves_records_resolution_in_result(tmp_path):
+    """run_tail_risk_curves stamps the resolution it was given onto results."""
+    rng = np.random.default_rng(seed=5)
+    n = 400
+    panel = pd.DataFrame({
+        "dom_load_gradient_abs_mw_per_min": rng.exponential(scale=1.0, size=n),
+        "total_lmp_rt_cluster_mean": rng.lognormal(mean=3.5, sigma=1.0, size=n),
+        "congestion_price_rt_cluster_mean": rng.exponential(scale=10.0, size=n),
+        "passes_proposal_filter": True,
+    })
+    mapping = {"loudoun": {"total_lmp": "total_lmp_rt_cluster_mean",
+                           "congestion": "congestion_price_rt_cluster_mean"}}
+
+    run_tail_risk_curves(
+        panel, out_root=tmp_path, n_boot=20, seed=3,
+        pnode_to_response=mapping,
+        cross_pnode_pnodes=("loudoun",), plotted_pnodes=("loudoun",),
+        resolution="5-min",
+    )
+
+    with open(tmp_path / "tail_risk_curves" / "loudoun.json") as f:
+        assert json.load(f)["resolution"] == "5-min"
+
+
 def _make_synthetic_panel(n: int = 2000, seed: int = 0) -> pd.DataFrame:
     """Synthetic panel covering the 7 pnodes + filter column."""
     rng = np.random.default_rng(seed)
@@ -466,3 +508,48 @@ def test_ensure_total_lmp_columns_skips_pnodes_without_components():
     result = _ensure_total_lmp_columns(panel, ("ox",))
 
     assert "total_lmp_rt_ox" not in result.columns
+
+
+def test_run_tail_risk_curves_accepts_custom_pnode_map(tmp_path):
+    rng = np.random.default_rng(3)
+    n = 2000
+    panel = pd.DataFrame({
+        "dom_load_gradient_abs_mw_per_min": rng.uniform(0, 60, n),
+        "passes_proposal_filter": True,
+        "congestion_price_rt_35010365": rng.normal(2, 5, n),
+        "total_lmp_rt_35010365": rng.normal(30, 15, n),
+    })
+    pnode_map = {"loudoun": {"congestion": "congestion_price_rt_35010365",
+                             "total_lmp": "total_lmp_rt_35010365"}}
+    run_tail_risk_curves(
+        panel, out_root=tmp_path, thresholds=[100.0], n_boot=30, seed=1,
+        pnode_to_response=pnode_map,
+        cross_pnode_pnodes=("loudoun",),
+        plotted_pnodes=("loudoun",),
+    )
+    tr = tmp_path / "tail_risk_curves"
+    assert (tr / "loudoun.json").exists()
+    assert (tr / "loudoun.png").exists()
+    assert (tr / "cross_pnode_summary.json").exists()
+
+
+def test_run_tail_risk_curves_accepts_custom_z_and_filter_col(tmp_path):
+    rng = np.random.default_rng(4)
+    n = 2000
+    panel = pd.DataFrame({
+        "z_custom": rng.uniform(0, 60, n),
+        "keep_row": True,
+        "congestion_price_rt_35010365": rng.normal(2, 5, n),
+        "total_lmp_rt_35010365": rng.normal(30, 15, n),
+    })
+    pnode_map = {"loudoun": {"congestion": "congestion_price_rt_35010365",
+                             "total_lmp": "total_lmp_rt_35010365"}}
+    run_tail_risk_curves(
+        panel, out_root=tmp_path, thresholds=[100.0], n_boot=30, seed=1,
+        pnode_to_response=pnode_map,
+        cross_pnode_pnodes=("loudoun",), plotted_pnodes=("loudoun",),
+        z_col="z_custom", filter_col="keep_row",
+    )
+    with open(tmp_path / "tail_risk_curves" / "loudoun.json") as f:
+        result = json.load(f)
+    assert result["filter"] == "keep_row == True"

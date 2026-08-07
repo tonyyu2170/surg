@@ -5,26 +5,26 @@
       "pnode_label": "primary_cluster",
       "threshold_quantile": 0.95,
       "n_exc": 102,
-      "shape_diff": -0.1333882467904658,
+      "shape_diff": -0.13331590744999752,
       "shape_diff_ci_95": [
-        -1.0076022726603302,
-        0.33198786877517983
+        -1.007255288299228,
+        0.33197963934551694
       ],
       "rule_2_outcome": "underpowered_neg_direction",
-      "paper_claim": "Underpowered on this scope (n_per_half=51): congestion direction consistent with congestion finding (heavier tail at LOW Z), shape_diff=-0.133, CI [-1.008,0.332] spans 0. Not consistent with ORDC's predicted direction."
+      "paper_claim": "Underpowered on this scope (n_per_half=51): congestion direction consistent with congestion finding (heavier tail at LOW Z), shape_diff=-0.133, CI [-1.007,0.332] spans 0. Not consistent with ORDC's predicted direction."
     },
     {
       "component": "marginal_loss",
       "pnode_label": "primary_cluster",
       "threshold_quantile": 0.95,
       "n_exc": 102,
-      "shape_diff": -0.15635802569488774,
+      "shape_diff": -0.15071563380766956,
       "shape_diff_ci_95": [
-        -0.8093999323034022,
-        0.5463373195234296
+        -0.8008281688838761,
+        0.5458735753630821
       ],
       "rule_2_outcome": "underpowered_neg_direction",
-      "paper_claim": "Underpowered on this scope (n_per_half=51): marginal_loss direction consistent with congestion finding (heavier tail at LOW Z), shape_diff=-0.156, CI [-0.809,0.546] spans 0. Not consistent with ORDC's predicted direction."
+      "paper_claim": "Underpowered on this scope (n_per_half=51): marginal_loss direction consistent with congestion finding (heavier tail at LOW Z), shape_diff=-0.151, CI [-0.801,0.546] spans 0. Not consistent with ORDC's predicted direction."
     }
   ],
   "scope": "descriptive (no MT correction)"

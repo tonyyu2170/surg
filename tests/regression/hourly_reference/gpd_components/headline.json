@@ -3,13 +3,13 @@
   "pnode_label": "primary_cluster",
   "threshold_quantile": 0.95,
   "n_exc": 102,
-  "shape_diff": 0.25665459694193493,
+  "shape_diff": 0.25657332267300875,
   "shape_diff_ci_95": [
-    -0.4954025460323756,
-    0.5732619800125681
+    -0.49985732201100813,
+    0.5718929114084944
   ],
   "rule_2_outcome": "underpowered_pos_direction",
-  "paper_claim": "Underpowered on this scope (n_per_half=51): system_energy direction consistent with ORDC's predicted direction (heavier tail at HIGH Z), shape_diff=0.257, CI [-0.495,0.573] spans 0. Cannot confirm at \u03b1=0.05.",
+  "paper_claim": "Underpowered on this scope (n_per_half=51): system_energy direction consistent with ORDC's predicted direction (heavier tail at HIGH Z), shape_diff=0.257, CI [-0.500,0.572] spans 0. Cannot confirm at \u03b1=0.05.",
   "rule_1_singular_headline": "system_energy_price_rt_cluster_mean median-split @ p95 LMP, Loudoun cluster, filtered subset",
   "pre_reg_reference": "docs/decisions.md \u00a7 2026-05-14 \u2014 Pre-registration: LMP-components decomposition"
 }

@@ -4302,3 +4302,79 @@ unnamed in the record and must not be guessed.*
   pre-registered, hourly findings are lower-priority than the 5-min work, and
   the 5-min panel already covers 2026 at higher resolution. The asymmetry
   between the two windows is deliberate.
+
+---
+
+## 2026-08-07 — Hourly panel re-pulled; regression fixtures re-blessed at the corrected window
+
+**Context.** Plan B rev2 Task 8. The re-pulled hourly panel failed all five
+regression tests on a single field, `n_total_panel: ref=31536, cur=31608`.
+
+### Root cause: the pre-loss panel violated the pre-registered window
+
+Clipping the rebuilt panel to `>= 2022-10-05` reproduces **exactly 31,536**.
+The pre-loss `hrl_load_metered` pull began 3 days late, and because the load
+series is the panel's join spine (`build.py`: `load_df.merge(lmp_wide,
+how="left")`), the pre-loss panel silently started at **2022-10-05** rather
+than the pre-registered `ANALYSIS_WINDOW_START = 2022-10-02`.
+
+The rebuilt panel is therefore **more correct, not merely different**. It is
+verified complete: 31,608 rows against 31,608 expected hourly slots, whose
+only irregularities are 4 duplicate stamps and 4 gaps — the signatures of the
+4 DST fall-backs and 4 spring-forwards in the window.
+
+**Decision: re-bless the fixtures at 31,608 rather than clip to 31,536.**
+Matching the old numbers byte-for-byte was available (and was verified to
+work) but would have encoded a pre-registration violation into the analysis to
+keep a stale test green. These fixtures guard **code invariance** — the test is
+`test_hourly_pair_bootstrap_equivalence`, protecting item #8's
+`bootstrap_method` refactor — not data vintage.
+
+### Measured delta
+
+Data: panel **31,536 → 31,608** (+0.23%); filtered analysis base
+**2,027 → 2,036** (+9 rows, +0.44%). The 3 recovered days are shoulder-season,
+contributing exactly 3 days x 3 hours of filter-passing rows.
+
+Derived statistics move **much more** than 0.44%, for reasons that are
+mechanical rather than substantive:
+- Thresholds are **quantile-based**, so a larger sample shifts the threshold
+  and changes which points exceed: `n_exc` moved **55 → 52** (down, despite
+  more data).
+- Several flipped coefficients are **near-zero** (1e-5..1e-3) fit on
+  n_exc ≈ 52, where sign is not identified.
+- The Ashburn LOO arrays (1,745 → 1,544) are **not** from these 3 days at all;
+  that is the 11.6% Ashburn window shrink from the rolling archive cutoff.
+- Bootstrap CIs shift because resampling differs once inputs change at all.
+
+Point estimates are stable where identified (e.g. `shape_diff = 0.257`
+unchanged; its CI moved ~1%).
+
+### Finding: these fixtures are weak guards
+
+Their deep-threshold fields encode bootstrap-resampling noise and unidentified
+near-zero coefficients that move under any perturbation. Re-blessing restores
+a meaningful code-invariance guard only for the stable fields. **A future
+failure in a deep-threshold coefficient should not be read as a code
+regression without this context.**
+
+### bristers q=0.995 spline is knife-edge unstable (not a code regression)
+
+`gpd_continuous/bristers.json` `threshold_sweep[3].spline` changed from
+`insufficient_bootstrap_reps` (with coefficients) to `failed` (coefficients
+null). Sample size does not explain it: ashburn_tx1/tx2 converge at
+**n_exc = 78**, while bristers fails at **159**, and four other pnodes
+converge at that same 159.
+
+Discriminator run — identical code, two panels:
+
+| Panel | n_exc | spline | shape_coef[0] |
+|---|---|---|---|
+| full (31,608) | 159 | `failed` | None |
+| clipped (31,536) | 158 | `insufficient_bootstrap_reps` | 0.1996 |
+
+**One additional exceedance flips the optimizer.** This is data-driven, not a
+regression in the restored `gpd_continuous` chain, so the `failed` state is
+the true output of correct code on correct data and is re-blessed as such.
+Independently of this recovery, **any conclusion resting on the bristers
+q=0.995 spline fit is fragile** and should not be reported without this caveat.

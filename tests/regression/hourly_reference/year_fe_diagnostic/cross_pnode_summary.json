@@ -3,232 +3,232 @@
     {
       "pnode_label": "primary",
       "tau_key": "tau_0.90",
-      "primary_z_slope": 0.3926761461465773,
-      "year_fe_z_slope": 0.25124242854191525,
-      "secular_component_point": 0.14143371760466206,
+      "primary_z_slope": 0.39068203632714926,
+      "year_fe_z_slope": 0.253125660901766,
+      "secular_component_point": 0.13755637542538324,
       "secular_component_ci": [
-        0.09757069145827545,
-        0.19796140335466095
+        0.10338012986354106,
+        0.1793722417306767
       ]
     },
     {
       "pnode_label": "primary",
       "tau_key": "tau_0.95",
-      "primary_z_slope": 0.5784798035941847,
-      "year_fe_z_slope": 0.410439928055375,
-      "secular_component_point": 0.16803987553880972,
+      "primary_z_slope": 0.5731554938731236,
+      "year_fe_z_slope": 0.41509180679241453,
+      "secular_component_point": 0.15806368708070906,
       "secular_component_ci": [
-        0.06092569651584512,
-        0.2846655750721128
+        0.05501902233173155,
+        0.28205033992669853
       ]
     },
     {
       "pnode_label": "primary",
       "tau_key": "tau_0.99",
-      "primary_z_slope": 0.3574654140051834,
-      "year_fe_z_slope": 0.6224627762870796,
-      "secular_component_point": -0.2649973622818962,
+      "primary_z_slope": 0.3569236344568054,
+      "year_fe_z_slope": 0.6152849644909111,
+      "secular_component_point": -0.25836133003410566,
       "secular_component_ci": [
-        -0.7832084261149113,
-        0.31320540456701984
+        -0.7727123808095318,
+        0.23663641889098772
       ]
     },
     {
       "pnode_label": "total_lmp",
       "tau_key": "tau_0.90",
-      "primary_z_slope": 1.5266721033863746,
-      "year_fe_z_slope": 1.1457925916279237,
-      "secular_component_point": 0.3808795117584509,
+      "primary_z_slope": 1.5133669526726692,
+      "year_fe_z_slope": 1.1503153347791653,
+      "secular_component_point": 0.36305161789350393,
       "secular_component_ci": [
-        0.23469845516663526,
-        0.5238446547956691
+        0.1836346354126089,
+        0.5349556937852419
       ]
     },
     {
       "pnode_label": "total_lmp",
       "tau_key": "tau_0.95",
-      "primary_z_slope": 2.3336979044571535,
-      "year_fe_z_slope": 1.3886274852170573,
-      "secular_component_point": 0.9450704192400963,
+      "primary_z_slope": 2.2969478554901457,
+      "year_fe_z_slope": 1.4008550516491312,
+      "secular_component_point": 0.8960928038410145,
       "secular_component_ci": [
-        0.5805840983985288,
-        1.2273425612852136
+        0.5613500931706021,
+        1.144925785607328
       ]
     },
     {
       "pnode_label": "total_lmp",
       "tau_key": "tau_0.99",
-      "primary_z_slope": 2.5975956211936477,
-      "year_fe_z_slope": 2.129137225847785,
-      "secular_component_point": 0.46845839534586275,
+      "primary_z_slope": 2.549010937104697,
+      "year_fe_z_slope": 2.180887514385418,
+      "secular_component_point": 0.3681234227192789,
       "secular_component_ci": [
-        -1.542206577023639,
-        2.269714183886423
+        -1.0681162386243073,
+        1.7114124981145933
       ]
     },
     {
       "pnode_label": "ox",
       "tau_key": "tau_0.90",
-      "primary_z_slope": 0.4331800916824502,
-      "year_fe_z_slope": 0.30558531279752543,
-      "secular_component_point": 0.12759477888492476,
+      "primary_z_slope": 0.4314785429142729,
+      "year_fe_z_slope": 0.30280803751682317,
+      "secular_component_point": 0.12867050539744973,
       "secular_component_ci": [
-        0.08823259146259732,
-        0.18043279506433485
+        0.0745917077356385,
+        0.18235800776280575
       ]
     },
     {
       "pnode_label": "ox",
       "tau_key": "tau_0.95",
-      "primary_z_slope": 0.6116406679537931,
-      "year_fe_z_slope": 0.4084266061452695,
-      "secular_component_point": 0.20321406180852364,
+      "primary_z_slope": 0.5944023666967855,
+      "year_fe_z_slope": 0.4170503413768927,
+      "secular_component_point": 0.1773520253198928,
       "secular_component_ci": [
-        0.04294222295925794,
-        0.32996903782756987
+        0.08708899762938763,
+        0.30097538881346964
       ]
     },
     {
       "pnode_label": "ox",
       "tau_key": "tau_0.99",
-      "primary_z_slope": 0.6552164434976362,
-      "year_fe_z_slope": 0.7702496233957206,
-      "secular_component_point": -0.11503317989808437,
+      "primary_z_slope": 0.6570229832137073,
+      "year_fe_z_slope": 0.7562430188009657,
+      "secular_component_point": -0.09922003558725834,
       "secular_component_ci": [
-        -0.8187445164997401,
-        0.7366589687822449
+        -0.7475444903192091,
+        0.7444324550511341
       ]
     },
     {
       "pnode_label": "bristers",
       "tau_key": "tau_0.90",
-      "primary_z_slope": 0.40325694200841866,
-      "year_fe_z_slope": 0.2827696490341438,
-      "secular_component_point": 0.12048729297427485,
+      "primary_z_slope": 0.3972995582886938,
+      "year_fe_z_slope": 0.2804755453553156,
+      "secular_component_point": 0.11682401293337819,
       "secular_component_ci": [
-        0.07811617661786807,
-        0.1642265482485241
+        0.07659511527087925,
+        0.15536005646700418
       ]
     },
     {
       "pnode_label": "bristers",
       "tau_key": "tau_0.95",
-      "primary_z_slope": 0.5704972657771918,
-      "year_fe_z_slope": 0.34794678497408427,
-      "secular_component_point": 0.22255048080310758,
+      "primary_z_slope": 0.5493616623093267,
+      "year_fe_z_slope": 0.35749467130017365,
+      "secular_component_point": 0.19186699100915305,
       "secular_component_ci": [
-        0.08316361589422572,
-        0.3436900452886434
+        0.10465994321121971,
+        0.328078080680846
       ]
     },
     {
       "pnode_label": "bristers",
       "tau_key": "tau_0.99",
-      "primary_z_slope": 0.6361690377208333,
-      "year_fe_z_slope": 1.1163474320061084,
-      "secular_component_point": -0.4801783942852751,
+      "primary_z_slope": 0.6361165196296952,
+      "year_fe_z_slope": 1.1122234383996812,
+      "secular_component_point": -0.476106918769986,
       "secular_component_ci": [
-        -1.2027101302603422,
-        0.39659294144426793
+        -0.9052311026148437,
+        0.340208132559252
       ]
     },
     {
       "pnode_label": "dom_zonal",
       "tau_key": "tau_0.90",
-      "primary_z_slope": 0.3544807882380425,
-      "year_fe_z_slope": 0.17515255843846944,
-      "secular_component_point": 0.17932822979957308,
+      "primary_z_slope": 0.3549484815278561,
+      "year_fe_z_slope": 0.17625578468275194,
+      "secular_component_point": 0.17869269684510414,
       "secular_component_ci": [
-        0.10591115869410171,
-        0.251846514490027
+        0.10369474558785467,
+        0.24104511556733652
       ]
     },
     {
       "pnode_label": "dom_zonal",
       "tau_key": "tau_0.95",
-      "primary_z_slope": 0.1947590346150747,
-      "year_fe_z_slope": 0.07968937569644563,
-      "secular_component_point": 0.11506965891862908,
+      "primary_z_slope": 0.19399877883721217,
+      "year_fe_z_slope": 0.08666206200531335,
+      "secular_component_point": 0.10733671683189883,
       "secular_component_ci": [
-        -0.09802511264469942,
-        0.289298984075285
+        -0.024722195114093674,
+        0.2992324194218027
       ]
     },
     {
       "pnode_label": "dom_zonal",
       "tau_key": "tau_0.99",
-      "primary_z_slope": -0.39543226780169505,
-      "year_fe_z_slope": -0.006336776443276904,
-      "secular_component_point": -0.38909549135841814,
+      "primary_z_slope": -0.3030610326122769,
+      "year_fe_z_slope": 0.0011872987314518468,
+      "secular_component_point": -0.30424833134372875,
       "secular_component_ci": [
-        -0.9624495090697799,
-        0.8038290457472157
+        -1.2146251198888294,
+        1.0201108975918767
       ]
     },
     {
       "pnode_label": "ashburn_tx1",
       "tau_key": "tau_0.90",
-      "primary_z_slope": 0.3770860127267248,
-      "year_fe_z_slope": 0.2610018956379454,
-      "secular_component_point": 0.11608411708877941,
+      "primary_z_slope": 0.7675816324860989,
+      "year_fe_z_slope": 0.47348983798720923,
+      "secular_component_point": 0.29409179449888967,
       "secular_component_ci": [
-        -0.09220636081064906,
-        0.3179897864413229
+        0.08403052320774211,
+        0.5270437034846258
       ]
     },
     {
       "pnode_label": "ashburn_tx1",
       "tau_key": "tau_0.95",
-      "primary_z_slope": -0.6040905958057579,
-      "year_fe_z_slope": -0.25492342539200763,
-      "secular_component_point": -0.3491671704137502,
+      "primary_z_slope": 0.40783459949035716,
+      "year_fe_z_slope": 0.2843538613368839,
+      "secular_component_point": 0.12348073815347327,
       "secular_component_ci": [
-        -0.7756182802226761,
-        0.32201499187746546
+        -0.5186996606824125,
+        0.7098954778571537
       ]
     },
     {
       "pnode_label": "ashburn_tx1",
       "tau_key": "tau_0.99",
-      "primary_z_slope": -5.571140883214667,
-      "year_fe_z_slope": -5.429948622841465,
-      "secular_component_point": -0.14119226037320232,
+      "primary_z_slope": -3.998918154998819,
+      "year_fe_z_slope": -3.9910783171230833,
+      "secular_component_point": -0.007839837875735611,
       "secular_component_ci": [
-        -1.508055407915716,
-        1.2645972924293412
+        -1.3785777334756575,
+        0.8002927992854821
       ]
     },
     {
       "pnode_label": "ashburn_tx2",
       "tau_key": "tau_0.90",
-      "primary_z_slope": 0.37067243390490034,
-      "year_fe_z_slope": 0.357422616731796,
-      "secular_component_point": 0.013249817173104361,
+      "primary_z_slope": 0.5067871300255335,
+      "year_fe_z_slope": 0.36259864722528334,
+      "secular_component_point": 0.1441884828002502,
       "secular_component_ci": [
-        -0.08505727420282438,
-        0.10516297795150141
+        -0.04150705190533803,
+        0.35342769900139376
       ]
     },
     {
       "pnode_label": "ashburn_tx2",
       "tau_key": "tau_0.95",
-      "primary_z_slope": 0.11881134170629082,
-      "year_fe_z_slope": 0.28212177173438135,
-      "secular_component_point": -0.16331043002809054,
+      "primary_z_slope": 0.6126785435251847,
+      "year_fe_z_slope": 0.3277496829741722,
+      "secular_component_point": 0.2849288605510125,
       "secular_component_ci": [
-        -0.5079056906713968,
-        0.08240685371315518
+        -0.17552573081377937,
+        0.7495099673453539
       ]
     },
     {
       "pnode_label": "ashburn_tx2",
       "tau_key": "tau_0.99",
-      "primary_z_slope": -2.272148558716708,
-      "year_fe_z_slope": -1.539477955516972,
-      "secular_component_point": -0.7326706031997361,
+      "primary_z_slope": -1.2993188546133752,
+      "year_fe_z_slope": -2.0413185934312423,
+      "secular_component_point": 0.7419997388178672,
       "secular_component_ci": [
-        -4.057132581107269,
-        3.3131719368423487
+        -2.688100905220746,
+        6.047440358803783
       ]
     }
   ]

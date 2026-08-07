@@ -4,137 +4,137 @@
       "component": "system_energy",
       "pnode_label": "ashburn_tx1",
       "threshold_quantile": 0.95,
-      "n_exc": 55,
+      "n_exc": 52,
       "shape_diff": null,
       "shape_diff_ci_95": [
         null,
         null
       ],
       "rule_2_outcome": "insufficient_sample",
-      "paper_claim": "Insufficient sample: n_per_half=27 below pre-reg floor of 50. No verdict reported."
+      "paper_claim": "Insufficient sample: n_per_half=26 below pre-reg floor of 50. No verdict reported."
     },
     {
       "component": "system_energy",
       "pnode_label": "ashburn_tx2",
       "threshold_quantile": 0.95,
-      "n_exc": 55,
+      "n_exc": 52,
       "shape_diff": null,
       "shape_diff_ci_95": [
         null,
         null
       ],
       "rule_2_outcome": "insufficient_sample",
-      "paper_claim": "Insufficient sample: n_per_half=27 below pre-reg floor of 50. No verdict reported."
+      "paper_claim": "Insufficient sample: n_per_half=26 below pre-reg floor of 50. No verdict reported."
     },
     {
       "component": "system_energy",
       "pnode_label": "ox",
       "threshold_quantile": 0.95,
       "n_exc": 102,
-      "shape_diff": 0.25665459694193493,
+      "shape_diff": 0.25657332267300875,
       "shape_diff_ci_95": [
-        -0.5576517367228508,
-        0.5685502406274238
+        -0.556392536598192,
+        0.5623829607761054
       ],
       "rule_2_outcome": "underpowered_pos_direction",
-      "paper_claim": "Underpowered on this scope (n_per_half=51): system_energy direction consistent with ORDC's predicted direction (heavier tail at HIGH Z), shape_diff=0.257, CI [-0.558,0.569] spans 0. Cannot confirm at \u03b1=0.05."
+      "paper_claim": "Underpowered on this scope (n_per_half=51): system_energy direction consistent with ORDC's predicted direction (heavier tail at HIGH Z), shape_diff=0.257, CI [-0.556,0.562] spans 0. Cannot confirm at \u03b1=0.05."
     },
     {
       "component": "system_energy",
       "pnode_label": "bristers",
       "threshold_quantile": 0.95,
       "n_exc": 102,
-      "shape_diff": 0.25665459694193493,
+      "shape_diff": 0.25657332267300875,
       "shape_diff_ci_95": [
-        -0.40118942845756184,
-        0.6913457124703379
+        -0.40164067160747347,
+        0.6851148250346902
       ],
       "rule_2_outcome": "underpowered_pos_direction",
-      "paper_claim": "Underpowered on this scope (n_per_half=51): system_energy direction consistent with ORDC's predicted direction (heavier tail at HIGH Z), shape_diff=0.257, CI [-0.401,0.691] spans 0. Cannot confirm at \u03b1=0.05."
+      "paper_claim": "Underpowered on this scope (n_per_half=51): system_energy direction consistent with ORDC's predicted direction (heavier tail at HIGH Z), shape_diff=0.257, CI [-0.402,0.685] spans 0. Cannot confirm at \u03b1=0.05."
     },
     {
       "component": "system_energy",
       "pnode_label": "dom_zonal",
       "threshold_quantile": 0.95,
       "n_exc": 102,
-      "shape_diff": 0.25665459694193493,
+      "shape_diff": 0.25657332267300875,
       "shape_diff_ci_95": [
-        -0.5110819639861129,
-        0.6081477356526247
+        -0.5107206439115376,
+        0.5993383693568259
       ],
       "rule_2_outcome": "underpowered_pos_direction",
-      "paper_claim": "Underpowered on this scope (n_per_half=51): system_energy direction consistent with ORDC's predicted direction (heavier tail at HIGH Z), shape_diff=0.257, CI [-0.511,0.608] spans 0. Cannot confirm at \u03b1=0.05."
+      "paper_claim": "Underpowered on this scope (n_per_half=51): system_energy direction consistent with ORDC's predicted direction (heavier tail at HIGH Z), shape_diff=0.257, CI [-0.511,0.599] spans 0. Cannot confirm at \u03b1=0.05."
     },
     {
       "component": "congestion",
       "pnode_label": "ashburn_tx1",
       "threshold_quantile": 0.95,
-      "n_exc": 55,
+      "n_exc": 52,
       "shape_diff": null,
       "shape_diff_ci_95": [
         null,
         null
       ],
       "rule_2_outcome": "insufficient_sample",
-      "paper_claim": "Insufficient sample: n_per_half=27 below pre-reg floor of 50. No verdict reported."
+      "paper_claim": "Insufficient sample: n_per_half=26 below pre-reg floor of 50. No verdict reported."
     },
     {
       "component": "congestion",
       "pnode_label": "ashburn_tx2",
       "threshold_quantile": 0.95,
-      "n_exc": 55,
+      "n_exc": 52,
       "shape_diff": null,
       "shape_diff_ci_95": [
         null,
         null
       ],
       "rule_2_outcome": "insufficient_sample",
-      "paper_claim": "Insufficient sample: n_per_half=27 below pre-reg floor of 50. No verdict reported."
+      "paper_claim": "Insufficient sample: n_per_half=26 below pre-reg floor of 50. No verdict reported."
     },
     {
       "component": "congestion",
       "pnode_label": "ox",
       "threshold_quantile": 0.95,
       "n_exc": 102,
-      "shape_diff": -0.0962400277047627,
+      "shape_diff": -0.09591427979239085,
       "shape_diff_ci_95": [
-        -0.6120109695274373,
-        0.25105683495954917
+        -0.6101390962262491,
+        0.25075825530540663
       ],
       "rule_2_outcome": "underpowered_neg_direction",
-      "paper_claim": "Underpowered on this scope (n_per_half=51): congestion direction consistent with congestion finding (heavier tail at LOW Z), shape_diff=-0.096, CI [-0.612,0.251] spans 0. Not consistent with ORDC's predicted direction."
+      "paper_claim": "Underpowered on this scope (n_per_half=51): congestion direction consistent with congestion finding (heavier tail at LOW Z), shape_diff=-0.096, CI [-0.610,0.251] spans 0. Not consistent with ORDC's predicted direction."
     },
     {
       "component": "congestion",
       "pnode_label": "bristers",
       "threshold_quantile": 0.95,
       "n_exc": 102,
-      "shape_diff": -0.052781252868408964,
+      "shape_diff": -0.05270017849424805,
       "shape_diff_ci_95": [
-        -0.525377310243061,
-        0.28030508478015964
+        -0.524009805990673,
+        0.27848094234610765
       ],
       "rule_2_outcome": "underpowered_neg_direction",
-      "paper_claim": "Underpowered on this scope (n_per_half=51): congestion direction consistent with congestion finding (heavier tail at LOW Z), shape_diff=-0.053, CI [-0.525,0.280] spans 0. Not consistent with ORDC's predicted direction."
+      "paper_claim": "Underpowered on this scope (n_per_half=51): congestion direction consistent with congestion finding (heavier tail at LOW Z), shape_diff=-0.053, CI [-0.524,0.278] spans 0. Not consistent with ORDC's predicted direction."
     },
     {
       "component": "congestion",
       "pnode_label": "dom_zonal",
       "threshold_quantile": 0.95,
       "n_exc": 102,
-      "shape_diff": -0.07529177564834985,
+      "shape_diff": -0.07907375355748512,
       "shape_diff_ci_95": [
-        -0.4778352227675202,
-        0.3877969467315979
+        -0.47494804291671294,
+        0.38375938655572656
       ],
       "rule_2_outcome": "underpowered_neg_direction",
-      "paper_claim": "Underpowered on this scope (n_per_half=51): congestion direction consistent with congestion finding (heavier tail at LOW Z), shape_diff=-0.075, CI [-0.478,0.388] spans 0. Not consistent with ORDC's predicted direction."
+      "paper_claim": "Underpowered on this scope (n_per_half=51): congestion direction consistent with congestion finding (heavier tail at LOW Z), shape_diff=-0.079, CI [-0.475,0.384] spans 0. Not consistent with ORDC's predicted direction."
     },
     {
       "component": "marginal_loss",
       "pnode_label": "ashburn_tx1",
       "threshold_quantile": 0.95,
-      "n_exc": 53,
+      "n_exc": 52,
       "shape_diff": null,
       "shape_diff_ci_95": [
         null,
@@ -147,14 +147,14 @@
       "component": "marginal_loss",
       "pnode_label": "ashburn_tx2",
       "threshold_quantile": 0.95,
-      "n_exc": 54,
+      "n_exc": 51,
       "shape_diff": null,
       "shape_diff_ci_95": [
         null,
         null
       ],
       "rule_2_outcome": "insufficient_sample",
-      "paper_claim": "Insufficient sample: n_per_half=27 below pre-reg floor of 50. No verdict reported."
+      "paper_claim": "Insufficient sample: n_per_half=25 below pre-reg floor of 50. No verdict reported."
     },
     {
       "component": "marginal_loss",
@@ -187,13 +187,13 @@
       "pnode_label": "dom_zonal",
       "threshold_quantile": 0.95,
       "n_exc": 102,
-      "shape_diff": 0.02320346307813781,
+      "shape_diff": 0.024591734146946275,
       "shape_diff_ci_95": [
-        -0.9698332856744106,
-        0.35920564726073423
+        -0.9683064767581331,
+        0.3566864159894813
       ],
       "rule_2_outcome": "underpowered_pos_direction",
-      "paper_claim": "Underpowered on this scope (n_per_half=51): marginal_loss direction consistent with ORDC's predicted direction (heavier tail at HIGH Z), shape_diff=0.023, CI [-0.970,0.359] spans 0. Cannot confirm at \u03b1=0.05."
+      "paper_claim": "Underpowered on this scope (n_per_half=51): marginal_loss direction consistent with ORDC's predicted direction (heavier tail at HIGH Z), shape_diff=0.025, CI [-0.968,0.357] spans 0. Cannot confirm at \u03b1=0.05."
     }
   ],
   "scope": "descriptive (no MT correction)"

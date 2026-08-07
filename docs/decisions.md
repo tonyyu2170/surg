@@ -4125,7 +4125,7 @@ market-operations sources.
 
 ---
 
-## 2026-07-30 — Reversion-spike class: standing recommendation NOT to filter (no user ruling yet)
+## 2026-07-30 — Reversion-spike class: standing recommendation NOT to filter (RULED 2026-07-31: do not filter)
 
 > **RECONSTRUCTED during recovery.** This records the *status* of an open
 > question so the research record is the single source of truth. It is
@@ -4134,7 +4134,13 @@ market-operations sources.
 **Question.** Whether to filter the ~3,193-spike class in `dom_load_mw`
 before analysis.
 
-**Status: OPEN. Recommendation is NOT to filter; the user has not ruled.**
+**Status: CLOSED 2026-07-31 by the user — do NOT filter.** The
+recommendation below was accepted in full; see the 2026-08-07 closure
+entry at the end of this file. The text below is preserved as the
+reasoning that led to the ruling.
+
+*Superseded status line, kept for the audit trail:* "OPEN. Recommendation
+is NOT to filter; the user has not ruled."
 `docs/superpowers/specs/2026-07-30-surg-recovery-design.md` lists this
 under "Research questions this recovery does not settle" as "heavily
 leaning on no. Keep them in", and the 2026-07-30 memory entry records
@@ -4237,3 +4243,62 @@ a restoration defect. Do not chase it as a code or data-revision divergence.
 **Revisit when.** The reviewer pushback on the asymmetric Ashburn window
 (Prof Wei / Lihui, recorded 2026-05-12) is taken up, at which point the ~8.5 h
 Historic LOAD backfill becomes an overnight job.
+
+---
+
+## 2026-08-07 — SKFFSCRK geographic/electrical split, and three rulings closed
+
+**Context.** Plan B rev2 Task 14. Three questions had been carried as open in
+this file while the plan treated them as settled — the research record
+contradicting the plan (ERRATA E17). This entry closes all three and records
+the SKFFSCRK interpretation.
+
+### SKFFSCRK is geographically rural *and* electrically coupled
+
+Both descriptions are true and there is no contradiction between them.
+SKFFSCRK sits in a markedly more rural area than the rest of the Loudoun
+cluster, yet prices within ~$3/MWh of it (`:151`) because it sits on the same
+500 kV EHV network inside the same congestion pocket. **Electrical distance is
+not geographic distance.**
+
+The rural framing traces to the original analysis, not to the July recovery
+spec — `:4031` itself writes "SKFFSCRK (**rural**)".
+
+**Substantive reading.** A geographically-rural node tracking the urban cluster
+this closely is **evidence that congestion in this pocket is network-wide
+rather than localized to where the data centers physically sit.** That
+reinforces the standing finding that the 2026 escalation must not be attributed
+to data centers. It does not settle it: every pnode in both panels sits inside
+DOM, so a system-wide component still cannot be separated from a
+Dominion-specific one from inside DOM alone.
+
+**Deliberate asymmetry, do not "fix" it.** SKFFSCRK is *inside* the 6-node
+hourly cluster (pre-registered pooling at `:298`, retained unchanged) and
+*outside* the 3-node 5-min cluster-set (`FIVEMIN_CLUSTER_IDS`, added
+2026-08-07). Pooling a comparison node into the cluster it is compared against
+would contaminate every cluster-based regression target.
+
+**Disclosure.** Because SKFFSCRK sits inside the 6-node cluster it is
+correlated against, part of the recorded `+0.870` correlation is
+self-correlation. The 6-node figure remains primary; a held-out (5-node)
+figure will be reported beside it. *Both figures are pending the hourly panel
+rebuild — see Task 13 Step 2, which must also identify whether the recorded
+`:4031` numbers are `congestion_price_rt` or `total_lmp_rt`. That variable is
+unnamed in the record and must not be guessed.*
+
+### Three rulings, now closed
+
+- **SKFFSCRK role — CLOSED.** Pulled as the 4th 5-min pnode; the hourly 6-node
+  cluster pooling stays exactly as pre-registered. Geographically rural,
+  electrically coupled.
+- **Spike filtering — CLOSED 2026-07-31 by the user: do not filter.** The
+  ~3,193-spike class stays in. These are the scarcity events the research
+  question targets; removing them would remove the signal. This also keeps
+  every recorded Phase 7 target reproducible, since all were computed
+  unfiltered. Open since May. The 2026-07-30 entry's status line is updated in
+  place.
+- **Hourly window — CLOSED: unchanged at 2022-10-02 → 2026-05-11.** Not
+  extended to match the 5-min window (which runs to 2026-06-30). It is
+  pre-registered, hourly findings are lower-priority than the 5-min work, and
+  the 5-min panel already covers 2026 at higher resolution. The asymmetry
+  between the two windows is deliberate.

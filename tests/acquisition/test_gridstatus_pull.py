@@ -221,3 +221,32 @@ def test_pull_writes_well_formed_empty_chunk(tmp_path: Path):
     df = pd.read_parquet(load_files[0])
     assert len(df) == 0
     assert list(df.columns) == LOAD_COLUMNS.split(",")
+
+
+def test_skip_lmp_pulls_load_only(tmp_path):
+    """--skip-lmp must issue zero LMP requests and still pull load."""
+    client = FakeClient(rows_by_dataset={"pjm_load": _load_rows()})
+    pull_gridstatus(
+        client,
+        data_root=tmp_path,
+        window_start=WINDOW_START,
+        window_end=WINDOW_END,
+        skip_lmp=True,
+    )
+    datasets = [c["dataset"] for c in client.calls]
+    assert "pjm_lmp_real_time_5_min" not in datasets
+    assert "pjm_load" in datasets
+
+
+def test_skip_lmp_and_skip_load_together_is_rejected(tmp_path):
+    """Pulling neither series is a user error, not a silent no-op."""
+    client = FakeClient(rows_by_dataset={})
+    with pytest.raises(ValueError, match="nothing to pull"):
+        pull_gridstatus(
+            client,
+            data_root=tmp_path,
+            window_start=WINDOW_START,
+            window_end=WINDOW_END,
+            skip_lmp=True,
+            skip_load=True,
+        )

@@ -126,28 +126,36 @@ def pull_gridstatus(
     window_end: datetime,
     pnode_ids: tuple[int, ...] | None = None,
     skip_load: bool = False,
+    skip_lmp: bool = False,
 ) -> None:
     """Pull DOM 5-min load once + 5-min LMP per pnode for the window.
 
-    `pnode_ids` and `skip_load` support splitting a pull across multiple
-    gridstatus.io accounts by pnode (docs/gridstatus-5min-pull-plan.md
+    `pnode_ids`, `skip_load` and `skip_lmp` support splitting a pull across
+    multiple gridstatus.io accounts by pnode (docs/gridstatus-5min-pull-plan.md
     § "Backfill Pull") — default behavior (all pnodes, load included) is
-    unchanged.
+    unchanged. `skip_lmp` is the inverse of `skip_load`: it serves the
+    dedicated load account, which cannot also carry a pnode within the
+    free-tier row cap.
     """
+    if skip_lmp and skip_load:
+        raise ValueError(
+            "skip_lmp and skip_load are both set — nothing to pull"
+        )
     if not skip_load:
         _pull_series(
             client, data_root,
             dataset=LOAD_DATASET, group_label="dom", columns=LOAD_COLUMNS,
             window_start=window_start, window_end=window_end,
         )
-    for pid in (pnode_ids or FIVEMIN_PNODE_IDS):
-        _pull_series(
-            client, data_root,
-            dataset=LMP_DATASET, group_label=str(pid), columns=LMP_COLUMNS,
-            window_start=window_start, window_end=window_end,
-            filter_column="location_id", filter_value=str(pid),
-            chunk_days=LMP_CHUNK_DAYS,
-        )
+    if not skip_lmp:
+        for pid in (pnode_ids or FIVEMIN_PNODE_IDS):
+            _pull_series(
+                client, data_root,
+                dataset=LMP_DATASET, group_label=str(pid), columns=LMP_COLUMNS,
+                window_start=window_start, window_end=window_end,
+                filter_column="location_id", filter_value=str(pid),
+                chunk_days=LMP_CHUNK_DAYS,
+            )
 
 
 def _parse_utc(s: str) -> datetime:
@@ -176,6 +184,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--skip-load", action="store_true",
                    help="Skip the pjm_load pull (for a split-account pull that "
                         "only fetches LMP).")
+    p.add_argument("--skip-lmp", action="store_true",
+                   help="Pull only the load series, no nodal LMP. Used by the "
+                        "dedicated load account, which cannot also carry a "
+                        "pnode within the free-tier row cap.")
     return p
 
 
@@ -202,6 +214,7 @@ def main(argv: list[str] | None = None) -> int:
             client, data_root=Path(args.data_root),
             window_start=window_start, window_end=window_end,
             pnode_ids=pnode_ids, skip_load=args.skip_load,
+            skip_lmp=args.skip_lmp,
         )
     print("pull complete")
     return 0

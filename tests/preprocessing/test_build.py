@@ -103,6 +103,27 @@ def test_build_analysis_panel_writes_atomic_parquet(tmp_path: Path):
     assert len(loaded) == len(panel)
 
 
+def test_write_panel_stamps_custom_schema_version(tmp_path: Path):
+    """build_5min stamps FIVEMIN_SCHEMA_VERSION via write_panel(schema_version=...);
+    the default stays the hourly SCHEMA_VERSION."""
+    import pyarrow.parquet as pq
+
+    from surg.preprocessing.build import write_panel
+    from surg.preprocessing.schema import SCHEMA_VERSION
+
+    df = pd.DataFrame({"x": [1, 2]})
+
+    default_out = tmp_path / "default.parquet"
+    write_panel(df, default_out)
+    meta = pq.read_schema(default_out).metadata
+    assert meta[b"schema_version"] == str(SCHEMA_VERSION).encode()
+
+    custom_out = tmp_path / "custom.parquet"
+    write_panel(df, custom_out, schema_version=42)
+    meta = pq.read_schema(custom_out).metadata
+    assert meta[b"schema_version"] == b"42"
+
+
 def test_build_renames_system_energy_and_marginal_loss_for_labeled_pnodes(tmp_path: Path):
     from surg.preprocessing.build import build_analysis_panel
     _seed_minimal_raw(tmp_path)

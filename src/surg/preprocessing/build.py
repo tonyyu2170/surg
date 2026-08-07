@@ -109,13 +109,15 @@ def build_analysis_panel(data_root: Path) -> pd.DataFrame:
     return panel
 
 
-def write_panel(panel: pd.DataFrame, out_path: Path) -> None:
-    """Atomic write via tmp file + os.replace. Stamps SCHEMA_VERSION in parquet custom_metadata."""
+def write_panel(
+    panel: pd.DataFrame, out_path: Path, *, schema_version: int = SCHEMA_VERSION
+) -> None:
+    """Atomic write via tmp file + os.replace. Stamps schema_version in parquet custom_metadata."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = out_path.with_suffix(out_path.suffix + ".tmp")
     table = pa.Table.from_pandas(panel, preserve_index=False)
     existing_meta = table.schema.metadata or {}
-    new_meta = {**existing_meta, b"schema_version": str(SCHEMA_VERSION).encode()}
+    new_meta = {**existing_meta, b"schema_version": str(schema_version).encode()}
     table = table.replace_schema_metadata(new_meta)
     pq.write_table(table, tmp)
     os.replace(tmp, out_path)

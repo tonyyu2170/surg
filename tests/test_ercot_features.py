@@ -38,3 +38,72 @@ def test_non_dst_rows_are_not_flagged():
 def test_missing_column_raises():
     with pytest.raises(KeyError, match="Hour Ending"):
         hour_ending_to_beginning(pd.DataFrame({"wrong": [1]}))
+
+
+from surg.preprocessing.ercot_features import add_zone_gradient_columns
+
+
+def test_gradient_matches_dom_formula():
+    # 60 MW rise over one hour = 1.0 MW/min.
+    df = pd.DataFrame(
+        {
+            "datetime_beginning_cpt": pd.to_datetime(
+                ["2024-01-01 00:00", "2024-01-01 01:00"]
+            ),
+            "load_mw_COAST": [1000.0, 1060.0],
+        }
+    )
+    out = add_zone_gradient_columns(df, zones=["COAST"])
+    assert out["load_gradient_abs_mw_per_min_COAST"].tolist()[1] == pytest.approx(1.0)
+
+
+def test_gradient_is_absolute_valued():
+    df = pd.DataFrame(
+        {
+            "datetime_beginning_cpt": pd.to_datetime(
+                ["2024-01-01 00:00", "2024-01-01 01:00"]
+            ),
+            "load_mw_COAST": [1060.0, 1000.0],
+        }
+    )
+    out = add_zone_gradient_columns(df, zones=["COAST"])
+    assert out["load_gradient_abs_mw_per_min_COAST"].tolist()[1] == pytest.approx(1.0)
+
+
+def test_first_row_is_nan():
+    df = pd.DataFrame(
+        {
+            "datetime_beginning_cpt": pd.to_datetime(["2024-01-01 00:00"]),
+            "load_mw_COAST": [1000.0],
+        }
+    )
+    out = add_zone_gradient_columns(df, zones=["COAST"])
+    assert pd.isna(out["load_gradient_abs_mw_per_min_COAST"].iloc[0])
+
+
+def test_multiple_zones_are_independent():
+    df = pd.DataFrame(
+        {
+            "datetime_beginning_cpt": pd.to_datetime(
+                ["2024-01-01 00:00", "2024-01-01 01:00"]
+            ),
+            "load_mw_COAST": [1000.0, 1060.0],
+            "load_mw_WEST": [500.0, 500.0],
+        }
+    )
+    out = add_zone_gradient_columns(df, zones=["COAST", "WEST"])
+    assert out["load_gradient_abs_mw_per_min_COAST"].iloc[1] == pytest.approx(1.0)
+    assert out["load_gradient_abs_mw_per_min_WEST"].iloc[1] == pytest.approx(0.0)
+
+
+def test_source_load_columns_are_preserved():
+    df = pd.DataFrame(
+        {
+            "datetime_beginning_cpt": pd.to_datetime(
+                ["2024-01-01 00:00", "2024-01-01 01:00"]
+            ),
+            "load_mw_COAST": [1000.0, 1060.0],
+        }
+    )
+    out = add_zone_gradient_columns(df, zones=["COAST"])
+    assert out["load_mw_COAST"].tolist() == [1000.0, 1060.0]

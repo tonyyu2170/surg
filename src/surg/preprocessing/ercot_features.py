@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from surg.preprocessing.features import add_load_gradient_columns
+
 ZONES = ["COAST", "EAST", "FWEST", "NORTH", "NCENT", "SOUTH", "SCENT", "WEST", "ERCOT"]
 
 
@@ -27,3 +29,32 @@ def hour_ending_to_beginning(df: pd.DataFrame) -> pd.DataFrame:
     out["datetime_beginning_cpt"] = ending - pd.Timedelta(hours=1)
     out["dst_transition_hour"] = out["datetime_beginning_cpt"].duplicated(keep=False)
     return out.drop(columns=["Hour Ending"])
+
+
+def add_zone_gradient_columns(
+    df: pd.DataFrame,
+    zones: list[str] | None = None,
+) -> pd.DataFrame:
+    """Add `load_gradient_abs_mw_per_min_<zone>` for each ERCOT zone.
+
+    Delegates to the DOM `add_load_gradient_columns` so the volatility
+    measure is provably identical across markets. That function is
+    hardcoded to `dom_load_mw` / `datetime_beginning_ept`, so each zone is
+    renamed in, computed, and renamed out. `features.py` is not modified.
+    """
+    zones = list(ZONES) if zones is None else zones
+    out = df.copy()
+
+    for zone in zones:
+        shim = pd.DataFrame(
+            {
+                "datetime_beginning_ept": out["datetime_beginning_cpt"],
+                "dom_load_mw": out[f"load_mw_{zone}"],
+            }
+        )
+        gradients = add_load_gradient_columns(shim, freq_minutes=60)
+        out[f"load_gradient_abs_mw_per_min_{zone}"] = gradients[
+            "dom_load_gradient_abs_mw_per_min"
+        ].to_numpy()
+
+    return out

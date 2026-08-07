@@ -41,7 +41,16 @@ def add_zone_gradient_columns(
     measure is provably identical across markets. That function is
     hardcoded to `dom_load_mw` / `datetime_beginning_ept`, so each zone is
     renamed in, computed, and renamed out. `features.py` is not modified.
+
+    `add_load_gradient_columns` computes `.diff()` positionally and assumes
+    sorted, evenly-spaced input without enforcing it; an unsorted frame
+    would silently produce wrong gradients. That is checked here instead.
     """
+    if not df["datetime_beginning_cpt"].is_monotonic_increasing:
+        raise ValueError(
+            "add_zone_gradient_columns requires sorted, non-decreasing datetime_beginning_cpt"
+        )
+
     zones = list(ZONES) if zones is None else zones
     out = df.copy()
 

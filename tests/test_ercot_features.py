@@ -1,7 +1,11 @@
 import pandas as pd
 import pytest
 
-from surg.preprocessing.ercot_features import hour_ending_to_beginning
+from surg.preprocessing.ercot_features import (
+    ZONES,
+    add_zone_gradient_columns,
+    hour_ending_to_beginning,
+)
 
 
 def test_hour_ending_shifts_back_one_hour():
@@ -38,9 +42,6 @@ def test_non_dst_rows_are_not_flagged():
 def test_missing_column_raises():
     with pytest.raises(KeyError, match="Hour Ending"):
         hour_ending_to_beginning(pd.DataFrame({"wrong": [1]}))
-
-
-from surg.preprocessing.ercot_features import add_zone_gradient_columns
 
 
 def test_gradient_matches_dom_formula():
@@ -107,3 +108,44 @@ def test_source_load_columns_are_preserved():
     )
     out = add_zone_gradient_columns(df, zones=["COAST"])
     assert out["load_mw_COAST"].tolist() == [1000.0, 1060.0]
+
+
+def test_unsorted_timestamps_raise():
+    df = pd.DataFrame(
+        {
+            "datetime_beginning_cpt": pd.to_datetime(
+                ["2024-01-01 02:00", "2024-01-01 00:00", "2024-01-01 01:00"]
+            ),
+            "load_mw_COAST": [900.0, 1000.0, 1060.0],
+        }
+    )
+    with pytest.raises(ValueError, match="sorted"):
+        add_zone_gradient_columns(df, zones=["COAST"])
+
+
+def test_duplicate_dst_timestamps_do_not_raise():
+    df = pd.DataFrame(
+        {
+            "datetime_beginning_cpt": pd.to_datetime(
+                ["2024-11-03 01:00", "2024-11-03 01:00", "2024-11-03 02:00"]
+            ),
+            "load_mw_COAST": [1000.0, 1010.0, 1020.0],
+        }
+    )
+    out = add_zone_gradient_columns(df, zones=["COAST"])
+    assert len(out) == 3
+
+
+def test_default_zones_produces_all_nine_columns():
+    df = pd.DataFrame(
+        {
+            "datetime_beginning_cpt": pd.to_datetime(
+                ["2024-01-01 00:00", "2024-01-01 01:00"]
+            ),
+            **{f"load_mw_{zone}": [1000.0, 1010.0] for zone in ZONES},
+        }
+    )
+    out = add_zone_gradient_columns(df)
+    produced = [c for c in out.columns if c.startswith("load_gradient_abs_mw_per_min_")]
+    assert len(produced) == 9
+    assert set(produced) == {f"load_gradient_abs_mw_per_min_{zone}" for zone in ZONES}

@@ -130,7 +130,7 @@ Both descriptions are true: SKFFSCRK sits in a markedly more rural area yet pric
 - Modify: `tests/analysis/test_gpd.py`
 - Chains: `~/surg-recovery-2026-07-30/edit-chains/_worktree-surg-gridstatus-5min__src__surg__analysis__gpd.py.json` (11 ops), `..._tests__analysis__test_gpd.py.json` (3 ops)
 
-- [ ] **Step 0: Capture the test baseline verbatim**
+- [x] **Step 0: Capture the test baseline verbatim**
 
 Every later count in this plan is a **delta** from this line, not an absolute. Record the output exactly.
 
@@ -141,7 +141,7 @@ cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
 
 Expected as of 2026-08-07: `313 passed, 6 skipped`. If your baseline differs, use **your** number — the deltas below still hold, the absolutes do not.
 
-- [ ] **Step 1: Confirm the chain still shows the op 8/9/10 pattern**
+- [x] **Step 1: Confirm the chain still shows the op 8/9/10 pattern**
 
 ```bash
 .venv/bin/python -c "
@@ -158,7 +158,7 @@ print('CONFIRMED: ops 8,9,10 are mutation scaffolding; replay ops 0-7 only')
 
 Expected: `CONFIRMED: ops 8,9,10 are mutation scaffolding; replay ops 0-7 only`
 
-- [ ] **Step 2: Replay ops 0–7 only**
+- [x] **Step 2: Replay ops 0–7 only**
 
 `replay.py` cannot do this itself: its interface is positional (`replay.py <chain> <dest> [--from-base]`), with no op-range selector and no dedup flag. This chain has no `Write` baseline (all 11 ops are `Edit`), so a bare invocation exits 2.
 
@@ -210,7 +210,7 @@ Expected: **`applied=8 skipped=0`** — measured by dry-run against live HEAD on
 
 **If any op skips, stop.** `git checkout -- src/surg/analysis/gpd.py` and report which op and its `old_string`. Do not hand-reconcile.
 
-- [ ] **Step 3: Verify no duplicate definitions and no injected bug**
+- [x] **Step 3: Verify no duplicate definitions and no injected bug**
 
 ```bash
 grep -c "def run_gpd" src/surg/analysis/gpd.py
@@ -221,7 +221,7 @@ grep -n "cluster_col" src/surg/analysis/gpd.py | head -5
 
 Expected: each `def` count is exactly `1`; `GOOD: no intentional-bug line present`; `cluster_col` now appears.
 
-- [ ] **Step 4: Replay the companion test chain**
+- [x] **Step 4: Replay the companion test chain**
 
 ```bash
 .venv/bin/python /Users/turdy/surg-recovery-2026-07-30/replay.py \
@@ -232,7 +232,7 @@ grep -c "def test_gpd_conditional_on_z_cluster_bootstrap_duplicates_rows" tests/
 
 Expected: `applied=3 skipped=0` (measured), then `1`.
 
-- [ ] **Step 5: Run the GPD tests**
+- [x] **Step 5: Run the GPD tests**
 
 ```bash
 .venv/bin/python -m pytest tests/analysis/test_gpd.py -q
@@ -240,7 +240,7 @@ Expected: `applied=3 skipped=0` (measured), then `1`.
 
 Expected: PASS.
 
-- [ ] **Step 6: Prove the restoration with the author's own mutation test**
+- [x] **Step 6: Prove the restoration with the author's own mutation test**
 
 A green suite proves little. The chain restored in Step 4 contains the test the original author wrote to catch this exact mutation — `test_gpd_conditional_on_z_cluster_bootstrap_duplicates_rows`, whose docstring reads: *"Locks in the correct cluster-bootstrap mechanic: a cluster id drawn twice by rng.choice must contribute its exceedance rows twice to the resampled arrays (not deduplicated)."*
 
@@ -256,7 +256,7 @@ Insert this line immediately after the `drawn = rng.choice(unique_clusters, size
 
 Expected: **FAIL.** If it passes, the restoration is not faithful — the test is not reaching the resampling path. Report that instead of proceeding.
 
-- [ ] **Step 7: Delete the mutation probe**
+- [x] **Step 7: Delete the mutation probe**
 
 Delete the line added in Step 6. This is an explicit deletion instruction — rev1's Step 7 contained only a grep and was satisfiable without removing anything (ERRATA E12).
 
@@ -269,7 +269,7 @@ grep -n "TEMPORARY mutation probe\|np.unique(drawn)" src/surg/analysis/gpd.py \
 
 Expected: `probe removed`; tests PASS.
 
-- [ ] **Step 8: Record the `< 10` cluster guard's production dependency**
+- [x] **Step 8: Record the `< 10` cluster guard's production dependency**
 
 Chain op7 adds a guard that **raises** when there are fewer than 10 unique clusters among exceedances. `run_5min.py:93` passes `cluster_col="night_island_id"` on the in-filter subset only.
 
@@ -279,7 +279,7 @@ grep -rn "night_island_id" src/surg/preprocessing/ src/surg/analysis/ | head
 
 Expected: the column is emitted by the preprocessing layer. Record the finding; the live count check happens in Task 13 Step 4, once real data exists.
 
-- [ ] **Step 9: Commit (ask the user first)**
+- [x] **Step 9: Commit (ask the user first)**
 
 Hard abort if the probe survived:
 
@@ -315,7 +315,7 @@ Replaying the source chains would narrow `filter_col: str | None → str` and **
 - Modify: `src/surg/analysis/tail_risk_curves.py`
 - Modify: `tests/analysis/test_tail_risk_curves.py`
 
-- [ ] **Step 1: Replay the two test chains first**
+- [x] **Step 1: Replay the two test chains first**
 
 They define the behavior the merged function must satisfy, so they come first and must fail before the merge.
 
@@ -378,7 +378,7 @@ grep -c "_plot_suptitle," tests/analysis/test_tail_risk_curves.py
 
 Expected: `1`.
 
-- [ ] **Step 2: Run the tests to confirm they fail**
+- [x] **Step 2: Run the tests to confirm they fail**
 
 ```bash
 .venv/bin/python -m pytest tests/analysis/test_tail_risk_curves.py -q 2>&1 | tail -15
@@ -386,7 +386,7 @@ Expected: `1`.
 
 Expected: FAIL — `ImportError: cannot import name '_plot_suptitle'`, plus `TypeError: run_tail_risk_curves() got an unexpected keyword argument 'pnode_to_response'`.
 
-- [ ] **Step 3: Add the `_plot_suptitle` helper**
+- [x] **Step 3: Add the `_plot_suptitle` helper**
 
 From `src__surg__analysis__tail_risk_curves.py.json` op0. Insert immediately **above** `def plot_tail_risk_curves(`:
 
@@ -407,7 +407,7 @@ def _plot_suptitle(per_pnode: dict) -> str:
     )
 ```
 
-- [ ] **Step 4: Use it in the plotter**
+- [x] **Step 4: Use it in the plotter**
 
 In `plot_tail_risk_curves`, replace this block:
 
@@ -435,7 +435,7 @@ grep -n "pnode_label" src/surg/analysis/tail_risk_curves.py | sed -n '1,40p'
 
 Read the whole `plot_tail_risk_curves` function before deleting. Remove the `pnode_label = per_pnode["pnode_label"]` assignment **only** if no other line in that function uses it. This is the one place a faithful chain replay would have left dead code.
 
-- [ ] **Step 5: Write the merged `run_tail_risk_curves`**
+- [x] **Step 5: Write the merged `run_tail_risk_curves`**
 
 Replace the entire existing `def run_tail_risk_curves(...)` through the end of its body (up to but not including `def _json_serializable`) with the following. This is the union of live HEAD (items #8/#9) and both source chains — written out in full because no replay can produce it.
 
@@ -582,7 +582,7 @@ def run_tail_risk_curves(
 2. `filter_col: str | None` is retained at its live width. The chain would narrow it to `str`.
 3. `summary["resolution"]` is **not** set. The chain stamps `resolution` on per-pnode results only; the cross-pnode summary keeps its original key set. Do not add it — Task 3 depends on that key set being exactly as captured.
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 ```bash
 .venv/bin/python -m pytest tests/analysis/test_tail_risk_curves.py -q 2>&1 | tail -10
@@ -590,7 +590,7 @@ def run_tail_risk_curves(
 
 Expected: PASS, including `test_plot_suptitle_reports_the_panel_resolution`, `test_run_tail_risk_curves_records_resolution_in_result`, `test_run_tail_risk_curves_accepts_custom_pnode_map`, and `test_run_tail_risk_curves_accepts_custom_z_and_filter_col`.
 
-- [ ] **Step 7: Prove both callers still bind**
+- [x] **Step 7: Prove both callers still bind**
 
 ```bash
 .venv/bin/python -c "
@@ -607,7 +607,7 @@ print('OK: merged signature satisfies run.py (pnode_labels) and run_5min.py (cro
 
 Expected: `OK: ...`.
 
-- [ ] **Step 8: Commit (ask the user first)**
+- [x] **Step 8: Commit (ask the user first)**
 
 ```bash
 git add src/surg/analysis/tail_risk_curves.py tests/analysis/test_tail_risk_curves.py
@@ -635,7 +635,7 @@ This must run **after** Task 2, because arming it unmasks D4 — the `resolution
 **Files:**
 - Modify: `tests/regression/hourly_reference/tail_risk_curves/**`
 
-- [ ] **Step 1: Confirm the defect**
+- [x] **Step 1: Confirm the defect**
 
 ```bash
 cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
@@ -649,7 +649,7 @@ ls tests/regression/hourly_reference/gpd_components/*.json | wc -l
 
 Expected: `0`, `5`, then a non-zero count — confirming this directory is the outlier.
 
-- [ ] **Step 2: Flatten the fixture directory**
+- [x] **Step 2: Flatten the fixture directory**
 
 The fix is a fixture move, not a source edit: the test already looks in the right place.
 
@@ -662,7 +662,7 @@ ls tests/regression/hourly_reference/tail_risk_curves/
 
 Expected: the 5 JSONs, 4 PNGs and 1 CSV now sit directly under `tail_risk_curves/`.
 
-- [ ] **Step 3: Stamp `resolution` into the per-pnode fixtures**
+- [x] **Step 3: Stamp `resolution` into the per-pnode fixtures**
 
 Every captured reference was an hourly run — the chain author states exactly this in `_plot_suptitle`'s own docstring ("Result dicts written before the key existed were all hourly runs"). Recording that known-true provenance fact is **not** re-blessing numbers: no numeric value is touched, and `cross_pnode_summary.json` is deliberately left alone because Task 2 does not stamp the summary.
 
@@ -692,7 +692,7 @@ Expected: 4 files stamped, `cross_pnode_summary.json` skipped.
 
 **This step is idempotent by design.** Task 8 Step 6 instructs a re-run if the regression test reports `extra={'resolution'}`, and a bare `assert "resolution" not in d` would abort on the second pass — leaving a partial stamp permanently un-completable if the first pass died midway. Re-running is always safe.
 
-- [ ] **Step 4: Verify the glob now resolves**
+- [x] **Step 4: Verify the glob now resolves**
 
 ```bash
 .venv/bin/python -c "
@@ -706,7 +706,7 @@ print(f'OK: test glob now finds {n} reference files (was 0)')
 
 Expected: `OK: test glob now finds 5 reference files (was 0)`.
 
-- [ ] **Step 5: Confirm the test still skips without a panel**
+- [x] **Step 5: Confirm the test still skips without a panel**
 
 ```bash
 .venv/bin/python -m pytest tests/regression/ -q -rs 2>&1 | tail -5
@@ -714,7 +714,7 @@ Expected: `OK: test glob now finds 5 reference files (was 0)`.
 
 Expected: `5 skipped` — the hourly panel does not exist yet, so `_hourly_panel_or_skip` still short-circuits. **The real check runs in Task 8 Step 6, once the panel is rebuilt.** Record here that this test was previously green-but-vacuous and is now armed.
 
-- [ ] **Step 6: Commit (ask the user first)**
+- [x] **Step 6: Commit (ask the user first)**
 
 ```bash
 git add tests/regression/
@@ -739,7 +739,7 @@ single numeric value."
 **Files:**
 - Modify: `tests/analysis/test_run_5min.py`
 
-- [ ] **Step 1: Remove the module-level skip**
+- [x] **Step 1: Remove the module-level skip**
 
 Delete this block from `tests/analysis/test_run_5min.py:11-17`:
 
@@ -755,7 +755,7 @@ pytest.skip(
 
 If `pytest` becomes an unused import afterwards, remove that import too.
 
-- [ ] **Step 2: Run the previously-skipped smoke test**
+- [x] **Step 2: Run the previously-skipped smoke test**
 
 ```bash
 .venv/bin/python -m pytest tests/analysis/test_run_5min.py -v
@@ -763,7 +763,7 @@ If `pytest` becomes an unused import afterwards, remove that import too.
 
 Expected: PASS — 2 tests. It runs on a synthetic panel and needs no real data. This is the first end-to-end proof that Tasks 1 and 2 together make `run_all_5min` callable.
 
-- [ ] **Step 3: Run the full suite**
+- [x] **Step 3: Run the full suite**
 
 ```bash
 .venv/bin/python -m pytest -q 2>&1 | tail -5
@@ -786,7 +786,7 @@ The 5 remaining skips are the `tests/regression/` suite, which stays skipped unt
 
 Report the actual line, then confirm the arithmetic against which tasks have run. **A mismatch is not a failure until you have accounted for which task added what** — an unexplained mismatch is.
 
-- [ ] **Step 3b: Confirm no test was lost**
+- [x] **Step 3b: Confirm no test was lost**
 
 A delta check passes if one test is added and another silently disappears. Pin the names:
 
@@ -797,7 +797,7 @@ A delta check passes if one test is added and another silently disappears. Pin t
 
 Expected: total collected is baseline `318` + 6 (4 from Task 2, 2 from `test_run_5min.py` becoming collectable) = **324**, and the tail-risk module collects 4 more than it did at baseline.
 
-- [ ] **Step 4: Commit (ask the user first)**
+- [x] **Step 4: Commit (ask the user first)**
 
 ```bash
 git add tests/analysis/test_run_5min.py
@@ -819,7 +819,7 @@ Prevents correction **C2**: adding SKFFSCRK to the pull must not pull it into th
 - Modify: `src/surg/acquisition/gridstatus_pull.py`
 - Modify: `tests/preprocessing/test_build_5min.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `tests/preprocessing/test_build_5min.py`:
 
@@ -840,7 +840,7 @@ def test_cluster_columns_exclude_skffscrk():
     assert set(FIVEMIN_CLUSTER_IDS).issubset(set(FIVEMIN_PNODE_IDS))
 ```
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 ```bash
 .venv/bin/python -m pytest tests/preprocessing/test_build_5min.py::test_cluster_columns_exclude_skffscrk -q
@@ -848,7 +848,7 @@ def test_cluster_columns_exclude_skffscrk():
 
 Expected: FAIL with `ImportError: cannot import name 'FIVEMIN_CLUSTER_IDS'`.
 
-- [ ] **Step 3: Define the two constants**
+- [x] **Step 3: Define the two constants**
 
 Replace the `FIVEMIN_PNODE_IDS` definition at `src/surg/preprocessing/schema_5min.py:13` with:
 
@@ -865,7 +865,7 @@ FIVEMIN_PNODE_IDS: tuple[int, ...] = (35010365, 35010371, 1356178195, SKFFSCRK_P
 FIVEMIN_CLUSTER_IDS: tuple[int, ...] = (35010365, 35010371, 1356178195)
 ```
 
-- [ ] **Step 4: Point the builder at the cluster-set**
+- [x] **Step 4: Point the builder at the cluster-set**
 
 In `src/surg/preprocessing/build_5min.py`, change the import at line 29 to bring in **both** names, and change line 48 to:
 
@@ -873,7 +873,7 @@ In `src/surg/preprocessing/build_5min.py`, change the import at line 29 to bring
     lmp_wide = add_loudoun_cluster_columns(lmp_wide, FIVEMIN_CLUSTER_IDS)
 ```
 
-- [ ] **Step 5: De-duplicate the acquisition-side constant**
+- [x] **Step 5: De-duplicate the acquisition-side constant**
 
 `src/surg/acquisition/gridstatus_pull.py:31` re-declares the tuple. Import it instead, so the two copies cannot drift (ERRATA E20 — rev1 left them duplicated *and* textually divergent):
 
@@ -896,7 +896,7 @@ Expected: `OK: single definition, (35010365, 35010371, 1356178195, 1356178201)`.
 
 If this raises `ImportError` from a cycle, keep the literal in `gridstatus_pull.py` and instead add a test asserting the two tuples are equal. Report which path you took.
 
-- [ ] **Step 6: Extend `EXPECTED_COLUMNS_5MIN` and bump the schema version**
+- [x] **Step 6: Extend `EXPECTED_COLUMNS_5MIN` and bump the schema version**
 
 `EXPECTED_COLUMNS_5MIN` in `schema_5min.py` enumerates per-pnode columns. Add the four price components for pnode `1356178201`, matching the existing naming and ordering exactly:
 
@@ -916,11 +916,11 @@ grep -n "FIVEMIN_SCHEMA_VERSION" src/surg/preprocessing/schema_5min.py \
   src/surg/preprocessing/build_5min.py src/surg/analysis/panel.py
 ```
 
-- [ ] **Step 7: Update the builder-test fixture to emit four pnodes**
+- [x] **Step 7: Update the builder-test fixture to emit four pnodes**
 
 `tests/preprocessing/test_build_5min.py:28,46,96` construct fixtures over the pnode set; they must now emit the four `*_1356178201` columns. This is the real coupling — **not** `test_gridstatus_pull.py:107,131`, whose assertions derive from `len(FIVEMIN_PNODE_IDS)` and adapt on their own (ERRATA E19).
 
-- [ ] **Step 8: Run the preprocessing and acquisition tests**
+- [x] **Step 8: Run the preprocessing and acquisition tests**
 
 ```bash
 .venv/bin/python -m pytest tests/preprocessing/ tests/acquisition/ -q 2>&1 | tail -20
@@ -928,7 +928,7 @@ grep -n "FIVEMIN_SCHEMA_VERSION" src/surg/preprocessing/schema_5min.py \
 
 Expected: PASS, including the new test. Where a count changes from 3 to 4, confirm each change is *correct* rather than adjusting numbers until it goes green.
 
-- [ ] **Step 9: Commit (ask the user first)**
+- [x] **Step 9: Commit (ask the user first)**
 
 ```bash
 git add src/surg/preprocessing/schema_5min.py src/surg/preprocessing/build_5min.py \
@@ -961,7 +961,7 @@ pull_gridstatus(client, *, data_root, window_start, window_end,
 
 `client` is **positional**. `window_start` / `window_end` take **`datetime`**, not ISO strings. There is **no pytest fixture**: `test_gridstatus_pull.py:20` defines a `FakeClient` **class**, instantiated inline with `rows_by_dataset`, alongside `_load_rows()` / `_lmp_rows()` helpers and `WINDOW_START` / `WINDOW_END` constants. Rev1's expected `TypeError` was really a `NameError`.
 
-- [ ] **Step 1: Read the existing test scaffolding**
+- [x] **Step 1: Read the existing test scaffolding**
 
 ```bash
 sed -n '1,60p' tests/acquisition/test_gridstatus_pull.py
@@ -969,7 +969,7 @@ sed -n '1,60p' tests/acquisition/test_gridstatus_pull.py
 
 Note the exact `FakeClient` constructor signature, the helper names, and how `WINDOW_START`/`WINDOW_END` are built. The tests below use them.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Add to `tests/acquisition/test_gridstatus_pull.py`, adjusting only the `FakeClient(...)` construction to match what Step 1 showed:
 
@@ -1003,7 +1003,7 @@ def test_skip_lmp_and_skip_load_together_is_rejected(tmp_path):
         )
 ```
 
-- [ ] **Step 3: Run them to confirm they fail**
+- [x] **Step 3: Run them to confirm they fail**
 
 ```bash
 .venv/bin/python -m pytest tests/acquisition/test_gridstatus_pull.py::test_skip_lmp_pulls_load_only -q
@@ -1011,7 +1011,7 @@ def test_skip_lmp_and_skip_load_together_is_rejected(tmp_path):
 
 Expected: FAIL with `TypeError: pull_gridstatus() got an unexpected keyword argument 'skip_lmp'`.
 
-- [ ] **Step 4: Add the parameter**
+- [x] **Step 4: Add the parameter**
 
 Add `skip_lmp: bool = False` to the signature beside `skip_load` (near line 127), then guard the pnode loop at line 142:
 
@@ -1027,7 +1027,7 @@ Add `skip_lmp: bool = False` to the signature beside `skip_load` (near line 127)
 
 Keep the existing `if not skip_load:` block as-is.
 
-- [ ] **Step 5: Add the CLI flag**
+- [x] **Step 5: Add the CLI flag**
 
 Beside the `--skip-load` argument (line 175):
 
@@ -1040,7 +1040,7 @@ Beside the `--skip-load` argument (line 175):
 
 Thread it into the call at line 203: `skip_lmp=args.skip_lmp,`.
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 ```bash
 .venv/bin/python -m pytest tests/acquisition/test_gridstatus_pull.py -q 2>&1 | tail -10
@@ -1048,7 +1048,7 @@ Thread it into the call at line 203: `skip_lmp=args.skip_lmp,`.
 
 Expected: PASS.
 
-- [ ] **Step 7: Confirm the key lookup was not "fixed"**
+- [x] **Step 7: Confirm the key lookup was not "fixed"**
 
 The module must keep reading the bare `GRIDSTATUS_API_KEY`; per-account override belongs in the launch script. This is load-bearing: one process per account, each seeing a different value in the same variable.
 
@@ -1058,7 +1058,7 @@ grep -n "GRIDSTATUS_API_KEY" src/surg/acquisition/*.py
 
 Expected: only the unsuffixed name. **No `_1`..`_6` suffix may appear in the module.**
 
-- [ ] **Step 8: Commit (ask the user first)**
+- [x] **Step 8: Commit (ask the user first)**
 
 ```bash
 git add src/surg/acquisition/gridstatus_pull.py tests/acquisition/test_gridstatus_pull.py
@@ -1075,7 +1075,7 @@ The surviving script at `~/surg-run-logs/surg-gridstatus-backfill-launch.sh` is 
 - Create: `scripts/poll_gridstatus_usage.py`
 - Create: `scripts/gridstatus_backfill_launch.sh`
 
-- [ ] **Step 1: Write the usage poller**
+- [x] **Step 1: Write the usage poller**
 
 Create `scripts/poll_gridstatus_usage.py`:
 
@@ -1133,7 +1133,7 @@ if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 ```bash
 cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
@@ -1146,7 +1146,7 @@ This costs **6 requests** (one `/api_usage` call per account). Record the number
 
 `load_dotenv()` searches upward from the calling file, so run from the repo root.
 
-- [ ] **Step 3: Write the launch script**
+- [x] **Step 3: Write the launch script**
 
 Create `scripts/gridstatus_backfill_launch.sh`. **The PID collection below is the ERRATA E4 fix** — rev1 ran `launch` inside a command substitution, making each background python a *grandchild* that `wait` could not reap. Every `wait` returned 127 instantly, the script touched `-FAILED` within a second, and because the enclosing `nohup caffeinate -i bash ...` exits with the script, `caffeinate` stopped holding the machine awake during a ~5-hour pull.
 
@@ -1214,7 +1214,7 @@ fi
 
 Deliberate differences from the pre-loss script: repo root derived rather than hardcoded; `.venv/bin/python` explicitly; account 1 injected the same way as the others; `--skip-load` on all four pnode accounts because load has its own; `END` extends to 2026-06-30; SKFFSCRK added; `START`/`END`/`DATA_ROOT`/`LOG_DIR` overridable from the environment so Step 5 can smoke-test without touching real data.
 
-- [ ] **Step 4: Make it executable and syntax-check**
+- [x] **Step 4: Make it executable and syntax-check**
 
 ```bash
 chmod +x scripts/gridstatus_backfill_launch.sh
@@ -1223,7 +1223,7 @@ bash -n scripts/gridstatus_backfill_launch.sh && echo "SYNTAX OK"
 
 Expected: `SYNTAX OK`. **`bash -n` checks syntax only — which is exactly how E4 survived into rev1. Step 5 is not optional.**
 
-- [ ] **Step 5: Smoke-run the launcher against a 1-day window (ERRATA E5)**
+- [x] **Step 5: Smoke-run the launcher against a 1-day window (ERRATA E5)**
 
 Between here and Task 10's irreversible ~890-request launch, this is the only time the script is actually executed. Cost: ~5 requests, one per account. The env-var overrides added in Step 3 make this a real run of the real script — no edited copy.
 
@@ -1244,7 +1244,7 @@ Required outcome, all four:
 
 **If it returns in under ~10 seconds, the launcher is broken — that is E4 recurring. Do not proceed to Task 10.**
 
-- [ ] **Step 6: Commit (ask the user first)**
+- [x] **Step 6: Commit (ask the user first)**
 
 ```bash
 rm -rf /tmp/surg-launch-smoke /tmp/surg-launch-smoke-logs
@@ -1262,6 +1262,89 @@ becomes a grandchild that wait cannot reap; every wait returns 127
 instantly and the caller reports FAILED within a second while five pulls
 run on detached."
 ```
+
+---
+
+## Execution record — Tasks 1–7 completed 2026-08-07
+
+Code track executed on `main` (not a worktree: `data/` is gitignored, so a
+worktree teardown would discard the panels this plan exists to restore).
+Commits `e9a6e06 → 74dc229`. Suite went `313 passed, 6 skipped` →
+**`328 passed, 5 skipped`, 330 collected**.
+
+**Three defects in this plan, found during execution. Later tasks still
+contain the uncorrected text — read these first.**
+
+### X1 — `${PIDS[-1]}` in Task 7 Step 3 is fatal on macOS
+
+Negative array subscripts require bash ≥ 4.2; macOS ships `/bin/bash` 3.2,
+where `${PIDS[-1]}` is a hard `bad array subscript` error — fatal under
+`set -u`. As written, the launcher would have aborted on the **first**
+`launch` call, which is the E4 failure mode this plan was written to fix,
+reintroduced by the fix itself. `bash -n` cannot catch it (it is a runtime
+expansion), so Task 7 Step 5's smoke-run is what caught it.
+
+The committed script echoes a `local pid=$!` captured before the array
+append. This preserves the actual E4 fix — a shell *function* does not
+fork, so `$!` and the append still land in the parent shell where `wait`
+can reap them.
+
+### X2 — Task 4 Step 3's accounting table under-counts Task 1
+
+The table credits the gpd test chain with "+0 (3 ops, no new test
+functions)". It actually adds **6 test functions** — including
+`test_gpd_conditional_on_z_cluster_bootstrap_duplicates_rows`, the very
+mutation guard Task 1 Step 6 depends on. The plan therefore contradicts
+itself: Step 6 requires that test to be newly restored by a chain the
+accounting says adds nothing.
+
+Corrected arithmetic from a `313 passed, 6 skipped` baseline:
+
+| Source | Passed | Skipped |
+|---|---|---|
+| Task 1 — gpd test chain | **+6** | 0 |
+| Task 2 — two test chains | +4 | 0 |
+| Task 4 — module-level skip removed | +2 | −1 |
+| Task 5 — cluster-exclusion guard | +1 | 0 |
+| Task 6 — two `--skip-lmp` tests | +2 | 0 |
+
+After Tasks 1–4: **325 passed, 5 skipped, 330 collected** (not the plan's
+319 / 324). After Tasks 1–7: **328 passed, 5 skipped**.
+
+### X3 — `/api_usage` polls are free; Task 9's cost table is wrong
+
+Measured 2026-08-07 against live accounts. After the Task 7 Step 5
+smoke-run, accounts 1–5 each read exactly `1/250 req, 288/500000 rows`
+having pulled one chunk apiece, and **account 6 read `0/250` after being
+polled twice**.
+
+So `GET /api_usage` does not count against quota, and the per-chunk
+multiplier — the single number Task 9 exists to produce — is exactly
+**1.0**. Task 9's table (4 requests on account 6, 14 across all accounts)
+overstates cost; the true figures are 2 and 2. A 177-chunk pnode pull
+costs 177 requests against the 250 cap, and 356,832 rows against the
+500,000 cap (1,239 days × 288 rows/day), both with margin.
+
+**Consequence for Task 9:** its substance is already satisfied by the
+Task 7 smoke-run — Step 2 (SKFFSCRK is a valid 5-min `location_id`: 288
+rows, `location=SKFFSCRK`), Step 3 (rename map carries all four source
+columns `lmp/energy/congestion/loss`), Step 4 (`--skip-lmp` exercised
+live on account 5) and Step 5 (multiplier). Only **Step 6**, the
+`docs/decisions.md` entry, is outstanding. Do not re-spend requests
+re-running a gate that is already green.
+
+### Other execution notes
+
+- **Task 8 Step 1 needs no `sudo`.** `api.pjm.com` already resolves — the
+  `/etc/hosts` entry added 2026-05-11 survived the directory loss.
+- **Task 3 is armed, not verified.** `5 skipped` proves only that the glob
+  now resolves. The first real comparison is Task 8 Step 6.
+- **Task 12 Step 2's `while kill -0 <PID>; do sleep 300; done`** exceeds an
+  agent Bash call's 600s ceiling; run it detached or poll instead.
+- **`test_cluster_columns_exclude_skffscrk` guards the constants, not the
+  wiring.** If `build_5min.py:48` ever reverted to `FIVEMIN_PNODE_IDS` the
+  test would still pass; only Task 11 Step 3 catches that, ~890 requests
+  downstream.
 
 ---
 

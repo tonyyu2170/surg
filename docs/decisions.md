@@ -4154,3 +4154,86 @@ of proof sits with filtering, not with keeping.
 
 **Revisit when.** The user rules, or a decisive test separates the spike
 class from real load excursions.
+
+---
+
+## 2026-08-07 — Pre-launch validation gate: green, and cheaper than the plan assumed
+
+**Context.** Plan B rev2 Task 9 gates the ~890-request 5-min backfill behind a
+cheap end-to-end proof, because 177 requests against a 250/month Free-tier cap
+means one botched launch costs a calendar month.
+
+**What ran.** The gate's substance was satisfied by the Task 7 Step 5 launcher
+smoke-run (1-day window, 2026-06-01 → 2026-06-02, all five accounts), not by a
+separate spend.
+
+**Findings.**
+- **SKFFSCRK (1356178201) is a valid 5-min `location_id`.** First live proof —
+  the node had never been pulled at 5-min resolution. Returned 288 rows for one
+  day (= 24 h × 12), `location=SKFFSCRK`.
+- **The rename map is not stale.** The pulled chunk carries all four source
+  columns `lmp` / `energy` / `congestion` / `loss`, which map onto
+  `total_lmp_rt` / `system_energy_price_rt` / `congestion_price_rt` /
+  `marginal_loss_price_rt`.
+- **`--skip-lmp` works live.** Account 5 pulled `pjm_load` only, issuing zero
+  LMP requests.
+- **The launcher blocks.** 21.2 s wall, `rc=0`, `-DONE` marker written. A
+  sub-10 s return would have meant the ERRATA E4 subshell/`wait` defect had
+  recurred.
+
+**Measured request cost — the number the gate exists to produce.**
+`GET /api_usage` does **not** count against quota: account 6 read `0/250`
+after being polled twice, and accounts 1–5 each read exactly `1/250 req,
+288/500000 rows` after one data chunk apiece. **The per-chunk multiplier is
+exactly 1.0.** Plan B rev2's Task 9 cost table (4 requests on account 6, 14
+across all accounts) therefore overstates cost; the true figures are 2 and 2.
+
+**Consequence.** A 177-chunk pnode pull costs 177 requests against the 250 cap
+and 356,832 rows against the 500,000 cap (1,239 days × 288 rows/day) — both
+with margin. All six accounts are distinct and the usage period ends
+2026-09-01.
+
+---
+
+## 2026-08-07 — `rt_hrl_lmps` archive cutoff has rolled; hourly re-pull needs Historic tier
+
+**Context.** Plan B rev2 Task 8 Step 4 prescribes a single
+`surg.acquisition.pull --start 2022-10-02 --end 2026-05-11` command. It fails
+with **400 Bad Request** on the first chunk.
+
+**Diagnosis.** Not transient, and not a range-width problem: a *one-day* pull in
+2022 fails identically while a one-day pull in 2026 succeeds, isolating the
+cause to the **age** of the data. `rt_hrl_lmps` carries a **rolling 731-day
+archive cutoff** (`docs/pjm-api-constraints.md` § "Archived data"). As of
+2026-08-07 the Historic/Standard boundary sits at **2024-08-06**, so
+**2022-10-02 → 2024-08-05 — roughly half the analysis window — is now Historic
+tier**, where the `pnode_id` filter is rejected and a request spanning the
+boundary is rejected outright. The plan's command does both forbidden things.
+
+**Decision.** Re-pull in three parts, reproducing the 2026-05-12 coverage
+choice (1a) rather than inventing a new one:
+1. Historic, `--archive-tier --archive-subtype EHV`, one calendar year per
+   request → the 8 EHV pnodes (Loudoun cluster + OX + BRISTERS).
+2. Historic, `--archive-subtype ZONE` → DOM zonal.
+3. Standard, normal `pnode_id` mode, 2024-08-06 → 2026-05-11 → all 11 targets.
+
+Validated before launch: a 2-day archive-mode probe returned 384 rows = 8 EHV
+pnodes × 48 h, all 8 present, client-side filter working.
+
+**Ashburn coverage — ruled by the user 2026-08-07: Standard tier only.**
+This also *resolves* the open `n=17,448` vs `31,536` question the plan flagged
+as "verify before it ships in F7". It was never a pull failure:
+**17,448 h = 727 days ≈ the 731-day cutoff.** ASHBURN TX1/TX2 are the only
+LOAD-subtype targets, and PJM Historic stores ~10,786 LOAD-subtype pnodes, so
+recovering 2 of them means downloading ~150M rows (~8.5 h). The asymmetry is
+by design.
+
+**Consequence to expect in verification.** Because the cutoff *rolls*, Ashburn's
+Standard window is now 2024-08-06 → 2026-05-11 ≈ **15,432 hours**, about
+**2,016 hours shorter** than the recorded 17,448. That shortfall is
+rolling-cutoff drift from the ~3 months elapsed since the original pull — **not**
+a restoration defect. Do not chase it as a code or data-revision divergence.
+
+**Revisit when.** The reviewer pushback on the asymmetric Ashburn window
+(Prof Wei / Lihui, recorded 2026-05-12) is taken up, at which point the ~8.5 h
+Historic LOAD backfill becomes an overnight job.

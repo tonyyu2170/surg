@@ -4381,6 +4381,108 @@ q=0.995 spline fit is fragile** and should not be reported without this caveat.
 
 ---
 
+## 2026-08-07 — ERCOT Stage 1: volatility falls once normalized; level beats volatility 132/135
+
+**Context.** Stage 1 of the ERCOT diagnostic asks two descriptive questions —
+is ERCOT load volatile and rising, and does hourly price track load *level*
+more than load *volatility* — as an out-of-market check on the DOM findings.
+Panel: **83,975 rows × 35 cols, 2017-01-01 00:00 → 2026-07-31 23:00 CPT**, nine
+weather zones from 10 annual load archives, 15 settlement points from 5 annual
+RTM price archives.
+
+**Two data defects were found and handled. Both were invisible to the plan.**
+
+- **The committed hour parser could not read a single real ERCOT day.** It used
+  `strptime("%m/%d/%Y %H:%M")`, but hour-ending runs **1–24**, so every day
+  closes `24:00` (3,650 rows) and `%H` accepts 00–23 only. The fall-back hour
+  additionally carries a trailing ` DST` suffix. Its test passed because it
+  asserted a *duplicate label* ERCOT never emits. Now parsed as
+  `date + (hour − 1)`, verified against all ten files: 0 NaT, 0 NaN, and the
+  only absent hours are the 10 spring-forward hours, one per year.
+- **`Native_Load_2026.xlsx` republishes all of May 2026** — a contiguous
+  744-row block, identical across all ten columns. This is a **publisher-side
+  defect; anyone re-pulling that file will hit it.** Exact duplicates are
+  dropped before the hour conversion, which is lossless and cannot touch the
+  DST pair (whose rows carry *different* labels). **The ordering is the whole
+  point:** deduplicating afterwards would have flagged all 744 as
+  `dst_transition_hour`, and `assert_panel_quality` inspects only non-DST rows,
+  so the bad data would have passed the gate in silence. A bound on the DST
+  flag count was added for the same reason — without it that check is vacuous.
+
+**Finding 1 — normalized volatility is FALLING, in all nine zones.**
+2017 → 2025 (2026 excluded, partial through 07/31):
+
+| zone | mean load | raw ramp | **normalized ramp** | p95 normalized |
+|---|---|---|---|---|
+| ERCOT | +36.7% | +8.4% | **−20.7%** | −23.3% |
+| FWEST | +211.0% | +156.0% | **−17.7%** | −1.0% |
+| NORTH | +106.5% | +93.4% | **−6.3%** | −10.7% |
+| SOUTH | +27.9% | +3.4% | **−19.2%** | −18.4% |
+| EAST | +29.9% | +29.6% | **−0.3%** | −2.6% |
+
+All nine zones fall on the mean-normalized measure (−0.3% to −20.7%) and all
+nine on p95-normalized (−1.0% to −23.3%). Raw ramps *do* grow — Far West by
+156% — but slower than load. **Growth is being mistaken for volatility.**
+
+**Finding 2 — load level beats load volatility in 132 of 135 zone-point pairs.**
+Standardized betas, so magnitudes are comparable. Sanity anchor
+ERCOT × HB_HUBAVG: `beta_level` **+0.185** vs `beta_volatility` **−0.036**.
+Volatility's coefficient is *negative* in 8 of 9 zones — higher ramps go with
+slightly *lower* prices, not higher.
+
+**Far West is the sole exception and it inverts.** All 15 FWEST pairs show
+`beta_level` **negative** (−0.071 to −0.101) and `beta_volatility` **positive**
+(+0.068 to +0.086); in 3 of them (LZ_AEN, LZ_LCRA, LZ_SOUTH) volatility wins on
+magnitude. Do not read this as a data-center signal. It is the confound the
+research memo §2c already flagged: Far West load is Permian electrification and
+its price is set by wind, so high load coincides with high wind and low prices.
+
+**R² is 0.004–0.056 everywhere.** Load level and volatility together explain
+almost none of hourly price variance. Whatever moves ERCOT prices, it is
+mostly not either of these.
+
+**Finding 3 — negative prices concentrate in the West, as the gate anticipated.**
+`HB_PAN` **20.4%** of hours negative, `HB_WEST` 10.1%, `LZ_WEST` 8.5%; the other
+twelve points sit at 1.6–2.5%. Per the spec gate criterion, **correlations on
+HB_PAN and HB_WEST are uninterpretable** and the FWEST inversion above rests
+partly on them. Medians are $18.51–$23.69, p99 $189–$290.
+
+**This corroborates the DOM result in a second, unrelated market.** DOM: load
++21.5%, volatility flat/falling, congestion level-driven. ERCOT: load +36.7%,
+normalized volatility −20.7%, level dominant 132/135. Two independently
+governed markets, same qualitative answer.
+
+**Do not claim the two are directly comparable.** `level_vs_volatility` has
+**no time controls**. Load level and price both carry strong diurnal and
+seasonal structure, so `beta_level` is inflated by both tracking time-of-day.
+The DOM finding it echoes — `z_slope` sign-flipping under a load-level control —
+came from a specification *with* controls. The agreement is qualitative and
+directional; it is not an effect-size replication, and nothing here should be
+written up as one.
+
+**Two artefacts noted, neither worth fixing.** (1) The gradient differences
+positionally, so at each spring-forward seam a two-hour wall-clock jump reads as
+one step (overstated) and at fall-back the duplicate hour reads as near-zero —
+about 180 of 83,975 rows, changing no conclusion. (2) ERCOT gives the repeated
+fall-back hour the same Delivery Date and Hour, so its two prices average into
+one value: one hour per year, four years.
+
+**Gate recommendation — PENDING USER RULING.** Stage 1 succeeded on its own
+terms: the answer is trustworthy, the two data defects are found and handled,
+and the QA gates now fail loudly on the modes that actually occur. But the
+answer it produced **undercuts the volatility premise a second time**. The
+recommendation is therefore *not* to proceed to a Stage 2 built on load
+volatility as the driver, and instead to redirect toward load *level* and
+locational structure, which is where both markets point. Recorded as a
+recommendation, not a ruling — the framing call is the user's.
+
+**Scope.** 2017–2026 only. ERCOT publishes four load schema families; 2016
+renames four zones and stores a Timestamp, 2015 and earlier are `.xls`, and
+pre-April-2003 files use 11 control areas. Extending earlier is a parser
+project, not a config change.
+
+---
+
 ## 2026-08-08 — Plan B restoration verification: recorded targets reproduce; divergences are data revision
 
 **Context.** Final step of Recovery Plan B rev2 (Task 13). The 5-min panel was

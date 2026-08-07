@@ -26,7 +26,7 @@ from surg.preprocessing.loaders_5min import (
 )
 from surg.preprocessing.schema_5min import (
     EXPECTED_COLUMNS_5MIN,
-    FIVEMIN_PNODE_IDS,
+    FIVEMIN_CLUSTER_IDS,
     FIVEMIN_SCHEMA_VERSION,
     validate_panel_5min,
 )
@@ -45,7 +45,7 @@ def build_analysis_panel_5min(
     lmp_long = load_gridstatus_lmp_long(data_root)
 
     lmp_wide = pivot_lmp_long_to_pnode_columns(lmp_long, index_col="interval_start_utc")
-    lmp_wide = add_loudoun_cluster_columns(lmp_wide, FIVEMIN_PNODE_IDS)
+    lmp_wide = add_loudoun_cluster_columns(lmp_wide, FIVEMIN_CLUSTER_IDS)
 
     # Left-join from load (the spine), keyed on the unique UTC interval.
     panel = load_df.merge(lmp_wide, on="interval_start_utc", how="left")

@@ -130,3 +130,19 @@ def test_build_nans_gradient_at_gap_boundary(tmp_path: Path):
     assert pd.notna(gap_row["total_lmp_rt_cluster_mean"])
     # Only the true first row and this gap row lack a valid gradient.
     assert panel[gradient_cols[0]].notna().sum() == len(panel) - 2
+
+
+def test_cluster_columns_exclude_skffscrk():
+    """SKFFSCRK is pulled as a comparison node; it must not enter the cluster average.
+
+    Regression guard for the pre-loss coincidence where FIVEMIN_PNODE_IDS was
+    simultaneously the pull-set and the cluster-set.
+    """
+    from surg.preprocessing.schema_5min import (
+        FIVEMIN_PNODE_IDS, FIVEMIN_CLUSTER_IDS, SKFFSCRK_PNODE_ID,
+    )
+    assert SKFFSCRK_PNODE_ID in FIVEMIN_PNODE_IDS
+    assert SKFFSCRK_PNODE_ID not in FIVEMIN_CLUSTER_IDS
+    assert len(FIVEMIN_PNODE_IDS) == 4
+    assert len(FIVEMIN_CLUSTER_IDS) == 3
+    assert set(FIVEMIN_CLUSTER_IDS).issubset(set(FIVEMIN_PNODE_IDS))

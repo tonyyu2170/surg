@@ -27,8 +27,9 @@ from surg.acquisition.chunking import utc_datetime_chunks
 from surg.acquisition.gridstatus_client import GridStatusClient
 from surg.acquisition.storage import chunk_exists, write_chunk
 
-# Free-tier pnode set (design §2; pull plan table).
-FIVEMIN_PNODE_IDS: tuple[int, ...] = (35010365, 35010371, 1356178195)
+# Free-tier pnode set (design §2; pull plan table). Single definition lives in
+# the schema module so the pull-set and the panel schema cannot drift apart.
+from surg.preprocessing.schema_5min import FIVEMIN_PNODE_IDS
 
 # The location_id-filtered LMP query hits a ~180s server-side query budget at
 # 30-day chunk width (empirically observed 2026-07-18: a 30-day chunk returns

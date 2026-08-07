@@ -750,3 +750,137 @@ def test_run_conditional_z_robustness_filter_alignment_with_nan_rows(tmp_path: P
     )
     # n=1 is far below the orchestrator's 20-row floor → inconclusive
     assert payload["spec_f_within_filter"]["status"] == "inconclusive"
+
+
+def test_gpd_conditional_on_z_cluster_bootstrap_runs():
+    rng = np.random.default_rng(7)
+    n = 4000
+    Y = rng.pareto(3.0, size=n) * 10.0
+    Z = rng.uniform(0, 100, size=n)
+    clusters = np.repeat(np.arange(100), n // 100)  # 100 islands of 40 obs
+    res = gpd_conditional_on_z(
+        Y, Z, threshold_quantile=0.90, n_boot=50, seed=1, cluster_ids=clusters,
+    )
+    lo, hi = res.shape_diff_bootstrap_ci_95
+    assert np.isfinite(lo) and np.isfinite(hi) and lo < hi
+
+
+def test_gpd_conditional_cluster_ids_length_mismatch_raises():
+    rng = np.random.default_rng(7)
+    Y = rng.pareto(3.0, size=500) * 10.0
+    Z = rng.uniform(0, 100, size=500)
+    with pytest.raises(ValueError, match="cluster_ids"):
+        gpd_conditional_on_z(Y, Z, n_boot=30, seed=1, cluster_ids=np.arange(10))
+
+
+def test_run_gpd_passes_cluster_col(tmp_path):
+    rng = np.random.default_rng(7)
+    n = 4000
+    df = pd.DataFrame({
+        "resp": rng.pareto(3.0, size=n) * 10.0,
+        "dom_load_gradient_abs_mw_per_min": rng.uniform(0, 100, size=n),
+        "isl": np.repeat(np.arange(100), n // 100),
+    })
+    out = tmp_path / "g.json"
+    run_gpd(df, out, response_col="resp", pnode_label="t",
+            sweep_quantiles=(0.90,), conditional_threshold_quantile=0.90,
+            n_boot=50, seed=1, cluster_col="isl")
+    payload = json.loads(out.read_text())
+    assert payload["conditional_z"]["bootstrap_mode"] == "cluster"
+
+
+def test_gpd_conditional_on_z_cluster_bootstrap_duplicates_rows(monkeypatch):
+    """Locks in the correct cluster-bootstrap mechanic: a cluster id drawn twice
+    by rng.choice must contribute its exceedance rows twice to the resampled
+    arrays (not deduplicated). Forces a fixed, duplicate-containing draw via
+    monkeypatch and checks the resulting bootstrap CI matches an independently
+    computed expected shape_diff for that exact (duplicate-aware) resample."""
+    rng = np.random.default_rng(11)
+    n_clusters = 15
+    per_cluster = 30
+    n = n_clusters * per_cluster
+    cluster_ids = np.repeat(np.arange(n_clusters), per_cluster)
+    Y = rng.pareto(3.0, size=n) * 10.0
+    Z = rng.uniform(0, 100, size=n)
+    threshold_quantile = 0.5
+    z_split_quantile = 0.5
+
+    # Replicate the function's own (public, deterministic) threshold/exceedance
+    # computation so we can predict exactly what resample this monkeypatch forces.
+    threshold = float(np.quantile(Y, threshold_quantile))
+    exceed_mask = Y > threshold
+    Y_exc = Y[exceed_mask]
+    Z_exc = Z[exceed_mask]
+    C_exc = cluster_ids[exceed_mask]
+    unique_clusters = np.unique(C_exc)
+    assert len(unique_clusters) >= 10  # must clear the Bug-1 guard
+
+    # Force every bootstrap rep to draw cluster unique_clusters[0] twice, in
+    # place of unique_clusters[1] (which is dropped from the resample entirely).
+    drawn_forced = unique_clusters.copy()
+    drawn_forced[1] = drawn_forced[0]
+
+    # numpy.random.Generator is an immutable Cython extension type — its
+    # `choice` method can't be monkeypatched directly. Patch the factory
+    # function instead: gpd_conditional_on_z calls np.random.default_rng(seed)
+    # exactly once, and this fake stands in for that instance. Only `.choice`
+    # is exercised on the cluster-bootstrap path, so nothing else is needed.
+    class _FakeRNG:
+        def choice(self, a, size=None, replace=True):
+            return drawn_forced
+
+    monkeypatch.setattr(np.random, "default_rng", lambda seed=None: _FakeRNG())
+
+    idx = np.concatenate([np.flatnonzero(C_exc == c) for c in drawn_forced])
+    n_cluster0 = int(np.sum(C_exc == unique_clusters[0]))
+    n_cluster1 = int(np.sum(C_exc == unique_clusters[1]))
+    # Sanity: the forced draw is actually a duplication, not a no-op — cluster 0's
+    # rows appear twice-worth, cluster 1's rows are entirely absent.
+    assert len(idx) == len(C_exc) - n_cluster1 + n_cluster0
+    assert n_cluster0 > 0 and n_cluster1 > 0
+
+    Y_b, Z_b = Y_exc[idx], Z_exc[idx]
+    z_split_b = float(np.quantile(Z_b, z_split_quantile))
+    low_b = Z_b <= z_split_b
+    high_b = ~low_b
+    assert low_b.sum() >= 10 and high_b.sum() >= 10
+    expected_diff = (
+        fit_gpd(Y_b[high_b], threshold=threshold).shape
+        - fit_gpd(Y_b[low_b], threshold=threshold).shape
+    )
+
+    res = gpd_conditional_on_z(
+        Y, Z, threshold_quantile=threshold_quantile, z_split_quantile=z_split_quantile,
+        n_boot=25, seed=3, cluster_ids=cluster_ids,
+    )
+    lo, hi = res.shape_diff_bootstrap_ci_95
+    assert lo == pytest.approx(expected_diff, abs=1e-9)
+    assert hi == pytest.approx(expected_diff, abs=1e-9)
+
+
+def test_gpd_conditional_on_z_too_few_unique_clusters_raises():
+    rng = np.random.default_rng(5)
+    n = 2000
+    Y = rng.pareto(3.0, size=n) * 10.0
+    Z = rng.uniform(0, 100, size=n)
+    # Only 2 clusters total, so the exceedance subset also has only 2 unique
+    # cluster ids — far below the 10-cluster floor needed for a non-degenerate
+    # cluster bootstrap.
+    clusters = np.repeat(np.arange(2), n // 2)
+    with pytest.raises(ValueError, match="unique cluster"):
+        gpd_conditional_on_z(
+            Y, Z, threshold_quantile=0.90, n_boot=30, seed=1, cluster_ids=clusters,
+        )
+
+
+def test_gpd_conditional_on_z_nan_cluster_ids_raises():
+    rng = np.random.default_rng(9)
+    n = 2000
+    Y = rng.pareto(3.0, size=n) * 10.0
+    Z = rng.uniform(0, 100, size=n)
+    clusters = np.repeat(np.arange(50), n // 50).astype(float)
+    clusters[:200] = np.nan  # 10% NaN cluster ids, plausible at window-truncation boundaries
+    with pytest.raises(ValueError, match="NaN"):
+        gpd_conditional_on_z(
+            Y, Z, threshold_quantile=0.90, n_boot=30, seed=1, cluster_ids=clusters,
+        )

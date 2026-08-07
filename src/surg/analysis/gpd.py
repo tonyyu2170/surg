@@ -191,6 +191,7 @@ def gpd_conditional_on_z(
     z_split_quantile: float = 0.5,
     n_boot: int = 200,
     seed: int = 0,
+    cluster_ids: np.ndarray | None = None,
 ) -> GPDConditionalResult:
     """Fit GPD separately to low-Z and high-Z halves of the exceedance set.
 
@@ -207,11 +208,30 @@ def gpd_conditional_on_z(
          recompute z_split inside each bootstrap rep, refit both subsets, record
          shape_diff = ξ_high - ξ_low. Return 2.5%/97.5% quantiles plus one-sided
          p-value (fraction of bootstrap reps with shape_diff ≤ 0).
+      When cluster_ids is given, step 6 resamples unique cluster ids with
+      replacement (island-cluster bootstrap) instead of rows; used by the
+      in-filter 5-min Spec A run where the proposal filter creates ~180
+      3-hour night-islands.
     """
     Y_arr = np.asarray(Y, dtype=float)
     Z_arr = np.asarray(Z, dtype=float)
     if len(Y_arr) != len(Z_arr):
         raise ValueError(f"Y and Z must have equal length; got {len(Y_arr)} vs {len(Z_arr)}")
+    cluster_arr: np.ndarray | None = None
+    if cluster_ids is not None:
+        cluster_arr = np.asarray(cluster_ids)
+        if len(cluster_arr) != len(Y_arr):
+            raise ValueError(
+                f"cluster_ids length {len(cluster_arr)} != Y length {len(Y_arr)}"
+            )
+        n_nan_clusters = int(pd.isna(cluster_arr).sum())
+        if n_nan_clusters > 0:
+            raise ValueError(
+                f"cluster_ids contains {n_nan_clusters} NaN value(s); NaN cluster ids "
+                f"would be silently excluded from every bootstrap replicate (NaN != NaN "
+                f"under array equality) while still counted in the point estimate — "
+                f"drop or fill them before calling gpd_conditional_on_z"
+            )
     if not 0.0 < threshold_quantile < 1.0:
         raise ValueError(f"threshold_quantile must be in (0,1); got {threshold_quantile}")
     if not 0.0 < z_split_quantile < 1.0:
@@ -221,6 +241,7 @@ def gpd_conditional_on_z(
     exceed_mask = Y_arr > threshold
     Y_exc = Y_arr[exceed_mask]
     Z_exc = Z_arr[exceed_mask]
+    C_exc = cluster_arr[exceed_mask] if cluster_arr is not None else None
     if len(Y_exc) < 20:
         raise ValueError(
             f"too few exceedances ({len(Y_exc)}) above threshold_quantile={threshold_quantile} "
@@ -266,8 +287,22 @@ def gpd_conditional_on_z(
     rng = np.random.default_rng(seed)
     n_exc = len(Y_exc)
     diffs: list[float] = []
+    unique_clusters = np.unique(C_exc) if C_exc is not None else None
+    if unique_clusters is not None and len(unique_clusters) < 10:
+        raise ValueError(
+            f"too few unique clusters ({len(unique_clusters)}) among exceedances "
+            f"for an island-cluster bootstrap (need ≥10); with too few clusters, "
+            f"resampling collapses onto a handful of discrete support points and "
+            f"can produce a spurious zero-width CI"
+        )
     for _ in range(n_boot):
-        idx = rng.integers(0, n_exc, size=n_exc)
+        if C_exc is None:
+            idx = rng.integers(0, n_exc, size=n_exc)
+        else:
+            # Island-cluster bootstrap: resample islands with replacement,
+            # take every exceedance row of each drawn island.
+            drawn = rng.choice(unique_clusters, size=len(unique_clusters), replace=True)
+            idx = np.concatenate([np.flatnonzero(C_exc == c) for c in drawn])
         Y_b = Y_exc[idx]
         Z_b = Z_exc[idx]
         z_split_b = float(np.quantile(Z_b, z_split_quantile))
@@ -840,6 +875,7 @@ def run_gpd(
     z_split_quantile: float = 0.5,
     n_boot: int = 200,
     seed: int = 0,
+    cluster_col: str | None = None,
 ) -> None:
     """End-to-end GPD analysis on the full panel: threshold sweep + Z-conditional split.
 
@@ -857,6 +893,7 @@ def run_gpd(
     """
     n_total = len(panel)
     subset = panel.dropna(subset=[response_col, threshold_col])
+    cluster_ids = subset[cluster_col].to_numpy() if cluster_col is not None else None
     Y = subset[response_col].to_numpy()
     Z = subset[threshold_col].to_numpy()
     n_after_dropna = len(subset)
@@ -870,6 +907,7 @@ def run_gpd(
         z_split_quantile=z_split_quantile,
         n_boot=n_boot,
         seed=seed + 100,  # offset so sweep and conditional use disjoint bootstrap streams
+        cluster_ids=cluster_ids,
     )
 
     payload = {
@@ -891,6 +929,7 @@ def run_gpd(
                 "bootstrap_ci_95": list(cond_result.shape_diff_bootstrap_ci_95),
                 "bootstrap_p_value": cond_result.shape_diff_bootstrap_p_value,
             },
+            "bootstrap_mode": "cluster" if cluster_col is not None else "iid",
         },
     }
 

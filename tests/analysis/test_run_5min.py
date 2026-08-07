@@ -6,15 +6,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pytest
-
-pytest.skip(
-    "run_all_5min requires gpd.run_gpd(cluster_col=...), whose worktree edit "
-    "chain (_worktree-surg-gridstatus-5min__src__surg__analysis__gpd.py.json, "
-    "11 edits) is unassigned in recovery plan A. Unskip after that chain is "
-    "restored.",
-    allow_module_level=True,
-)
 
 from surg.analysis.run_5min import run_all_5min
 

@@ -83,7 +83,7 @@ Each exists because a finding sign-flipped on 2026-07-30. A figure that omits it
 ### Conventions
 
 - Run Python via `.venv/bin/python`, tests via `.venv/bin/pytest`.
-- Existing test suite: 345 tests passing. Never let that number drop.
+- Existing test suite: **350** tests passing (verified by collection on the feature branch 2026-08-08; the 345 figure in earlier notes was stale). Never let that number drop.
 - Commit after each task. Do not push (the user grants push permission separately).
 
 ---
@@ -308,6 +308,11 @@ plt.rcParams.update({
     "figure.facecolor": "white",
     "axes.facecolor": "white",
     "savefig.facecolor": "white",
+    # No figure in this set uses mathtext, and captions/titles are full of
+    # literal dollar amounts ("$9.56 / $8.81") that matplotlib would
+    # otherwise pair as math-mode spans and render garbled (spaces stripped,
+    # italicised). Verified 2026-08-08 by rendering.
+    "text.parse_math": False,
 })
 
 
@@ -325,14 +330,27 @@ def provenance(*, source: str, n: int, window: str, spec: str,
 
 
 def finish(fig, out_path: Path, *, footer: str, caption: str = "") -> None:
-    """Attach footer (and optional caption) and write the PNG."""
+    """Attach footer (and optional caption) and write the PNG.
+
+    The bottom margin is measured from the rendered text rather than fixed:
+    captions in this set run to several wrapped lines, and a constant margin
+    lets them overlap the axes. `bbox_inches="tight"` does NOT rescue this —
+    it trims exterior whitespace but will not resolve an internal collision
+    between the caption and the axes.
+    """
     text = footer if not caption else f"{caption}\n{footer}"
-    fig.text(0.01, 0.005, text, fontsize=7, color=MUTED,
-             ha="left", va="bottom", wrap=True)
-    bottom = 0.16 if caption else 0.09
-    fig.subplots_adjust(bottom=bottom)
+    t = fig.text(0.01, 0.005, text, fontsize=7, color=MUTED,
+                 ha="left", va="bottom", wrap=True)
+    fig.canvas.draw()  # resolve wrapping before measuring
+    renderer = fig.canvas.get_renderer()
+    frac = t.get_window_extent(renderer).height / fig.get_window_extent().height
+    # tight_layout's `rect` reserves the bottom band for the caption and lays
+    # the axes out inside the remainder, accounting for tick labels and axis
+    # labels -- which subplots_adjust cannot do, since it positions the axes
+    # box while tick labels render below it.
+    fig.tight_layout(rect=(0, min(frac + 0.03, 0.6), 1, 1))
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=200, bbox_inches="tight")
+    fig.savefig(out_path, dpi=200)
 
 
 def excludes_zero(lo: float, hi: float) -> bool:
@@ -355,6 +373,7 @@ def forest(ax, rows, xlabel: str, title: str | None = None,
     ax.axvline(vline, color=MUTED, lw=1, ls="--")
     ax.set_yticks(ys)
     ax.set_yticklabels([r[0] for r in rows])
+    ax.set_ylim(-0.6, len(rows) - 0.4)  # keep extreme rows off the frame
     ax.set_xlabel(xlabel)
     if title:
         ax.set_title(title)
@@ -801,6 +820,27 @@ def test_f1_reports_growth_and_flat_ramp(tmp_path):
     assert d["ramp_pct_first_year"] > d["ramp_pct_last_year"]
 
 
+def test_f1_growth_is_like_for_like_not_first_to_last_month(tmp_path):
+    # A panel with ZERO real growth but a strong seasonal cycle must report
+    # ~0% growth. A naive first-month-to-last-month difference would report
+    # a large spurious number.
+    import json
+    rows = []
+    for m in pd.period_range("2023-02", "2026-06", freq="M"):
+        seasonal = 3000 * np.cos(2 * np.pi * (m.month - 7) / 12.0)
+        load = 14000 + seasonal          # no trend at all
+        rows.append({"month": str(m), "mean_load_mw": load,
+                     "ramp_p90_mw_per_min": 25.0,
+                     "ramp_p90_pct_of_load": 100 * 25.0 / load, "n": 8000})
+    p = tmp_path / "seasonal.json"
+    p.write_text(json.dumps({"rows": rows, "resolution": "5-min"}))
+    d = D.prepare_f1(p)
+    assert abs(d["load_growth_pct"]) < 1.0, (
+        f"seasonal-only panel reported {d['load_growth_pct']:.1f}% growth; "
+        "growth is not being computed like-for-like")
+    assert d["growth_basis_months"], "no common-month basis recorded"
+
+
 def test_f1_carries_a_trend_test(tmp_path):
     d = D.prepare_f1(_monthly_json(tmp_path))
     for k in ("ols_slope_per_month", "ols_p_value",
@@ -870,11 +910,30 @@ def prepare_f1(monthly_json: Path) -> dict:
     rho, rho_p = stats.spearmanr(x, p90)
 
     year = np.array([int(m[:4]) for m in months])
+    mon = np.array([int(m[5:7]) for m in months])
     first, last = year.min(), year.max()
+
+    # Load growth must be LIKE-FOR-LIKE. Comparing the first month to the
+    # last (Feb 2023 vs Jun 2026) mixes a winter shoulder month with an early
+    # summer one and reports +37.4% where the real growth is +28.0%. Average
+    # only over the calendar months present in EVERY year.
+    common = sorted({int(m) for m in mon if all(
+        ((year == y) & (mon == m)).any() for y in range(first, last + 1))})
+    if not common:
+        raise ValueError("no calendar month is present in every year; "
+                         "cannot compute a like-for-like growth rate")
+    def _block(y):
+        sel = (year == y) & np.isin(mon, common)
+        return float(load[sel].mean())
+    growth = 100.0 * (_block(last) - _block(first)) / _block(first)
+
     return {
         "months": months, "n_months": len(rows),
         "mean_load_mw": load, "ramp_p90": p90, "ramp_p90_pct": pct,
-        "load_growth_pct": 100.0 * (load[-1] - load[0]) / load[0],
+        "load_growth_pct": growth,
+        "growth_basis_months": common,
+        "growth_first_year": first, "growth_last_year": last,
+        "mean_load_by_year": {int(y): _block(y) for y in range(first, last + 1)},
         "ramp_p90_min": float(p90.min()), "ramp_p90_max": float(p90.max()),
         "ramp_pct_first_year": float(pct[year == first].mean()),
         "ramp_pct_last_year": float(pct[year == last].mean()),
@@ -893,7 +952,8 @@ def plot_f1(d: dict, out_path: Path) -> None:
     axes[0].plot(x, d["mean_load_mw"], color=S.COLOR["load"], lw=1.8)
     axes[0].set_ylabel("Mean DOM load (MW)")
     axes[0].set_title(
-        f"(a) Load grew {d['load_growth_pct']:+.1f}% over the panel")
+        f"(a) Load grew {d['load_growth_pct']:+.1f}% "
+        f"({d['growth_first_year']}→{d['growth_last_year']}, like-for-like)")
 
     axes[1].plot(x, d["ramp_p90"], color=S.COLOR["primary"], lw=1.8)
     axes[1].set_ylabel("Ramp p90 (MW/min)")
@@ -915,7 +975,13 @@ def plot_f1(d: dict, out_path: Path) -> None:
 
     footer = S.provenance(source=PANEL_5MIN, n=d["n_obs"], window=d["window"],
                           spec="descriptive, monthly", resolution="5-min")
+    basis = ", ".join(str(m) for m in d["growth_basis_months"])
     caption = (f"Spearman ρ={d['spearman_rho']:+.3f}, p={d['spearman_p_value']:.3f}. "
+               f"Growth is like-for-like: mean load over the calendar months "
+               f"present in every year (months {basis}), "
+               f"{d['growth_first_year']} vs {d['growth_last_year']}. "
+               f"Comparing the panel's first month to its last would mix "
+               f"different seasons and overstate growth. "
                + S.ZONAL_DISCLOSURE)
     S.finish(fig, Path(out_path), footer=footer, caption=caption)
     plt.close(fig)
@@ -1725,6 +1791,8 @@ L.plot_f7(d, Path('outputs/figures/F7_location.png'))
 
 Expected (from reconnaissance): common window 2024-08-06 → 2026-05-10, n=15,432; ashburn_tx1 p99 \$610.03 / 4.78%; 1356178201 \$144.57 / 1.60%. If these differ, the panel changed — investigate before committing.
 
+**Layout check — F7 is the one figure that combines `twinx()` with a colorbar**, and matplotlib's `tight_layout` (used by `_style.finish()`) is known to break on *some* constructions of that pair, painting the colorbar over the plot and clipping the twin axis. A probe on 2026-08-08 confirmed the layout **as specified above renders correctly and warns not at all** — the colorbar attaches to `axes[1]` (the heatmap), not to the twinned axis. Do not restructure it. **Open the generated PNG and look at it** before committing: if the colorbar overlays either panel or the right-hand `p99 congestion ($)` label is clipped, the colorbar has been attached to the wrong axes. Report any `UserWarning: ... not compatible with tight_layout` rather than suppressing it.
+
 - [ ] **Step 6: Commit**
 
 ```bash
@@ -2142,10 +2210,17 @@ Expected: 6 passed.
 
 - [ ] **Step 5: Run the full-precision compute step, then generate**
 
-This is the expensive step (~15 min at `--n-boot 200`).
+**This is expensive — budget ~1.5–2.5 hours, not minutes.** Measured 2026-08-08: a single full-panel QuantReg fit takes 1.2–2.4s, and `spec_sensitivity` at `--n-boot 200` is 5 periods × 2 τ × 2 specs × 200 resamples ≈ **4,020 fits**. (`tau_sweep` is cheap — ~50 point fits, no bootstrap.) **Run it detached** so it survives the session:
 
 ```bash
-cd "$WT" && "$MAIN/.venv/bin/python" scripts/compute_figure_inputs.py --n-boot 200
+cd "$WT" && nohup caffeinate -i "$MAIN/.venv/bin/python" \
+  scripts/compute_figure_inputs.py --n-boot 200 \
+  > ~/surg-figure-inputs.log 2>&1 &
+```
+
+Wait for it to finish (`tail -f ~/surg-figure-inputs.log`) before plotting — do **not** re-run it. Then:
+
+```bash
 cd "$WT" && "$MAIN/.venv/bin/python" -c "
 from pathlib import Path
 from scripts.figures import inference as I
@@ -2985,7 +3060,7 @@ Expected: `12`.
 cd "$WT" && "$MAIN/.venv/bin/pytest" -q
 ```
 
-Expected: **~402 passed, 0 failures** — 345 pre-existing plus roughly 57 new figure tests (4 style + 7 compute + 17 descriptive + 8 location + 6 inference + 13 mechanism + 2 orchestrator). The exact new count will shift slightly as Task 12's fixtures are adjusted to the real JSON shapes; what matters is that **the 345 pre-existing tests all still pass**. If that number dropped, stop and investigate.
+Expected: **~407 passed, 0 failures** — 350 pre-existing plus roughly 57 new figure tests (4 style + 7 compute + 17 descriptive + 8 location + 6 inference + 13 mechanism + 2 orchestrator). The exact new count will shift slightly as Task 12's fixtures are adjusted to the real JSON shapes; what matters is that **the 350 pre-existing tests all still pass**. If that number dropped, stop and investigate.
 
 - [ ] **Step 7: Commit**
 

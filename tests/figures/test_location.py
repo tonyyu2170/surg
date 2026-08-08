@@ -84,3 +84,116 @@ def test_f7_plot_writes_png(tmp_path):
     out = tmp_path / "F7.png"
     L.plot_f7(L.prepare_f7(_hourly()), out)
     assert out.exists() and out.stat().st_size > 0
+
+
+def _fivemin_with_event(n=2000, seed=5):
+    rng = np.random.default_rng(seed)
+    t = pd.date_range("2024-07-10 00:00", periods=n, freq="5min")
+    load = 20000 + rng.normal(0, 50, n)
+    energy = np.full(n, 130.0) + rng.normal(0, 1, n)
+    load[200:] -= 1500
+    energy[200:] -= 80
+    return pd.DataFrame({
+        "datetime_beginning_ept": t,
+        "dom_load_mw": load,
+        "dom_load_gradient_abs_mw_per_min": np.abs(np.diff(load, prepend=load[0])) / 5,
+        "system_energy_price_rt_cluster_mean": energy,
+        "congestion_price_rt_cluster_mean": rng.gamma(1, 2, n),
+        "total_lmp_rt_cluster_mean": energy + rng.gamma(1, 2, n),
+    })
+
+
+def _fivemin_with_traps(seed=6):
+    # Two traps the plain fixture does not carry, both present in the real
+    # panel: (1) a three-hour hole on the event day across which load falls
+    # 3,000 MW -- a bare .diff() reads that as the day's largest "five-minute"
+    # drop; (2) an excursion that snaps back one interval later, which is the
+    # artifact signature decisions.md:4150 screens on.
+    rng = np.random.default_rng(seed)
+    t = pd.date_range("2024-07-10 00:00", periods=288, freq="5min")
+    load = 20000 + rng.normal(0, 5, 288)
+    energy = np.full(288, 130.0)
+    load[136:] -= 3000.0        # the far side of the hole
+    load[200:] -= 1600.0        # the real trip: bigger than the screen's
+    energy[200:] -= 80.0        # threshold, and it never comes back
+    keep = np.ones(288, bool)
+    keep[100:136] = False       # punch the hole
+
+    t2 = pd.date_range("2024-07-11 00:00", periods=288, freq="5min")
+    load2 = 17000 + rng.normal(0, 5, 288)
+    energy2 = np.full(288, 40.0)
+    load2[50] -= 1800.0         # excursion...
+    energy2[50] -= 2.0          # ...that reverts at index 51
+
+    return pd.DataFrame({
+        "datetime_beginning_ept": list(t[keep]) + list(t2),
+        "dom_load_mw": list(load[keep]) + list(load2),
+        "system_energy_price_rt_cluster_mean": list(energy[keep]) + list(energy2),
+        "congestion_price_rt_cluster_mean": rng.gamma(1, 2, int(keep.sum()) + 288),
+    })
+
+
+def test_f10_locates_the_largest_drop():
+    d = L.prepare_f10(_fivemin_with_event(), event_date="2024-07-10")
+    assert d["drop_mw"] < -1000
+    assert d["energy_before"] > d["energy_after"]
+
+
+def test_f10_reports_the_price_response():
+    d = L.prepare_f10(_fivemin_with_event(), event_date="2024-07-10")
+    assert d["energy_drop_dollars"] > 0
+    assert len(d["times"]) == len(d["load"]) == len(d["energy"])
+
+
+def test_f10_ignores_drops_that_span_a_gap():
+    # The hole's 3,000 MW step is the largest row-to-row fall on the day, but
+    # it spans three hours. Ranking it as a five-minute drop would make panel
+    # (a)'s title false.
+    d = L.prepare_f10(_fivemin_with_traps(), event_date="2024-07-10")
+    assert -1700 < d["drop_mw"] < -1500, d["drop_mw"]
+    assert (d["event_time"].hour, d["event_time"].minute) == (16, 40)
+
+
+def test_f10_screen_holds_only_reverting_excursions():
+    d = L.prepare_f10(_fivemin_with_traps(), event_date="2024-07-10")
+    assert len(d["screen"]) == 1, d["screen"]
+    row = d["screen"][0]
+    assert row["time"].date().isoformat() == "2024-07-11"
+    assert row["drop_mw"] < -1500 and row["rebound_mw"] > 1500
+
+
+def test_f10_screen_excludes_the_gap_and_the_event():
+    # The gap row falls 3,000 MW and the trip falls 1,600 -- both clear the
+    # 1,500 MW threshold, and neither belongs in a screen for artifacts.
+    d = L.prepare_f10(_fivemin_with_traps(), event_date="2024-07-10")
+    times = [r["time"] for r in d["screen"]]
+    assert d["event_time"] not in times
+    assert d["event_reverts"] is False
+    assert all(t.date().isoformat() != "2024-07-10" for t in times)
+
+
+def test_f10_annotation_quotes_the_screen_it_computed():
+    d = L.prepare_f10(_fivemin_with_traps(), event_date="2024-07-10")
+    text = L.prepare_f10_annotation(d)
+    assert "$2.00" in text and "$80.00" in text
+
+
+def test_f10_annotation_survives_an_empty_screen():
+    d = L.prepare_f10(_fivemin_with_event(), event_date="2024-07-10")
+    assert d["screen"] == []
+    assert "no comparator" in L.prepare_f10_annotation(d)
+
+
+def test_f10_rejects_a_date_outside_the_panel():
+    try:
+        L.prepare_f10(_fivemin_with_event(), event_date="2019-01-01")
+    except ValueError as exc:
+        assert "2019-01-01" in str(exc)
+    else:
+        raise AssertionError("missing date did not raise")
+
+
+def test_f10_plot_writes_png(tmp_path):
+    out = tmp_path / "F10.png"
+    L.plot_f10(L.prepare_f10(_fivemin_with_event(), event_date="2024-07-10"), out)
+    assert out.exists() and out.stat().st_size > 0

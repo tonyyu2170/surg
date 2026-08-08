@@ -26,6 +26,7 @@ from scripts.figures import _style as S
 
 TIME_COL = "datetime_beginning_ept"
 PANEL_HOURLY = "analysis_panel.parquet"
+PANEL_5MIN = "analysis_panel_5min.parquet"
 
 # SKFFSCRK is pnode id 1356178201 (confirmed by matching the design spec's
 # $96.13 p99 / 0.96% exceedance on the full panel -- reproduced at $95.92 /
@@ -160,5 +161,144 @@ def plot_f7(d: dict, out_path: Path) -> None:
         f"late window against other pnodes' full-panel statistics would "
         f"inflate the contrast, since congestion escalated sharply in 2026. "
         + prepare_f7_annotation(d) + ".")
+    S.finish(fig, Path(out_path), footer=footer, caption=caption)
+    plt.close(fig)
+
+
+LOAD_COL = "dom_load_mw"
+ENERGY_COL = "system_energy_price_rt_cluster_mean"
+CONG_COL = "congestion_price_rt_cluster_mean"
+STEP = pd.Timedelta(minutes=5)
+# decisions.md:4150 screens load-data artifacts at > 1,500 MW. An excursion
+# counts as reverting when the next interval hands most of the move back --
+# 0.65 separates the panel's three cleanly (each gives back >= 89%) from the
+# 2024-07-10 trip, which gives back 2%.
+REVERSION_MW = 1500.0
+REVERSION_FRAC = 0.65
+
+
+def _ordered(panel: pd.DataFrame) -> pd.DataFrame:
+    p = panel.assign(_t=pd.to_datetime(panel[TIME_COL]))
+    return p.sort_values("_t").reset_index(drop=True)
+
+
+def _five_minute_delta(p: pd.DataFrame) -> pd.Series:
+    """Load change per row, blanked where the rows are not 5 minutes apart.
+
+    The panel has holes -- 2024-07-10 21:45 is followed by 2024-07-11 03:35 --
+    and a bare .diff() reads that 5h50m overnight decline as a single
+    -4,933 MW step, larger than anything real in 3.4 years.
+    """
+    return p[LOAD_COL].diff().where(p["_t"].diff() == STEP)
+
+
+def _reversion_screen(p: pd.DataFrame, delta: pd.Series) -> list[dict]:
+    """Excursions past REVERSION_MW that the next interval gives straight back.
+
+    That snap-back is the artifact signature: load cannot fall 1,600 MW and
+    return five minutes later, so these are reporting glitches rather than
+    events. A real trip stays down, which is what makes F10 the positive
+    control for this screen.
+    """
+    nxt = delta.shift(-1)
+    reverting = (delta < -REVERSION_MW) & (nxt > -delta * REVERSION_FRAC)
+    energy = p[ENERGY_COL]
+    return [{
+        "time": p["_t"].iloc[i].to_pydatetime(),
+        "drop_mw": float(delta.iloc[i]),
+        "rebound_mw": float(nxt.iloc[i]),
+        "energy_response": float(energy.iloc[i - 1] - energy.iloc[i]),
+    } for i in p.index[reverting]]
+
+
+def prepare_f10(panel: pd.DataFrame, *, event_date: str = "2024-07-10",
+                hours: int = 6) -> dict:
+    p = _ordered(panel)
+    delta = _five_minute_delta(p)
+    energy = p[ENERGY_COL]
+
+    on_day = ((p["_t"] >= f"{event_date} 00:00")
+              & (p["_t"] < f"{event_date} 23:59"))
+    day_delta = delta.where(on_day)
+    if not day_delta.notna().any():
+        raise ValueError(
+            f"no contiguous five-minute interval on {event_date}; the date is "
+            "outside the panel, or that day holds a single row")
+    i = int(day_delta.idxmin())
+
+    centre = p["_t"].iloc[i]
+    lo = centre - pd.Timedelta(hours=hours)
+    hi = centre + pd.Timedelta(hours=hours)
+    win = p[(p["_t"] >= lo) & (p["_t"] <= hi) & on_day]
+
+    before, after = float(energy.iloc[i - 1]), float(energy.iloc[i])
+    rebound = float(delta.shift(-1).iloc[i])
+    return {
+        "times": [x.to_pydatetime() for x in win["_t"]],
+        "load": win[LOAD_COL].tolist(),
+        "energy": win[ENERGY_COL].tolist(),
+        "congestion": win[CONG_COL].tolist(),
+        "event_time": centre.to_pydatetime(),
+        "drop_mw": float(delta.iloc[i]),
+        "energy_before": before, "energy_after": after,
+        "energy_drop_dollars": before - after,
+        # The event's own reversion test, reported rather than assumed: if the
+        # trip ever did snap back, that would be a finding, not a filter.
+        "event_reverts": bool(rebound > -delta.iloc[i] * REVERSION_FRAC),
+        "screen": _reversion_screen(p, delta),
+        "event_date": event_date,
+        # The nominal window is +/-6h, but the panel's own holes truncate it,
+        # so the span is reported as measured.
+        "window_start": f"{win['_t'].min():%Y-%m-%d %H:%M}",
+        "window_end": f"{win['_t'].max():%Y-%m-%d %H:%M}",
+        "n": int(len(win)),
+    }
+
+
+def prepare_f10_annotation(d: dict) -> str:
+    """State the screen from what was computed, never from a stored number."""
+    s = d["screen"]
+    if not s:
+        return ("No reverting excursion past "
+                f"{REVERSION_MW:,.0f} MW appears in this panel, so the screen "
+                "has no comparator here")
+    worst = max(abs(r["energy_response"]) for r in s)
+    up = sum(1 for r in s if r["energy_response"] < 0)
+    return (f"The {len(s)} comparably sized excursions in the panel all snap "
+            f"back within one interval and move system energy by at most "
+            f"${worst:,.2f}"
+            + (f", upward in {up} of them" if up else "")
+            + f", where this non-reverting trip moved it "
+              f"${d['energy_drop_dollars']:,.2f}")
+
+
+def plot_f10(d: dict, out_path: Path) -> None:
+    fig, axes = plt.subplots(2, 1, figsize=(10, 7), sharex=True)
+    axes[0].plot(d["times"], d["load"], color=S.COLOR["load"], lw=1.6)
+    axes[0].axvline(d["event_time"], color=S.COLOR["ashburn_tx1"], ls="--", lw=1.2)
+    axes[0].set_ylabel("DOM load (MW)")
+    axes[0].set_title(f"(a) Load: {d['drop_mw']:,.0f} MW in five minutes")
+
+    axes[1].plot(d["times"], d["energy"], color=S.COLOR["system_energy"],
+                 lw=1.6, label="system energy")
+    axes[1].plot(d["times"], d["congestion"], color=S.COLOR["primary"],
+                 lw=1.2, label="congestion")
+    axes[1].axvline(d["event_time"], color=S.COLOR["ashburn_tx1"], ls="--", lw=1.2)
+    axes[1].set_ylabel("Price ($)")
+    axes[1].set_xlabel("Time (EPT)")
+    axes[1].legend()
+    axes[1].set_title(
+        f"(b) System energy ${d['energy_before']:.2f} → ${d['energy_after']:.2f}")
+
+    fig.suptitle(f"F10 — The {d['event_date']} data-center trip", y=0.98)
+    footer = S.provenance(source=PANEL_5MIN, n=d["n"],
+                          window=f"{d['window_start']} to {d['window_end']}",
+                          spec="event study", resolution="5-min")
+    caption = (
+        "The one place in the panel where a large, externally verified load "
+        "loss and a large price response coincide, and the load stays down "
+        "rather than snapping back. It doubles as the positive control for "
+        "the load-artifact screen: "
+        + prepare_f10_annotation(d) + ".")
     S.finish(fig, Path(out_path), footer=footer, caption=caption)
     plt.close(fig)

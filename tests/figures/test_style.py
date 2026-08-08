@@ -58,13 +58,24 @@ def test_dollar_amounts_survive_rendering_verbatim():
     plt.close(fig)
 
 
-def test_finish_gives_longer_captions_more_bottom_margin(tmp_path):
-    def bottom_for(caption):
-        fig, ax = plt.subplots(figsize=(12, 5.5))
-        ax.plot([0, 1], [0, 1])
-        _style.finish(fig, tmp_path / "f.png", footer="f | n=1 | 5-min",
-                      caption=caption)
-        b = fig.subplotpars.bottom
-        plt.close(fig)
-        return b
-    assert bottom_for("x " * 200) > bottom_for("short")
+def test_finish_keeps_caption_clear_of_tick_labels(tmp_path):
+    # The caption must not collide with the x tick labels, which render BELOW
+    # the axes box -- so measuring only the caption's height is insufficient.
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot([0, 1, 2], [1, 3, 2])
+    caption = ("Congestion p90 by year: 2023 $9.56 / 2024 $8.81 / "
+               "2025 $13.46 / 2026 $63.56")
+    out = tmp_path / "f.png"
+    _style.finish(fig, out, footer="Source: p.parquet | n=1 | 5-min",
+                  caption=caption)
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    caption_text = [t for t in fig.texts][-1]
+    cap_top = caption_text.get_window_extent(renderer).y1
+    ticks = [lbl for lbl in ax.get_xticklabels() if lbl.get_text()]
+    assert ticks, "no x tick labels to test against"
+    tick_bottom = min(lbl.get_window_extent(renderer).y0 for lbl in ticks)
+    assert tick_bottom >= cap_top, (
+        f"caption top ({cap_top:.1f}px) overlaps lowest tick label "
+        f"({tick_bottom:.1f}px)")
+    plt.close(fig)

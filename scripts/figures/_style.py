@@ -100,7 +100,11 @@ def finish(fig, out_path: Path, *, footer: str, caption: str = "") -> None:
     fig.canvas.draw()  # resolve wrapping before measuring
     renderer = fig.canvas.get_renderer()
     frac = t.get_window_extent(renderer).height / fig.get_window_extent().height
-    fig.subplots_adjust(bottom=min(frac + 0.03, 0.6))
+    # tight_layout's `rect` reserves the bottom band for the caption and lays
+    # the axes out inside the remainder, accounting for tick labels and axis
+    # labels -- which subplots_adjust cannot do, since it positions the axes
+    # box while tick labels render below it.
+    fig.tight_layout(rect=(0, min(frac + 0.03, 0.6), 1, 1))
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=200)
 

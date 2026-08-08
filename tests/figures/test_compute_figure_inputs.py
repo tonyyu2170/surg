@@ -7,7 +7,10 @@ from scripts import compute_figure_inputs as cfi
 
 def _panel(n=4000, seed=0):
     rng = np.random.default_rng(seed)
-    t = pd.date_range("2023-02-07", periods=n, freq="5min")
+    # 3-hourly, not 5-min: the fixture must span multiple months and more
+    # than one calendar year, or the month harmonics are constant columns
+    # and the design matrix is rank-deficient.
+    t = pd.date_range("2023-02-07", periods=n, freq="3h")
     load = 15000 + 3000 * np.sin(np.arange(n) / 500) + rng.normal(0, 200, n)
     z = np.abs(rng.normal(10, 5, n))
     # congestion driven by LOAD, not by Z -- the finding under test
@@ -68,9 +71,24 @@ def test_spec_sensitivity_emits_every_period_tau_spec_cell():
     cells = {(r["period"], r["tau"], r["spec"]) for r in out["rows"]}
     assert ("pooled", 0.90, "preregistered") in cells
     assert ("pooled", 0.90, "load_controlled") in cells
+    # more than one year must be present, or the per-period split is untested
+    assert len({r["period"] for r in out["rows"]}) >= 3  # pooled + >=2 years
     for r in out["rows"]:
-        assert r["ci_lo"] <= r["z_slope"] <= r["ci_hi"]
+        # NOT ci_lo <= z_slope <= ci_hi: at n_boot=3 the interval is the range
+        # of three resamples and need not bracket the full-sample estimate.
+        assert r["ci_lo"] <= r["ci_hi"]
+        assert np.isfinite(r["z_slope"])
         assert r["n"] > 0
+
+
+def test_design_is_full_rank_on_a_realistic_span():
+    df = _panel(4000)
+    for spec in ("preregistered", "load_controlled"):
+        X = cfi.build_design(df, spec=spec).to_numpy(float)
+        X = np.column_stack([np.ones(len(X)), X])  # as fitted, with intercept
+        assert np.linalg.matrix_rank(X) == X.shape[1], (
+            f"{spec} design is rank-deficient; harmonics may be constant "
+            "over the fixture's span")
 
 
 def test_monthly_aggregates_cover_every_month_once():

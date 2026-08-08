@@ -114,8 +114,7 @@ def spec_sensitivity(panel: pd.DataFrame, *, taus=(0.90, 0.95),
 
 
 def tau_sweep(panel: pd.DataFrame, *,
-              taus=(0.90, 0.95, 0.97, 0.99, 0.995),
-              n_boot: int = 200, seed: int = 7) -> dict:
+              taus=(0.90, 0.95, 0.97, 0.99, 0.995)) -> dict:
     """Implied congestion shift across the observed Z range, vs tau."""
     z = panel[Z_COL]
     dec = pd.qcut(z, 10, labels=False, duplicates="drop")
@@ -181,7 +180,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print("[3/3] tau sweep (F6)", flush=True)
     (out / "tau_sweep.json").write_text(
-        json.dumps(tau_sweep(panel, n_boot=n_boot, seed=args.seed), indent=2))
+        json.dumps(tau_sweep(panel), indent=2))
 
     print(f"wrote figure inputs to {out}/", flush=True)
     return 0

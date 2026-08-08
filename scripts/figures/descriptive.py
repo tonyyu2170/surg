@@ -266,3 +266,177 @@ def plot_f3(d: dict, out_path: Path) -> None:
         "everything before 2026 into a baseline smear.")
     S.finish(fig, Path(out_path), footer=footer, caption=caption)
     plt.close(fig)
+
+
+THRESHOLDS = [100, 250, 500, 1000]
+TRAILING_MONTHS = 12
+
+
+def prepare_f4(panel: pd.DataFrame) -> dict:
+    t = pd.to_datetime(panel[TIME_COL])
+    month = t.dt.to_period("M")
+    months = sorted(month.unique())
+    cong = panel[CONG_COL]
+
+    abs_counts, rel_counts, thresholds = [], [], []
+    for m in months:
+        cur = cong[month == m]
+        abs_counts.append(int((cur > 100).sum()))
+        # The trailing window is strictly prior months, so the threshold a
+        # month is judged against never contains that month's own values.
+        prior = cong[(month < m) & (month >= m - TRAILING_MONTHS)]
+        if (m - months[0]).n < TRAILING_MONTHS or len(prior) == 0:
+            thresholds.append(float("nan"))
+            rel_counts.append(0)
+        else:
+            thr = float(prior.quantile(0.99))
+            thresholds.append(thr)
+            rel_counts.append(int((cur > thr).sum()))
+
+    return {
+        "months": [str(m) for m in months],
+        "count_gt_100": abs_counts,
+        "count_gt_trailing_p99": rel_counts,
+        "trailing_p99": thresholds,
+        # Carried rather than recomputed at draw time: the plot shades this
+        # span, and a zero bar inside it means "no threshold yet", not "no
+        # events". The data and the shading must not be able to disagree.
+        "n_undefined_months": int(sum(1 for v in thresholds
+                                      if not np.isfinite(v))),
+        "n": int(len(panel)),
+        "window": f"{t.min():%Y-%m-%d} to {t.max():%Y-%m-%d}",
+    }
+
+
+def _month_ticks(ax, months: list[str]) -> None:
+    x = np.arange(len(months))
+    step = max(1, len(x) // 12)
+    ax.set_xticks(x[::step])
+    ax.set_xticklabels(months[::step], rotation=45, ha="right")
+
+
+def prepare_f4_annotation(d: dict) -> str:
+    """Quote the first and last defined trailing thresholds.
+
+    Panel (b)'s yardstick moves, and by how much is the actual finding --
+    stating it from the data keeps the caption from asserting a divergence
+    the numbers may not support.
+    """
+    defined = [(m, v) for m, v in zip(d["months"], d["trailing_p99"])
+               if np.isfinite(v)]
+    if not defined:
+        return ("No month has a full trailing-12-month window, so panel (b) "
+                "is undefined throughout")
+    (m0, v0), (m1, v1) = defined[0], defined[-1]
+    return (f"The trailing-12-month p99 threshold itself climbs from "
+            f"${v0:,.2f} ({m0}) to ${v1:,.2f} ({m1})")
+
+
+def plot_f4(d: dict, out_path: Path) -> None:
+    fig, axes = plt.subplots(2, 1, figsize=(11, 7), sharex=True)
+    x = np.arange(len(d["months"]))
+    axes[0].bar(x, d["count_gt_100"], color=S.COLOR["primary"])
+    axes[0].set_ylabel("Intervals > $100")
+    axes[0].set_title("(a) Absolute risk — intervals above a fixed $100")
+
+    axes[1].bar(x, d["count_gt_trailing_p99"], color=S.COLOR["dom_zonal"])
+    axes[1].set_ylabel("Intervals > trailing p99")
+    axes[1].set_title(
+        "(b) Risk relative to its own era — trailing-12-month 99th pct")
+    n_undef = d["n_undefined_months"]
+    if n_undef:
+        # Without this, the opening months read as a genuine run of zeros.
+        axes[1].axvspan(-0.5, n_undef - 0.5, color=S.MUTED, alpha=0.15,
+                        zorder=0)
+        axes[1].text(n_undef / 2 - 0.5, axes[1].get_ylim()[1] * 0.9,
+                     "no trailing\nwindow yet", ha="center", va="top",
+                     fontsize=7, color=S.MUTED)
+    _month_ticks(axes[1], d["months"])
+
+    fig.suptitle("F4 — Large congestion events per month", y=0.98)
+    footer = S.provenance(source=PANEL_5MIN, n=d["n"], window=d["window"],
+                          spec="monthly exceedance counts", resolution="5-min")
+    caption = (
+        prepare_f4_annotation(d) + ", so panel (b) scores each month against "
+        "a moving yardstick: absolute exceedance can climb while era-relative "
+        "exceedance does not, because the recent past has itself become more "
+        "extreme. Shaded months in (b) have no trailing window — their zeros "
+        "mean 'undefined', not 'no events'. The first bucket is a partial "
+        "month.")
+    S.finish(fig, Path(out_path), footer=footer, caption=caption)
+    plt.close(fig)
+
+
+def prepare_f4b(panel: pd.DataFrame) -> dict:
+    t = pd.to_datetime(panel[TIME_COL])
+    month = t.dt.to_period("M")
+    months = sorted(month.unique())
+    cong = panel[CONG_COL]
+
+    counts = {}
+    for thr in THRESHOLDS:
+        per_month = (cong > thr).groupby(month).sum()
+        counts[thr] = [int(per_month.get(m, 0)) for m in months]
+
+    return {
+        "months": [str(m) for m in months],
+        "thresholds": THRESHOLDS,
+        # Observed counts. Monthly buckets are what make this honest: every
+        # bucket is one month, so partial years never need annualising and a
+        # storm-driven half-year is never extrapolated across a season it
+        # did not occur in.
+        "counts": counts,
+        "n": int(len(panel)),
+        "window": f"{t.min():%Y-%m-%d} to {t.max():%Y-%m-%d}",
+    }
+
+
+def prepare_f4b_annotation(d: dict) -> str:
+    """Name the worst month at the mildest and the harshest threshold.
+
+    Computed rather than written into the caption: a hardcoded month would
+    silently go stale the next time the panel is extended.
+    """
+    lo, hi = d["thresholds"][0], d["thresholds"][-1]
+    worst_lo = d["months"][int(np.argmax(d["counts"][lo]))]
+    worst_hi = d["months"][int(np.argmax(d["counts"][hi]))]
+    return (f"Worst month above ${lo:,} is {worst_lo}; "
+            f"above ${hi:,} it is {worst_hi}")
+
+
+def plot_f4b(d: dict, out_path: Path) -> None:
+    thrs = d["thresholds"]
+    fig, axes = plt.subplots(len(thrs), 1, figsize=(11, 9), sharex=True)
+    x = np.arange(len(d["months"]))
+    palette = [S.COLOR["primary"], S.COLOR["dom_zonal"],
+               S.COLOR["total_lmp"], S.COLOR["ashburn_tx1"]]
+    top = max(max(d["counts"][thr]) for thr in thrs)
+
+    for ax, thr, color in zip(axes, thrs, palette):
+        # Markers, not bars. A bar encodes magnitude by length, and length
+        # on a log axis means nothing -- a single event would draw a bar a
+        # third the height of one carrying 271. Position is the only honest
+        # encoding here, which is why F3 plots its symlog series the same way.
+        ax.plot(x, d["counts"][thr], color=color, lw=0.9,
+                marker="o", ms=3, mew=0)
+        # One shared symlog scale. These panels plot the same quantity at
+        # different severities, so independent scales would make 25 events
+        # above $1000 look like 1,632 above $100, while a shared linear
+        # scale would flatten the rare panels onto the baseline.
+        S.symlog_axis(ax, linthresh=1.0, label=f"> ${thr:,}")
+        ax.set_ylim(0, top * 1.15)
+    _month_ticks(axes[-1], d["months"])
+
+    fig.suptitle("F4b — Severity escalation, by month", y=0.98)
+    footer = S.provenance(source=PANEL_5MIN, n=d["n"], window=d["window"],
+                          spec="monthly exceedance counts, observed",
+                          resolution="5-min")
+    caption = (
+        prepare_f4b_annotation(d) + ". Counts are observed, never "
+        "annualised. Panels share a symlog scale. CAVEAT — do not read this "
+        "as a data-center congestion story: much of the 2026 rise is "
+        "SYSTEM-WIDE (PJM system energy price roughly tripled in the same "
+        "month), the driver is UNIDENTIFIED, and this panel contains no "
+        "non-DOM control pnode.")
+    S.finish(fig, Path(out_path), footer=footer, caption=caption)
+    plt.close(fig)

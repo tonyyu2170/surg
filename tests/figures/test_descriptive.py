@@ -167,3 +167,134 @@ def test_f2_energy_panels_share_a_scale(monkeypatch):
     assert a.get_ylim() == b.get_ylim(), (
         "F2 panels (a) and (b) must share a y-scale")
     plt.close("all")
+
+
+def test_f4_absolute_and_relative_counts_align_on_months():
+    d = D.prepare_f4(_panel_5min())
+    assert len(d["months"]) == len(d["count_gt_100"]) == len(
+        d["count_gt_trailing_p99"])
+
+
+def test_f4_trailing_threshold_is_undefined_early():
+    # No trailing 12 months available at the start of the panel.
+    d = D.prepare_f4(_panel_5min())
+    assert d["count_gt_trailing_p99"][0] == 0
+    assert not np.isfinite(d["trailing_p99"][0])
+
+
+def test_f4_records_how_many_months_are_undefined():
+    # The plot shades this region so a zero bar there cannot be misread as
+    # "no events". The count belongs in the data, not a magic 12 at draw time.
+    # A panel shorter than the trailing window is undefined end to end.
+    short = D.prepare_f4(_panel_5min())
+    assert short["n_undefined_months"] == len(short["months"])
+    # A longer one is undefined for exactly the trailing window, and the
+    # count must agree with the thresholds it claims to describe.
+    long = D.prepare_f4(_panel_5min(n=180000))
+    assert long["n_undefined_months"] == 12
+    assert long["n_undefined_months"] == sum(
+        1 for v in long["trailing_p99"] if not np.isfinite(v))
+
+
+def test_f4_trailing_window_actually_engages_later():
+    # Guards against panel (b) being silently all-zero, which would pass the
+    # "undefined early" test while destroying the figure's whole point.
+    d = D.prepare_f4(_panel_5min(n=180000))
+    assert any(np.isfinite(v) for v in d["trailing_p99"]), \
+        "no month ever got a trailing-12-month threshold"
+    assert sum(d["count_gt_trailing_p99"]) > 0, \
+        "era-relative panel is entirely zero"
+
+
+def test_f4_annotation_quotes_defined_thresholds_only():
+    # The first 12 months carry NaN thresholds. An annotation that reached
+    # for months[0] would print "$nan" into the caption of every F4.
+    d = D.prepare_f4(_panel_5min(n=180000))
+    s = D.prepare_f4_annotation(d)
+    assert "nan" not in s.lower(), f"annotation quoted an undefined month: {s}"
+    assert s.count("$") == 2, f"expected two dollar figures, got: {s}"
+
+
+def test_f4_annotation_survives_a_panel_with_no_trailing_window():
+    # A panel shorter than the trailing window has no defined threshold at
+    # all. Reaching for the first one crashes the whole figure.
+    s = D.prepare_f4_annotation(D.prepare_f4(_panel_5min()))
+    assert "undefined throughout" in s
+    assert "$" not in s
+
+
+def test_f4b_covers_four_thresholds_on_monthly_buckets():
+    d = D.prepare_f4b(_panel_5min())
+    assert d["thresholds"] == [100, 250, 500, 1000]
+    for thr in d["thresholds"]:
+        assert len(d["counts"][thr]) == len(d["months"])
+
+
+def test_f4b_counts_are_nested_by_threshold():
+    # An interval above $500 is necessarily above $250. Checking elementwise
+    # catches a mis-keyed or mis-ordered threshold that totals would hide.
+    d = D.prepare_f4b(_panel_5min())
+    for lo, hi in zip(d["thresholds"], d["thresholds"][1:]):
+        for a, b in zip(d["counts"][lo], d["counts"][hi]):
+            assert b <= a, f"count above ${hi} exceeds count above ${lo}"
+
+
+def test_f4b_totals_are_observed_counts_not_rescaled():
+    # Monthly buckets exist so that nothing needs annualising. If a scaling
+    # factor ever creeps back in, the per-month counts stop summing to the
+    # panel's own exceedance total.
+    p = _panel_5min()
+    d = D.prepare_f4b(p)
+    for thr in d["thresholds"]:
+        assert sum(d["counts"][thr]) == int((p[D.CONG_COL] > thr).sum())
+
+
+def test_f4b_shares_the_month_axis_with_f4():
+    p = _panel_5min()
+    assert D.prepare_f4(p)["months"] == D.prepare_f4b(p)["months"]
+
+
+def test_f4_plots_write_pngs(tmp_path):
+    D.plot_f4(D.prepare_f4(_panel_5min()), tmp_path / "F4.png")
+    D.plot_f4b(D.prepare_f4b(_panel_5min()), tmp_path / "F4b.png")
+    assert (tmp_path / "F4.png").exists()
+    assert (tmp_path / "F4b.png").exists()
+
+
+def test_f4b_panels_share_a_scale(monkeypatch):
+    # All four panels count the same thing at different severities. On
+    # independent scales, 25 events above $1000 would draw the same height
+    # as 1,632 above $100 -- overstating rare-event escalation, which is the
+    # direction that flatters the thesis. Same guard as F2's.
+    import matplotlib.pyplot as plt
+    captured = {}
+
+    def _record(fig, out_path, **kw):
+        captured["axes"] = fig.get_axes()
+
+    monkeypatch.setattr(D.S, "finish", _record)
+    D.plot_f4b(D.prepare_f4b(_panel_5min()), Path("unused.png"))
+    lims = {ax.get_ylim() for ax in captured["axes"]}
+    assert len(lims) == 1, f"F4b panels drew on {len(lims)} different scales"
+    plt.close("all")
+
+
+def test_f4b_tick_labels_are_plain_decimals(monkeypatch):
+    # text.parse_math is off module-wide so a literal "$100" survives in
+    # captions; a log/symlog formatter would then render ticks as the raw
+    # string "$\\mathdefault{10^{2}}$". Same defect S.symlog_axis exists to
+    # fix -- assert it here so F4b cannot regress to a bare set_yscale.
+    import matplotlib.pyplot as plt
+    captured = {}
+
+    def _record(fig, out_path, **kw):
+        captured["axes"] = fig.get_axes()
+
+    monkeypatch.setattr(D.S, "finish", _record)
+    D.plot_f4b(D.prepare_f4b(_panel_5min()), Path("unused.png"))
+    for ax in captured["axes"]:
+        ax.figure.canvas.draw()
+        for lab in ax.get_yticklabels():
+            assert "mathdefault" not in lab.get_text(), \
+                f"mathtext leaked into a tick label: {lab.get_text()!r}"
+    plt.close("all")

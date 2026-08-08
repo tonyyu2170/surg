@@ -67,6 +67,10 @@ plt.rcParams.update({
     "figure.facecolor": "white",
     "axes.facecolor": "white",
     "savefig.facecolor": "white",
+    # No figure in this set uses mathtext, and captions are full of literal
+    # dollar amounts ("$9.56 / $8.81") that would otherwise be parsed as
+    # math-mode spans and rendered garbled.
+    "text.parse_math": False,
 })
 
 
@@ -84,14 +88,21 @@ def provenance(*, source: str, n: int, window: str, spec: str,
 
 
 def finish(fig, out_path: Path, *, footer: str, caption: str = "") -> None:
-    """Attach footer (and optional caption) and write the PNG."""
+    """Attach footer (and optional caption) and write the PNG.
+
+    The bottom margin is measured from the rendered text rather than fixed:
+    captions in this set run to several wrapped lines, and a constant margin
+    lets them overlap the axes.
+    """
     text = footer if not caption else f"{caption}\n{footer}"
-    fig.text(0.01, 0.005, text, fontsize=7, color=MUTED,
-             ha="left", va="bottom", wrap=True)
-    bottom = 0.16 if caption else 0.09
-    fig.subplots_adjust(bottom=bottom)
+    t = fig.text(0.01, 0.005, text, fontsize=7, color=MUTED,
+                 ha="left", va="bottom", wrap=True)
+    fig.canvas.draw()  # resolve wrapping before measuring
+    renderer = fig.canvas.get_renderer()
+    frac = t.get_window_extent(renderer).height / fig.get_window_extent().height
+    fig.subplots_adjust(bottom=min(frac + 0.03, 0.6))
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=200, bbox_inches="tight")
+    fig.savefig(out_path, dpi=200)
 
 
 def excludes_zero(lo: float, hi: float) -> bool:
@@ -114,6 +125,7 @@ def forest(ax, rows, xlabel: str, title: str | None = None,
     ax.axvline(vline, color=MUTED, lw=1, ls="--")
     ax.set_yticks(ys)
     ax.set_yticklabels([r[0] for r in rows])
+    ax.set_ylim(-0.6, len(rows) - 0.4)
     ax.set_xlabel(xlabel)
     if title:
         ax.set_title(title)

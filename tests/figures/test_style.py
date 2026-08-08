@@ -44,3 +44,27 @@ def test_finish_writes_a_png(tmp_path):
     _style.finish(fig, out, footer="src=x | n=1 | 5-min")
     plt.close(fig)
     assert out.exists() and out.stat().st_size > 0
+
+
+def test_dollar_amounts_survive_rendering_verbatim():
+    # Literal "$" must not be parsed as mathtext: captions in this set carry
+    # amounts like "$9.56 / $8.81" and would otherwise render garbled.
+    fig, ax = plt.subplots()
+    label = "p90 by year: $9.56 / $8.81 / $13.46"
+    t = ax.set_title(label)
+    fig.canvas.draw()
+    assert t.get_text() == label
+    assert not plt.rcParams["text.parse_math"]
+    plt.close(fig)
+
+
+def test_finish_gives_longer_captions_more_bottom_margin(tmp_path):
+    def bottom_for(caption):
+        fig, ax = plt.subplots(figsize=(12, 5.5))
+        ax.plot([0, 1], [0, 1])
+        _style.finish(fig, tmp_path / "f.png", footer="f | n=1 | 5-min",
+                      caption=caption)
+        b = fig.subplotpars.bottom
+        plt.close(fig)
+        return b
+    assert bottom_for("x " * 200) > bottom_for("short")

@@ -48,12 +48,15 @@ ZONAL_DISCLOSURE = (
     "load_area and per-customer load is confidential."
 )
 
-# Required on figures touching the Z tail.
+# Required on figures touching the Z tail. Numbers recomputed on the current
+# panel in Task 8 with a gap-aware delta; the drafted text said "~4" and
+# "$0–4", which the panel does not support (see location.prepare_f10).
 ARTIFACT_NOTE = (
-    "~4 extreme reversion excursions (>1,500 MW) are probably artifacts "
-    "(they moved system energy $0–4 where a confirmed 1,479 MW trip moved "
-    "it $81); the broader spike class is not established as artifactual "
-    "and is not filtered."
+    "3 reverting excursions (>1,500 MW) are probably artifacts: each snaps "
+    "back within one interval and moved system energy at most $13.30 — "
+    "upward in two of the three — where the confirmed 1,479 MW trip moved "
+    "it $80.06 and stayed down. The broader spike class is not established "
+    "as artifactual and is not filtered."
 )
 
 plt.rcParams.update({

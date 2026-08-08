@@ -60,3 +60,61 @@ def test_f1_plot_writes_png(tmp_path):
     out = tmp_path / "F1.png"
     D.plot_f1(D.prepare_f1(_monthly_json(tmp_path)), out)
     assert out.exists() and out.stat().st_size > 0
+
+
+def _panel_5min(n=20000, seed=1):
+    rng = np.random.default_rng(seed)
+    t = pd.date_range("2023-02-07", periods=n, freq="5min")
+    load = 14000 + 6000 * rng.random(n)
+    z = np.abs(rng.normal(10, 5, n))
+    energy = 20 + (load - 14000) / 200 + rng.normal(0, 2, n)
+    # Congestion switches on in the top load decile only. Derive the
+    # threshold from the data rather than hardcoding it: a fixed 19000 MW
+    # sits at the 83rd percentile of this uniform load, straddling deciles 9
+    # and 10, so decile 9 inherits the high-congestion draw and the switch
+    # reads as a slope.
+    cong = np.where(load > np.quantile(load, 0.9),
+                    rng.gamma(2, 40, n), rng.gamma(1, 0.4, n))
+    return pd.DataFrame({
+        "datetime_beginning_ept": t,
+        "dom_load_mw": load,
+        "dom_load_gradient_abs_mw_per_min": z,
+        "congestion_price_rt_cluster_mean": cong,
+        "system_energy_price_rt_cluster_mean": energy,
+        "total_lmp_rt_cluster_mean": energy + cong,
+    })
+
+
+def test_f2_decile_labels_match_the_aggregated_rows():
+    # qcut(duplicates="drop") can yield <10 bins on a variable with a point
+    # mass; the labels must track the actual rows rather than assume ten.
+    d = D.prepare_f2(_panel_5min())
+    for col in ("by_load", "by_ramp_top_tercile"):
+        s = d[col]
+        assert 2 <= len(s["decile"]) <= 10
+        assert len(s["decile"]) == len(s["energy_median"]) == len(s["cong_p95"])
+
+
+def test_f2_system_energy_rises_with_load():
+    d = D.prepare_f2(_panel_5min())
+    e = d["by_load"]["energy_median"]
+    assert e[-1] > e[0]
+
+
+def test_f2_congestion_is_a_switch_not_a_slope():
+    d = D.prepare_f2(_panel_5min())
+    p95 = d["by_load"]["cong_p95"]
+    # top decile dominates: last decile p95 far exceeds the 9th
+    assert p95[-1] > 3 * p95[-2]
+
+
+def test_f2_ramp_column_holds_load_roughly_fixed():
+    d = D.prepare_f2(_panel_5min())
+    loads = d["by_ramp_top_tercile"]["mean_load_mw"]
+    assert (max(loads) - min(loads)) / np.mean(loads) < 0.15
+
+
+def test_f2_plot_writes_png(tmp_path):
+    out = tmp_path / "F2.png"
+    D.plot_f2(D.prepare_f2(_panel_5min()), out)
+    assert out.exists() and out.stat().st_size > 0

@@ -1,4 +1,8 @@
-"""F1: the premise -- load grew, ramp volatility did not."""
+"""Descriptive figures.
+
+F1: the premise -- load grew, ramp volatility did not.
+F2: congestion tracks load level, not ramp volatility.
+"""
 from __future__ import annotations
 
 import json
@@ -6,11 +10,18 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from scipy import stats
 
 from scripts.figures import _style as S
 
 PANEL_5MIN = "analysis_panel_5min.parquet"
+
+Z_COL = "dom_load_gradient_abs_mw_per_min"
+LOAD_COL = "dom_load_mw"
+CONG_COL = "congestion_price_rt_cluster_mean"
+ENERGY_COL = "system_energy_price_rt_cluster_mean"
+TIME_COL = "datetime_beginning_ept"
 
 
 def prepare_f1(monthly_json: Path) -> dict:
@@ -111,5 +122,85 @@ def plot_f1(d: dict, out_path: Path) -> None:
                f"Comparing the panel's first month to its last would mix "
                f"different seasons and overstate growth. "
                + S.ZONAL_DISCLOSURE)
+    S.finish(fig, Path(out_path), footer=footer, caption=caption)
+    plt.close(fig)
+
+
+def _decile_stats(sub: pd.DataFrame, by: str) -> dict:
+    # duplicates="drop" can yield fewer than 10 bins when the variable has a
+    # point mass (Z has one near zero), so take the labels from the
+    # aggregated index rather than assuming ten.
+    dec = pd.qcut(sub[by], 10, labels=False, duplicates="drop")
+    g = sub.groupby(dec)
+    return {
+        "decile": [int(k) + 1 for k in g[ENERGY_COL].median().index],
+        "energy_median": g[ENERGY_COL].median().tolist(),
+        "cong_median": g[CONG_COL].median().tolist(),
+        "cong_p95": g[CONG_COL].quantile(0.95).tolist(),
+        "mean_load_mw": g[LOAD_COL].mean().tolist(),
+        "n": g.size().tolist(),
+    }
+
+
+def prepare_f2(panel: pd.DataFrame) -> dict:
+    by_load = _decile_stats(panel, LOAD_COL)
+    tercile = pd.qcut(panel[LOAD_COL], 3, labels=False, duplicates="drop")
+    top = panel[tercile == 2]
+    by_ramp = _decile_stats(top, Z_COL)
+    t = pd.to_datetime(panel[TIME_COL])
+    return {
+        "by_load": by_load,
+        "by_ramp_top_tercile": by_ramp,
+        "n": int(len(panel)),
+        "n_top_tercile": int(len(top)),
+        "window": f"{t.min():%Y-%m-%d} to {t.max():%Y-%m-%d}",
+    }
+
+
+def plot_f2(d: dict, out_path: Path) -> None:
+    fig, axes = plt.subplots(2, 2, figsize=(11, 8))
+    L, R = d["by_load"], d["by_ramp_top_tercile"]
+    xl, xr = L["decile"], R["decile"]
+
+    axes[0][0].plot(xl, L["energy_median"], "o-", color=S.COLOR["system_energy"])
+    axes[0][0].set_title("(a) System energy vs load decile")
+    axes[0][0].set_ylabel("Median system energy ($)")
+
+    axes[0][1].plot(xr, R["energy_median"], "o-", color=S.COLOR["system_energy"])
+    axes[0][1].set_title(
+        f"(b) System energy vs ramp decile\n(top load tercile; "
+        f"${min(R['energy_median']):.2f}–${max(R['energy_median']):.2f})")
+    # (a) and (b) plot the same quantity, so they share a scale. Left to
+    # autoscale, (b) spans only its own ~$4 range and a 10% decline reads as
+    # a collapse comparable to (a)'s real $17->$62 climb -- overstating the
+    # ramp effect in the direction that flatters the thesis. Shared limits
+    # show the true relative magnitude; the exact range is in the title so
+    # the compressed view hides nothing.
+    axes[0][1].sharey(axes[0][0])
+
+    axes[1][0].plot(xl, L["cong_median"], "o-", color=S.COLOR["primary"],
+                    label="median")
+    axes[1][0].plot(xl, L["cong_p95"], "s--", color=S.COLOR["ashburn_tx1"],
+                    label="p95")
+    axes[1][0].set_title("(c) Congestion vs load decile — a switch, not a slope")
+    axes[1][0].set_ylabel("Congestion ($)")
+    axes[1][0].set_xlabel("Load decile")
+    axes[1][0].legend()
+
+    axes[1][1].plot(xr, R["cong_median"], "o-", color=S.COLOR["primary"],
+                    label="median")
+    axes[1][1].plot(xr, R["cong_p95"], "s--", color=S.COLOR["ashburn_tx1"],
+                    label="p95")
+    axes[1][1].set_title("(d) Congestion vs ramp decile\n(top load tercile)")
+    axes[1][1].set_xlabel("Ramp decile")
+    axes[1][1].legend()
+
+    fig.suptitle("F2 — Congestion tracks load level, not ramp volatility", y=0.99)
+    footer = S.provenance(source=PANEL_5MIN, n=d["n"], window=d["window"],
+                          spec="decile descriptive", resolution="5-min")
+    caption = (
+        f"Right column holds level roughly fixed (top load tercile, "
+        f"n={d['n_top_tercile']:,}). Mechanism note: 'load volatility → "
+        f"reserve depletion' is UNSUPPORTED (M11 §6/§9). " + S.ZONAL_DISCLOSURE)
     S.finish(fig, Path(out_path), footer=footer, caption=caption)
     plt.close(fig)

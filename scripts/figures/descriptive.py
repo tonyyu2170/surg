@@ -21,6 +21,7 @@ Z_COL = "dom_load_gradient_abs_mw_per_min"
 LOAD_COL = "dom_load_mw"
 CONG_COL = "congestion_price_rt_cluster_mean"
 ENERGY_COL = "system_energy_price_rt_cluster_mean"
+TOTAL_COL = "total_lmp_rt_cluster_mean"
 TIME_COL = "datetime_beginning_ept"
 
 
@@ -202,5 +203,66 @@ def plot_f2(d: dict, out_path: Path) -> None:
         f"Right column holds level roughly fixed (top load tercile, "
         f"n={d['n_top_tercile']:,}). Mechanism note: 'load volatility → "
         f"reserve depletion' is UNSUPPORTED (M11 §6/§9). " + S.ZONAL_DISCLOSURE)
+    S.finish(fig, Path(out_path), footer=footer, caption=caption)
+    plt.close(fig)
+
+
+def prepare_f3(panel: pd.DataFrame) -> dict:
+    t = pd.to_datetime(panel[TIME_COL])
+    day = t.dt.floor("D")
+    g = panel.groupby(day)
+    total = g[TOTAL_COL].median()
+    year = t.dt.year
+    return {
+        # Take the date axis from an aggregated series rather than from
+        # g.groups: the axis and the plotted values then provably come from
+        # one aggregation, and cannot drift out of order relative to it.
+        "dates": [d.to_pydatetime() for d in total.index],
+        "total_lmp": total.tolist(),
+        "congestion": g[CONG_COL].median().tolist(),
+        "system_energy": g[ENERGY_COL].median().tolist(),
+        "cong_p90_by_year": {str(y): float(panel.loc[year == y, CONG_COL].quantile(0.90))
+                             for y in sorted(year.unique())},
+        "energy_p90_by_year": {str(y): float(panel.loc[year == y, ENERGY_COL].quantile(0.90))
+                               for y in sorted(year.unique())},
+        "n": int(len(panel)),
+        "window": f"{t.min():%Y-%m-%d} to {t.max():%Y-%m-%d}",
+    }
+
+
+def _log_series(ax, x, y, color, label):
+    """Plot on a symlog axis so near-zero medians stay visible."""
+    ax.plot(x, y, color=color, lw=1.0)
+    S.symlog_axis(ax, linthresh=1.0, label=label)
+
+
+def prepare_f3_annotation(d: dict) -> str:
+    parts = " / ".join(f"{y} ${v:,.2f}" for y, v in d["cong_p90_by_year"].items())
+    return f"Congestion p90 by year: {parts}"
+
+
+def plot_f3(d: dict, out_path: Path) -> None:
+    fig, axes = plt.subplots(3, 1, figsize=(11, 8.5), sharex=True)
+    x = d["dates"]
+    _log_series(axes[0], x, d["total_lmp"], S.COLOR["total_lmp"],
+                "Total LMP ($)")
+    axes[0].set_title("(a) What a data center actually pays — total LMP")
+    _log_series(axes[1], x, d["congestion"], S.COLOR["primary"],
+                "Congestion ($)")
+    axes[1].set_title("(b) Congestion — spiky, regime-shifting (locational)")
+    _log_series(axes[2], x, d["system_energy"], S.COLOR["system_energy"],
+                "System energy ($)")
+    axes[2].set_title("(c) System energy — smooth, seasonal (system-wide)")
+    axes[2].set_xlabel("Date")
+
+    fig.suptitle("F3 — Total LMP decomposed: locational vs system-wide", y=0.98)
+    footer = S.provenance(source=PANEL_5MIN, n=d["n"], window=d["window"],
+                          spec="daily medians, symlog axis", resolution="5-min")
+    caption = (
+        prepare_f3_annotation(d) + ". "
+        "Panel (c): system energy price is locationally uniform across PJM, "
+        "so its 2026 rise is NOT a Northern-Virginia phenomenon. "
+        "Daily medians on a symlog axis; linear axes would flatten "
+        "everything before 2026 into a baseline smear.")
     S.finish(fig, Path(out_path), footer=footer, caption=caption)
     plt.close(fig)

@@ -79,3 +79,47 @@ def test_finish_keeps_caption_clear_of_tick_labels(tmp_path):
         f"caption top ({cap_top:.1f}px) overlaps lowest tick label "
         f"({tick_bottom:.1f}px)")
     plt.close(fig)
+
+
+def test_symlog_axis_tick_labels_are_not_raw_mathtext():
+    # rcParams sets text.parse_math=False so literal "$" in captions renders
+    # correctly. The cost is that matplotlib's symlog/log tick formatter
+    # emits mathtext ("$\\mathdefault{10^{2}}$"), which then renders as that
+    # literal string on the axis. symlog_axis must install a plain formatter.
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots()
+    ax.plot([0, 1, 2], [0.5, 50, 500])
+    _style.symlog_axis(ax, linthresh=1.0, label="Price ($)")
+    fig.canvas.draw()
+    labels = [t.get_text() for t in ax.get_yaxis().get_ticklabels()]
+    assert labels, "no tick labels rendered"
+    for text in labels:
+        assert "mathdefault" not in text, f"raw mathtext leaked: {text!r}"
+        assert "^" not in text, f"unrendered exponent markup: {text!r}"
+    plt.close(fig)
+
+
+def test_finish_keeps_long_caption_inside_the_figure_width(tmp_path):
+    # matplotlib's wrap=True overshoots: an F3-length caption rendered ~32px
+    # past the right edge of an 11in figure, clipping the last word of a
+    # line. finish() must wrap to the figure box, however long the caption.
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(figsize=(11, 8.5))
+    ax.plot([0, 1], [0, 1])
+    caption = (
+        "Congestion p90 by year: 2023 $9.56 / 2024 $8.81 / 2025 $13.46 / "
+        "2026 $60.76. Panel (c): system energy price is locationally uniform "
+        "across PJM, so its 2026 rise is NOT a Northern-Virginia phenomenon. "
+        "Daily medians on a symlog axis; linear axes would flatten everything "
+        "before 2026 into a baseline smear.")
+    out = tmp_path / "wrapped.png"
+    _style.finish(fig, out, footer="Source: p.parquet | n=1 | 5-min",
+                  caption=caption)
+    renderer = fig.canvas.get_renderer()
+    texts = [t for t in fig.texts if "Congestion p90" in t.get_text()]
+    assert texts, "caption artist not found"
+    right = texts[0].get_window_extent(renderer).x1
+    width = fig.get_window_extent().width
+    assert right <= width, (
+        f"caption overflows the figure by {right - width:.1f}px")
+    plt.close(fig)

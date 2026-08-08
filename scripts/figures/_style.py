@@ -5,11 +5,13 @@ order was validated colorblind-safe.
 """
 from __future__ import annotations
 
+import textwrap
 from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
 
 COLOR = {
     "primary": "#2a78d6",       # congestion, Loudoun cluster
@@ -87,6 +89,36 @@ def provenance(*, source: str, n: int, window: str, spec: str,
             f"resolution: {resolution}")
 
 
+def _wrap_to_figure(fig, artist, raw: str, limit_px: float) -> None:
+    """Hard-wrap `raw` onto `artist` until it renders inside `limit_px`.
+
+    matplotlib's own `wrap=True` overshoots -- an F3-length caption rendered
+    ~32px past the right edge of an 11in figure, clipping the last word of a
+    line. Wrapping explicitly and verifying against the measured extent is
+    the only version that provably fits. Paragraphs already separated by
+    newlines (caption above footer) are wrapped independently so the break
+    between them survives.
+    """
+    renderer = fig.canvas.get_renderer()
+    paras = raw.split("\n")
+    artist.set_text(raw)
+    fig.canvas.draw()
+    widest = artist.get_window_extent(renderer).width
+    if widest <= limit_px:
+        return
+    # First guess proportionally from the measured overshoot, then tighten:
+    # character counts are only an approximation of width in a proportional
+    # font, so the measurement -- not the guess -- decides when to stop.
+    ncols = max(20, int(len(max(paras, key=len)) * limit_px / widest))
+    for _ in range(12):
+        artist.set_text("\n".join(
+            "\n".join(textwrap.wrap(p, ncols)) if p else p for p in paras))
+        fig.canvas.draw()
+        if artist.get_window_extent(renderer).width <= limit_px:
+            return
+        ncols = int(ncols * 0.95)
+
+
 def finish(fig, out_path: Path, *, footer: str, caption: str = "") -> None:
     """Attach footer (and optional caption) and write the PNG.
 
@@ -96,9 +128,11 @@ def finish(fig, out_path: Path, *, footer: str, caption: str = "") -> None:
     """
     text = footer if not caption else f"{caption}\n{footer}"
     t = fig.text(0.01, 0.005, text, fontsize=7, color=MUTED,
-                 ha="left", va="bottom", wrap=True)
-    fig.canvas.draw()  # resolve wrapping before measuring
+                 ha="left", va="bottom")
+    fig.canvas.draw()  # realise the renderer before measuring
     renderer = fig.canvas.get_renderer()
+    fig_w = fig.get_window_extent().width
+    _wrap_to_figure(fig, t, text, fig_w * 0.98)  # 0.01 left inset, matched right
     frac = t.get_window_extent(renderer).height / fig.get_window_extent().height
     # tight_layout's `rect` reserves the bottom band for the caption and lays
     # the axes out inside the remainder, accounting for tick labels and axis
@@ -107,6 +141,26 @@ def finish(fig, out_path: Path, *, footer: str, caption: str = "") -> None:
     fig.tight_layout(rect=(0, min(frac + 0.03, 0.6), 1, 1))
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=200)
+
+
+def symlog_axis(ax, *, linthresh: float = 1.0, label: str | None = None) -> None:
+    """Put `ax` on a symlog y-scale with plain-decimal tick labels.
+
+    Both halves matter. The symlog scale keeps near-zero medians visible
+    against tail values two or three orders of magnitude larger, which a
+    linear axis would flatten into a baseline smear.
+
+    The formatter is not cosmetic. matplotlib's default log/symlog tick
+    formatter emits mathtext ("$\\mathdefault{10^{2}}$"), and this module
+    sets text.parse_math=False so literal dollar amounts in captions
+    survive -- so those tick labels render as that raw string instead of an
+    exponent. Plain decimals sidestep it entirely, and for prices they read
+    better than powers of ten anyway.
+    """
+    ax.set_yscale("symlog", linthresh=linthresh)
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:,.0f}"))
+    if label:
+        ax.set_ylabel(label)
 
 
 def excludes_zero(lo: float, hi: float) -> bool:

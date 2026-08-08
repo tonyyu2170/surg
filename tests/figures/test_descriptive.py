@@ -118,3 +118,33 @@ def test_f2_plot_writes_png(tmp_path):
     out = tmp_path / "F2.png"
     D.plot_f2(D.prepare_f2(_panel_5min()), out)
     assert out.exists() and out.stat().st_size > 0
+
+
+def test_f3_returns_daily_series_for_three_components():
+    d = D.prepare_f3(_panel_5min())
+    for k in ("total_lmp", "congestion", "system_energy"):
+        assert len(d[k]) == len(d["dates"])
+
+
+def test_f3_dates_align_with_the_aggregated_series():
+    # The date axis and the plotted values must come from the same
+    # aggregation, not from two separately-ordered views of the groupby.
+    p = _panel_5min()
+    d = D.prepare_f3(p)
+    day = pd.to_datetime(p["datetime_beginning_ept"]).dt.floor("D")
+    expected = p.groupby(day)["congestion_price_rt_cluster_mean"].median()
+    assert [pd.Timestamp(x) for x in d["dates"]] == list(expected.index)
+    assert d["congestion"] == expected.tolist()
+
+
+def test_f3_reports_congestion_p90_by_year():
+    d = D.prepare_f3(_panel_5min())
+    assert d["cong_p90_by_year"]
+    for y, v in d["cong_p90_by_year"].items():
+        assert int(y) >= 2023 and v >= 0
+
+
+def test_f3_plot_writes_png(tmp_path):
+    out = tmp_path / "F3.png"
+    D.plot_f3(D.prepare_f3(_panel_5min()), out)
+    assert out.exists() and out.stat().st_size > 0

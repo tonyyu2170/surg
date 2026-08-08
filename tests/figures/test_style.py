@@ -123,3 +123,40 @@ def test_finish_keeps_long_caption_inside_the_figure_width(tmp_path):
     assert right <= width, (
         f"caption overflows the figure by {right - width:.1f}px")
     plt.close(fig)
+
+
+def test_finish_fits_an_inference_scale_caption():
+    # F5/F6/F8 captions carry ARTIFACT_NOTE plus ZONAL_DISCLOSURE plus their
+    # own inference prose -- materially longer than F3's. The wrap loop must
+    # still land inside the figure.
+    import matplotlib.pyplot as plt
+    import tempfile
+    fig, ax = plt.subplots(figsize=(11, 8.5))
+    ax.plot([0, 1], [0, 1])
+    caption = (
+        "Pre-registered vs load-controlled z_slope at tau=0.90 and tau=0.95. "
+        "Under a load-level control the estimate is negative in all 10 cells; "
+        "in the 8 cells where the pre-registered estimate was positive the "
+        "sign reverses; the negative estimate excludes zero in 5. "
+        + _style.ARTIFACT_NOTE + " " + _style.ZONAL_DISCLOSURE)
+    with tempfile.TemporaryDirectory() as td:
+        _style.finish(fig, Path(td) / "f.png",
+                      footer="Source: p.parquet | n=352,467 | 5-min",
+                      caption=caption)
+    renderer = fig.canvas.get_renderer()
+    t = [x for x in fig.texts if "Pre-registered" in x.get_text()][0]
+    assert t.get_window_extent(renderer).x1 <= fig.get_window_extent().width
+    plt.close(fig)
+
+
+def test_wrap_to_figure_raises_rather_than_clipping():
+    # An impossible target must fail loudly. Returning a still-overflowing
+    # caption is the exact failure this helper exists to prevent.
+    import matplotlib.pyplot as plt
+    import pytest
+    fig = plt.figure(figsize=(11, 8.5))
+    t = fig.text(0.01, 0.005, "x", fontsize=7)
+    fig.canvas.draw()
+    with pytest.raises(RuntimeError, match="could not wrap caption"):
+        _style._wrap_to_figure(fig, t, "word " * 400, limit_px=5.0)
+    plt.close(fig)

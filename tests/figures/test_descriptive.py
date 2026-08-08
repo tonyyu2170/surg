@@ -148,3 +148,22 @@ def test_f3_plot_writes_png(tmp_path):
     out = tmp_path / "F3.png"
     D.plot_f3(D.prepare_f3(_panel_5min()), out)
     assert out.exists() and out.stat().st_size > 0
+
+
+def test_f2_energy_panels_share_a_scale(monkeypatch):
+    # (a) and (b) plot the same quantity. If (b) autoscales to its own ~$4
+    # range, a 10% decline renders as a collapse comparable to (a)'s real
+    # $17->$62 climb -- overstating the ramp effect in the direction that
+    # flatters the thesis. Guard the shared scale.
+    import matplotlib.pyplot as plt
+    captured = {}
+
+    def _record(fig, out_path, **kw):
+        captured["axes"] = fig.get_axes()
+
+    monkeypatch.setattr(D.S, "finish", _record)
+    D.plot_f2(D.prepare_f2(_panel_5min()), Path("unused.png"))
+    a, b = captured["axes"][0], captured["axes"][1]
+    assert a.get_ylim() == b.get_ylim(), (
+        "F2 panels (a) and (b) must share a y-scale")
+    plt.close("all")

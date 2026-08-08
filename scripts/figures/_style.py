@@ -110,13 +110,21 @@ def _wrap_to_figure(fig, artist, raw: str, limit_px: float) -> None:
     # character counts are only an approximation of width in a proportional
     # font, so the measurement -- not the guess -- decides when to stop.
     ncols = max(20, int(len(max(paras, key=len)) * limit_px / widest))
-    for _ in range(12):
+    while ncols > 12:
         artist.set_text("\n".join(
             "\n".join(textwrap.wrap(p, ncols)) if p else p for p in paras))
         fig.canvas.draw()
         if artist.get_window_extent(renderer).width <= limit_px:
             return
         ncols = int(ncols * 0.95)
+    # Never return an overflowing caption quietly. A silently clipped
+    # caption is exactly the failure mode this function exists to remove,
+    # and a green test over a clipped figure is how the last two defects
+    # survived. Fail loudly instead.
+    raise RuntimeError(
+        f"could not wrap caption into {limit_px:.0f}px "
+        f"(final width {artist.get_window_extent(renderer).width:.0f}px); "
+        "shorten the caption or widen the figure")
 
 
 def finish(fig, out_path: Path, *, footer: str, caption: str = "") -> None:

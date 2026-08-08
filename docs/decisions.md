@@ -4478,14 +4478,19 @@ about 180 of 83,975 rows, changing no conclusion. (2) ERCOT gives the repeated
 fall-back hour the same Delivery Date and Hour, so its two prices average into
 one value: one hour per year, four years.
 
-**Gate recommendation — PENDING USER RULING.** Stage 1 succeeded on its own
+**Gate recommendation — RULED 2026-08-08.** Stage 1 succeeded on its own
 terms: the answer is trustworthy, the two data defects are found and handled,
 and the QA gates now fail loudly on the modes that actually occur. But the
 answer it produced **undercuts the volatility premise a second time**. The
 recommendation is therefore *not* to proceed to a Stage 2 built on load
 volatility as the driver, and instead to redirect toward load *level* and
-locational structure, which is where both markets point. Recorded as a
-recommendation, not a ruling — the framing call is the user's.
+locational structure, which is where both markets point.
+
+**Ruling (user, 2026-08-08): accepted — Stage 2 will not be built on load
+volatility.** Any future ERCOT work proceeds from load level and locational
+structure. No Stage 2 is scheduled; the DOM thread (figure build → sub-q2 →
+sub-q3) takes priority, and an ERCOT continuation would need its own
+brainstorm/design pass starting from the level-and-location framing.
 
 **Scope.** 2017–2026 only. ERCOT publishes four load schema families; 2016
 renames four zones and stores a Timestamp, 2015 and earlier are `.xls`, and

@@ -1342,6 +1342,46 @@ git commit -m "feat(figures): F3 prices over time with locational-uniformity cav
 
 ## Task 6: F4 and F4b — event counts and severity escalation
 
+> **AS BUILT (`1a37c1b`) — supersedes the F4b spec and both plot bodies below.**
+> The code blocks in this task are retained as the audit trail of what was
+> specified, not as instructions. Four departures, each a defect against a
+> decision locked earlier in this build:
+>
+> 1. **F4b buckets by month, not by year; nothing is annualised.** Annualising
+>    2026 by 12/6 would project a half year whose largest month is Winter
+>    Storm Fern (1,632 of its 3,768 intervals above \$100 — 43%) across an H2
+>    that never happened. Monthly buckets remove the need entirely, and the
+>    escalation survives the conservative presentation: 3,768 intervals in six
+>    months already exceeds 1,505 in twelve. Decided by the user ("months
+>    instead"). This also dissolved a latent legend defect — with grouped bars
+>    every legend swatch would have drawn hatched, since 2023 is partial and
+>    matplotlib keys the legend off the first patch.
+> 2. **`S.symlog_axis()`, never a bare `ax.set_yscale("symlog")`.** The draft
+>    below reproduces exactly the mathtext tick-label defect that helper was
+>    added in Task 1 to prevent.
+> 3. **All four panels share one symlog scale.** They count one quantity at
+>    four severities; independent scales would render 25 events above \$1,000
+>    as tall as 1,632 above \$100 — overstating rare-event escalation, the
+>    direction that flatters the thesis. Guarded by a test mirroring F2's.
+> 4. **Markers, not bars.** A bar encodes magnitude by length, and length is
+>    meaningless on a log axis. F3 already plots its symlog series this way.
+>
+> Both captions are now **computed from the data** (`prepare_f4_annotation`,
+> `prepare_f4b_annotation`) rather than asserted in prose. This was forced:
+> the drafted F4 caption claimed era-relative exceedance "does not keep pace",
+> and it does — the mean rises from 105 to 340 per month in 2026. The actual
+> finding is that the yardstick moves, trailing p99 climbing from \$71.16
+> (2024-02) to \$306.18 (2026-06). `prepare_f4` also carries
+> `n_undefined_months` so the plot can shade the opening window, where a zero
+> bar means "no threshold yet" rather than "no events".
+>
+> **Verified numbers.** Monthly buckets re-sum to the yearly totals computed
+> independently: >\$100 = 479 / 804 / 1,505 / 3,768 and >\$250 = 59 / 206 /
+> 399 / 1,620 for 2023–2026. **Above \$500, 2023 is still 0** — the headline
+> holds. 2026 drifted from the spec's table (3,737→3,768; 1,612→1,620) as
+> predicted; 2023–2025 match exactly. Worst month above \$100 is 2026-01, but
+> above \$1,000 it is **2026-06** — the escalation is not a single storm.
+
 F4: two stacked monthly bar panels — (a) count of intervals with congestion > \$100 (absolute), (b) count exceeding a **trailing-12-month 99th percentile** (era-relative). The divergence is the regime-shift finding.
 
 F4b: grouped annual bars at \$100 / \$250 / \$500 / \$1000. 2026 is a half year, so its bars are **annualised and hatched**.
@@ -1536,7 +1576,12 @@ def plot_f4b(d: dict, out_path: Path) -> None:
 cd "$WT" && "$MAIN/.venv/bin/pytest" tests/figures/test_descriptive.py -v
 ```
 
-Expected: 17 passed (3 F1 + 5 F2 + 3 F3 + 6 F4/F4b).
+Expected: **27 passed (14 F1–F3 + 13 F4/F4b)**. The drafted budget was 17
+(3 F1 + 5 F2 + 3 F3 + 6 F4/F4b); F1–F3 grew to 14 across the defect fixes in
+Tasks 3–5, and F4/F4b came in at 13 — the extra assertions cover the
+undefined-window count, the annotation's empty-panel branch, the shared
+scale, the plain-decimal ticks, and the no-rescaling invariant. All three
+were mutation-tested and fail genuinely.
 
 - [ ] **Step 5: Generate against real data**
 
@@ -1565,6 +1610,50 @@ git commit -m "feat(figures): F4/F4b event counts and severity escalation"
 ---
 
 ## Task 7: F7 — location, on the common window
+
+> **Panel reconciliation, verified 2026-08-08 (Task 6).** This task reads the
+> **hourly** `analysis_panel.parquet` (31,608 rows, 2022-10-02 → 2026-05-10),
+> not the 5-min panel the descriptive figures use. Both statements below are
+> true because they describe different files:
+>
+> | panel | rows | window | Ashburn |
+> |---|---|---|---|
+> | `analysis_panel.parquet` (hourly) | 31,608 | 2022-10-02 → 2026-05-10 | `ashburn_tx1`/`tx2` non-null **2024-08-06 → 2026-05-10**, n=15,432; 6 other pnodes full |
+> | `analysis_panel_5min.parquet` | 352,467 | 2023-02-07 → 2026-06-29 | **absent entirely**; 4 pnodes, all non-null on all 351,849 populated rows |
+>
+> **No `cluster_mean` anywhere has a composition break.** The hourly
+> `cluster_mean` is exactly the 6-pnode Loudoun core (35010365, 35010371,
+> 1356178171, 1356178181, 1356178195, 1356178201 — verified to floating-point
+> equality); the 5-min one is the 4-pnode core. Neither includes Ashburn, so
+> the truncation affects **only the per-pnode Ashburn series** — which is what
+> the common-window design below exists to handle. Do not re-derive this.
+
+> **AS BUILT — two further corrections beyond the reconciliation above.**
+>
+> 1. **`1356178201` is no longer labelled "SKFFSCRK (control)".** It is not a
+>    control — it is *inside* the 6-node `cluster_mean` it is plotted against.
+>    `decisions.md:4275` rules the pooling a **deliberate asymmetry, "do not
+>    fix it"**; the label was the defect. Now "SKFFSCRK (inside cluster)".
+> 2. **A held-out 5-node cluster is reported beside the 6-node one**, as
+>    `decisions.md:4281` requires ("part of the recorded +0.870 correlation is
+>    self-correlation… a held-out (5-node) figure will be reported beside
+>    it"). The drafted F7 had no held-out series. Both numbers now appear in
+>    the caption, computed via `prepare_f7_annotation`.
+>
+> **This closes both halves of the pending item at `decisions.md:4284-4287`.**
+> The unnamed variable is **`congestion_price_rt`** — it reproduces
+> $610.03/4.78% and $95.92/0.96%, while `total_lmp_rt` gives $803.97/11.54%
+> and $301.29/5.38%. And the two correlations are **0.8703 primary / 0.8283
+> held out (inflation +0.042)** on the common window, the primary matching the
+> recorded +0.870. **The contamination is modest, not fatal** — the finding
+> survives with SKFFSCRK removed (r≈0.83), reinforcing the network-wide rather
+> than data-center-localised reading. Write both into `decisions.md` at Task 14.
+>
+> **Plan defect in Step 1's fixture:** `_hourly(n=9000)` starts 2022-10-02 and
+> so ends in Oct 2023, never reaching the 2024-08-06 switch-on. Ashburn is
+> all-NaN, the common window is `NaT`, and every test errors on
+> `strftime`. Raised to `n=20000`. Step 4's "5 passed" is now **8 passed** —
+> three added for the held-out series, its exclusion of SKFFSCRK, and the label.
 
 **Build this per the "Critical context" section, not per the spec's numbers.** Ashburn covers only 2024-08-06 → 2026-05-10; the other pnodes cover the full panel. Compute on the **common window** as primary, and report the full-panel values as a secondary series so the truncation is visible rather than hidden.
 
@@ -3060,7 +3149,7 @@ Expected: `12`.
 cd "$WT" && "$MAIN/.venv/bin/pytest" -q
 ```
 
-Expected: **~407 passed, 0 failures** — 350 pre-existing plus roughly 57 new figure tests (4 style + 7 compute + 17 descriptive + 8 location + 6 inference + 13 mechanism + 2 orchestrator). The exact new count will shift slightly as Task 12's fixtures are adjusted to the real JSON shapes; what matters is that **the 350 pre-existing tests all still pass**. If that number dropped, stop and investigate.
+Expected: **~424 passed, 0 failures** — 350 pre-existing plus roughly 74 new figure tests. Measured so far: **10 style + 8 compute + 27 descriptive = 45**. Still projected: 8 location + 6 inference + 13 mechanism + 2 orchestrator. (The original estimate of 57 assumed 4 style + 7 compute + 17 descriptive; each grew while fixing defects found in execution.) The exact new count will shift slightly as Task 12's fixtures are adjusted to the real JSON shapes; what matters is that **the 350 pre-existing tests all still pass**. If that number dropped, stop and investigate.
 
 - [ ] **Step 7: Commit**
 

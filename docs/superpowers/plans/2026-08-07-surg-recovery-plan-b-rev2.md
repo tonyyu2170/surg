@@ -1984,3 +1984,35 @@ Advisor calls, not recovery work:
 **Standing sub-q2 warning:** projecting 2026 exceedance rates forward would extrapolate an unidentified, possibly transient, possibly system-wide shift as though it were data-center load growth.
 
 **After Plan B:** `superpowers:writing-plans` for the **12-figure** build (F1–F11 plus F4b). That design is done and user-reviewed — do not re-brainstorm it.
+
+---
+
+## Execution record — Tasks 8–15, completed 2026-08-07/08
+
+- **Task 8** done 2026-08-07 morning: hourly re-pull (rc=1 on a final
+  ReadTimeout after all files wrote; aux feeds "ALL THREE DONE"), panel built
+  (31,608 rows), regression suite armed and run — five fixtures re-blessed at
+  the corrected window (`ed24770`; pre-loss panel had silently started
+  2022-10-05). See the 2026-08-07 decisions entries.
+- **Task 9** done (substance via Task 7 smoke-run per X3; decisions entry
+  `64b363f`).
+- **Task 10** done: launched 11:10:16 EDT, finished 17:43:55 EDT (6h33m),
+  rc=0, zero error/retry lines, 708 LMP + 42 load parquets, full window
+  verified on disk.
+- **Task 11** done: panel 352,467 rows × 31 cols (was 350,789 — data
+  revision, see Task 13). Two plan corrections: the Step 1 build command
+  needs Z-suffixed ISO-UTC dates (bare dates crash tz-naive vs tz-aware),
+  and `write_panel` lacked the `schema_version` kwarg `build_5min.py:132`
+  passes — fixed test-first in `eafcf1b`. Cluster-exclusion (C2) live check
+  passed.
+- **Task 12** done: 19:12 → 05:58 EDT (**10h46m**, over the 9–10h estimate;
+  first QR label alone took 2h22m). Guard silent (641 islands). All outputs
+  present; every tail-risk JSON stamped `resolution: "5-min"`.
+- **Task 13** done: full verification table + discriminator verdict (data
+  revision, not code) in the 2026-08-08 decisions entry. Both 2024 τ=0.90
+  z_slopes reproduce to four decimals. Steps 2–3's hourly variable
+  identification had already closed via `67b9f08`.
+- **Task 14** done earlier via `67b9f08` (before this record's tasks — the
+  hourly wide-frame data needed for its correlations was available from the
+  morning re-pull).
+- **Task 15**: pending user permission at time of writing.

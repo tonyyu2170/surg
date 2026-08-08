@@ -4378,3 +4378,67 @@ regression in the restored `gpd_continuous` chain, so the `failed` state is
 the true output of correct code on correct data and is re-blessed as such.
 Independently of this recovery, **any conclusion resting on the bristers
 q=0.995 spline fit is fragile** and should not be reported without this caveat.
+
+---
+
+## 2026-08-08 — Plan B restoration verification: recorded targets reproduce; divergences are data revision
+
+**Context.** Final step of Recovery Plan B rev2 (Task 13). The 5-min panel was
+rebuilt 2026-08-07 from the re-pulled gridstatus data (352,467 rows ×
+31 cols, 4 pnodes) and the full pre-registered analysis re-ran overnight
+(19:12 → 05:58 EDT, ~10h46m; n_boot=1000, qr_n_boot=500; the op7 cluster
+guard never fired — 641 unique night islands against the 10 minimum). Every
+recorded 5-min target from the pre-loss panel was checked against the
+restoration. Hourly-side checks were closed earlier (see the two 2026-08-07
+entries above).
+
+**Verification table.** Recorded targets vs. the rebuilt panel:
+
+| Target | Recorded | Observed | Verdict |
+|---|---|---|---|
+| Panel rows | 350,789 | 352,467 (+1,678, +0.48%) | diverged — data revision |
+| DOM load growth (2023 annual mean → 2026 annual mean) | +21.5% | +21.8% | ≈reproduced |
+| Ramp p90 by year (MW/min) | 24.22 → 25.28 | 24.22 → 25.38 | 2023 exact; 2026 drift |
+| Ramp p90 as % of load (p90 of per-row ramp/load) | 0.1850% → 0.1596% | 0.1850% → 0.1598% | 2023 exact; 2026 drift |
+| P(cong > $100) at 20–22 GW, 2023/24/25/26 | 1.89 / 5.58 / 5.03 / 37.80% | 1.89 / 5.58 / 5.03 / 36.05% | 2023–25 exact; 2026 drift |
+| Congestion p95, load decile 1 → 10 | $8.14 → $254.36 | $8.14 → $254.19 | d1 exact; d10 drift |
+| 2024 τ=0.90 z_slope, pre-registered | +0.0367 | **+0.0367** | **exact** |
+| 2024 τ=0.90 z_slope, load-controlled | −0.0266 | **−0.0266** | **exact** |
+
+Recipe notes recovered during verification (the computing scripts were lost
+with the directory): "load growth" is annual-mean 2023 vs 2026 (the
+first-month/last-month recipe gives +37.4% and is not what was recorded);
+"ramp p90 %" is the p90 of per-row ramp/load, not p90(ramp)/mean(load). The
+z_slope rows were reproduced as point estimates with the qr_full periodic
+basis on the 2024 subset (n=105,105); both reproduce to all four recorded
+decimals, so the 2024 sign-flip finding (pre-registered positive,
+load-controlled negative) stands unchanged on the restored panel.
+
+**Discriminator verdict: data revision, not code.** Every pre-2026 statistic
+reproduces exactly at recorded precision; only 2026-touching quantities move,
+and the raw-series changes localize to (a) the documented 631-interval
+2023-11-27 LMP gap, now backfilled by gridstatus (863/864 rows present in
+that window), and (b) load-spine gaps backfilled between the 2026-07-29 pull
+and the 2026-08-07 re-pull (+1,678 rows; remaining missing-vs-theoretical is
+4,305 intervals, dominated by the known Feb-2023 early-history sparseness).
+This is the expected behavior of a warehouse that carries republished values
+(`gridstatus-api-constraints.md`) — no code defect is indicated, and nothing
+was tuned to match.
+
+**Run-output confirmations.** All five QR-full labels wrote both primary and
+year-FE fits; both GPD variants and all four tail-risk pnodes wrote; every
+per-pnode tail-risk result carries `resolution: "5-min"` — live confirmation
+that the merged `run_tail_risk_curves` fixed the pre-loss hardcoded "hourly"
+figure label. Pooled QR-full congestion cluster at τ=0.90: z_slope +0.043
+(primary), +0.0257 (year-FE) with a year_2026 fixed effect of +$49.9 — the
+2026 escalation surfacing as a level shift, consistent with the standing
+system-wide interpretation. One incidental external cross-check: the market
+monitor's late-May 2026 Ashburn–Goose Creek constraint event (~$150M/72h)
+appears in the rebuilt panel exactly where reported (GOOSECRE daily
+congestion p95 $550/$502 on May 18–19 and $564 on May 27 against
+single-digit neighbors; see `docs/external-context-research-2026-08.md` §7).
+
+**Decision.** Restoration is verified; the pre-loss findings carry forward to
+the restored panels without reinterpretation. SKFFSCRK (new, no baseline) is
+characterised rather than verified, per plan. Plan B is complete pending the
+push.

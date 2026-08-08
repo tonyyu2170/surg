@@ -2032,7 +2032,7 @@ def plot_f10(d: dict, out_path: Path) -> None:
 cd "$WT" && "$MAIN/.venv/bin/pytest" tests/figures/test_location.py -v
 ```
 
-Expected: 8 passed.
+Expected: 17 passed (8 from Task 7, 9 added here — the drafted three plus six covering gap-awareness and the screen).
 
 - [ ] **Step 5: Generate against real data**
 
@@ -2056,6 +2056,44 @@ Expected: 2024-07-10 19:05, −1478.6 MW, \$136.76 → \$56.70.
 git add scripts/figures/location.py tests/figures/test_location.py
 git commit -m "feat(figures): F10 NERC event rebuilt from the main 5-min panel"
 ```
+
+> **AS-BUILT (2026-08-08, commit `a97f64f`).** The event reproduces exactly
+> — −1,478.6 MW at 19:05 EPT, $136.76 → $56.70 ($80.06), matching
+> `decisions.md:3096–3104`. Three defects in the drafted task:
+>
+> 1. **`PANEL_5MIN` is undefined in `location.py`** (only `PANEL_HOURLY`
+>    exists), so `plot_f10` would have raised `NameError` on its first call.
+>    Added.
+> 2. **The locator must be gap-aware.** The 5-min panel has holes —
+>    2024-07-10 21:45 is followed by 2024-07-11 03:35 — and a bare `.diff()`
+>    reads that 5h50m overnight decline as one **−4,933 MW** step, ranking it
+>    above every real excursion in 3.4 years. Deltas are now blanked wherever
+>    the rows are not exactly 5 minutes apart, which is what makes panel (a)'s
+>    "in five minutes" literally true. The 2024-07-10 day is itself contiguous
+>    (262 rows, 00:00 → 21:45, no interior gaps), so this changes nothing for
+>    *this* event — it removes a trap for any other `event_date`.
+> 3. **The caption's "\$0–4" is false, so it is now computed.** Same class as
+>    F4's drafted caption. Contiguity-filtered, exactly **three** excursions
+>    pass ±1,500 MW, and all three snap back within one interval
+>    (−1709.7/+1529.2, −1630.4/+1730.5, −1575.0/+1683.7 — each gives back
+>    ≥89%). Their system-energy responses are **+\$2.35, −\$13.30, −\$1.05**,
+>    so the honest line is "at most \$13.30, upward in 2 of them". Two of
+>    three moving the *wrong* way strengthens the positive control: drop
+>    magnitude alone does not predict a price response.
+>
+> The `i == 0` guard was unreachable — `nanargmin` skips the NaN that `.diff()`
+> leaves at position 0, and the guard's comment names `np.argmin`, which the
+> code never calls. Replaced with a reachable guard on an `event_date` absent
+> from the panel. Provenance now reports the measured span
+> (13:05 → 21:45, n=105, zero NaNs) rather than a nominal ±6h the panel's own
+> hole truncates.
+>
+> **Reconciliation, not overwrite.** `decisions.md:4048` and `:4150` record
+> "roughly **4** extreme reversion excursions (> 1,500 MW) … move system
+> energy \$0–4" against the trip's "**\$81**". The criterion reproduces
+> (reversion, > 1,500 MW) and the class is the same; the count is 3, not 4,
+> and one response is \$13.30 rather than \$0–4. Flag it in Task 14 — do not
+> silently rewrite the recorded ruling.
 
 ---
 
@@ -3200,6 +3238,10 @@ Follow the file's existing entry conventions (check the last entry for heading s
 2. A table of spec value vs recomputed value for: F1 load growth, F3 congestion p90 by year, F4b counts at four thresholds, F11 load-growth shares, F5's 2024 τ=0.90 anchor.
 3. **The F7 correction**: the spec's Ashburn-vs-SKFFSCRK contrast mixed windows (Ashburn covers only 2024-08-06 → 2026-05-10). On the common window the gap is ~3× (4.78% vs 1.60%), not the ~4.9× the spec implies. The locational finding stands; its magnitude was overstated.
 4. **The F8 fix**: the restored `run_5min_nofilter.py` omitted `resolution="5-min"`, which would have stamped 5-min outputs as hourly — the same bug class as `c4a64e7`.
+5. **The unnamed variable at `decisions.md:4286` is closed**: it is `congestion_price_rt`, which reproduces the `:4031` figures ($610.03 / 4.78% and $95.92 / 0.96%) while `total_lmp_rt` gives $803.97 / 11.54% and $301.29 / 5.38%.
+6. **The held-out correlation the `decisions.md:4281` ruling requires**: 6-node ↔ SKFFSCRK is **0.8703** on the common window (the recorded +0.870) against **0.8283** held out, an inflation of +0.042; on the full window 0.8526 vs 0.8049. The qualitative finding survives SKFFSCRK's removal, which reinforces the network-wide rather than data-center-localised reading.
+7. **The load-artifact screen needs a revision note, not a rewrite** (see Task 8 AS-BUILT). `:4048` and `:4150` say "roughly 4 … reversion excursions (> 1,500 MW) … move system energy $0–4" against the trip's "$81". Recomputed on the current panel with a gap-aware delta: **3** such excursions, responses **+$2.35 / −$13.30 / −$1.05**, trip **$80.06**. Same criterion and same class — the count and the "$0–4" range are what moved.
+8. **The Task 6 exceedance counts** (2023 / 2024 / 2025 / 2026): `>$100` = 479 / 804 / 1,505 / 3,768; `>$250` = 59 / 206 / 399 / 1,620; `>$500` = 0 / 73 / 128 / 681; `>$1000` = 0 / 7 / 13 / 62. 2023–2025 match the spec exactly; 2026 drifted (3,737→3,768, 1,612→1,620) from data revision. Note that F4b buckets by month, not year, so partial 2026 is never annualised.
 
 - [ ] **Step 3: Commit**
 

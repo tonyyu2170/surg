@@ -188,6 +188,7 @@ def test_level_vs_volatility_window_filters_rows(tmp_path):
         window_start=pd.Timestamp("2023-02-01"),
         window_end=pd.Timestamp("2023-03-01"),
         figdir=tmp_path, market="TEST", label="overlap",
+        min_rows=1,
     )
     assert race.iloc[0]["n"] == 28 * 24
 ```

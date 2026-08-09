@@ -4952,7 +4952,7 @@ genuinely-all-missing row still surfaces as NaN and trips
 `N.Y.C.`/`LONGIL` report from 2005-01-31 onward and never before. No
 overlap day, so the merged-mode summation cannot double-count and
 `SPLIT_START = 2005-01-31` is the correct split-mode window boundary (not
-2025-02-01).
+2005-02-01).
 
 **Tests.** 5 new tests added to `tests/test_nyiso_features.py`: external-bus
 dropping, still-raises on a genuinely unrecognized name, merged-mode
@@ -4985,16 +4985,21 @@ silently pass a non-numeric column through.
 8,759; 2007 = 8,759; 2008 = 8,783; 2009–2011 = 8,760; 2012 = 8,784 (leap);
 2013–2015 = 8,760; 2016 = 8,783; 2017–2019 = 8,760; 2020 = 8,784 (leap);
 2021–2023 = 8,760; 2024 = 8,784 (leap); 2025 = 8,760; 2026 = 5,296
-(partial, archive current). 2002/2003/2004/2005/2007/2008/2016 deviate
-from their expected 8,760/8,784 by 1–34 hours; not investigated further,
-flagged here per the plan's anomaly-noting instruction. `assert_panel_quality`
+(partial, archive current). Mechanically re-derived deficits from expected
+(8,760 non-leap / 8,784 leap), excluding the partial 2001/2026 edges:
+2002 −2h, 2003 −34h, 2004 −2h, 2005 −4h, 2006 −1h, 2007 −1h, 2008 −1h,
+2016 −1h. Not investigated further, flagged here per the plan's
+anomaly-noting instruction. `assert_panel_quality`
 passed: 42 `dst_transition_hour` rows flagged across 26 distinct years
 (budget `2*26=52`), zero duplicate non-DST timestamps, no gap exceeding
 tolerance, `panel.shape == (220290, 44)`.
 
 **Panel B (split) — rows/year.** 2005 = 8,036 (partial, window starts
-2005-01-31); 2006–2026 identical to Panel A above (same underlying data
-from 2006 onward). `assert_panel_quality` passed: 34 `dst_transition_hour`
+2005-01-31); 2006–2026 checked against Panel A's per-year counts and
+confirmed identical (zero absolute difference summed across every year
+2006–2026), despite being a separate parse (11 zones, pre-filtered raw
+frame) rather than assumed from Panel A. `assert_panel_quality` passed:
+34 `dst_transition_hour`
 rows flagged across 22 distinct years (budget `2*22=44`), `panel.shape ==
 (188648, 46)`.
 

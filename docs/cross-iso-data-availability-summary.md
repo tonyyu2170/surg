@@ -72,6 +72,19 @@ PJM/DOM project history.
    Phase 2 (also un-breaks the merged ERCOT scripts, which currently cannot run from
    the main checkout).
 
+## Checkpoint resolutions (user, 2026-08-09)
+
+1. **Markets:** all six proceed, staged — NYISO + CAISO + IESO first, then MISO (after
+   venv engines), then ISONE (after the SMD-file hunt), then SPP (after the portal
+   naming enumeration).
+2. **SPP enumeration:** approved as a Phase-2 task (implied by SPP proceeding).
+3. **ISONE load route:** hunt the public SMD annual-file URLs — no registration.
+4. **IESO LMP era:** **no collector — HOEP only.** The MRP price era is written off as
+   prospective; revisit only if IESO becomes a focus market.
+5. **Windows:** max clean window per market **and** the common-overlap window
+   (2023-01 → 2025-04) reported everywhere; common-overlap is the capstone headline.
+6. **Venv:** `xlrd` + `openpyxl` added at Phase-2 start (default accepted).
+
 ## Corrections to the design spec's starting leads
 
 - MISO: LRZ-group load **is** public (spec's "key risk" resolved positively); zonal load

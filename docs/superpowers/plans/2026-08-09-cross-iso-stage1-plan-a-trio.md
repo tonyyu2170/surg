@@ -664,7 +664,11 @@ from __future__ import annotations
 
 import pandas as pd
 
-# Raw zone name -> column-safe token. 11 zones, stable since 1999.
+# Raw zone name -> column-safe token. 11 zones as reported 2005-01-31
+# onward (NOT stable since 1999: pre-split load reports a single combined
+# N.Y.C._LONGIL zone instead of this N.Y.C./LONGIL pair — see the
+# 2026-08-09 zone-convention fix landed after this task, which also drops
+# four external interface/proxy buses from the price side).
 ZONE_MAP = {
     "CAPITL": "capitl", "CENTRL": "centrl", "DUNWOD": "dunwod",
     "GENESE": "genese", "HUD VL": "hud_vl", "LONGIL": "longil",
@@ -760,86 +764,31 @@ git commit -m "feat(nyiso): pure transforms for load and zonal LBMP"
 
 - [ ] **Step 1: Write the driver**
 
-```python
-"""Stage-1 NYISO diagnostic: level/volatility trends + horse race.
+**Superseded 2026-08-09.** The driver originally printed here was a
+single-panel design that could not run against the real archive: `parse_load`
+raises on the pre-2005-01-31 combined `N.Y.C._LONGIL` zone (present from the
+start of the load archive, 2001-06, through 2005-01-30) and `parse_lbmp`
+raises on four external interface/proxy buses (`H Q`, `NPX`, `O H`, `PJM`)
+present in every price file across the whole archive. Both defects and their
+fixes are recorded in `docs/decisions.md`. The fixed `nyiso_features.py`
+supports two zone conventions via `parse_load(..., merge_nyc_longil=...)`,
+so the driver now builds **two panels** rather than one:
 
-Usage: .venv/bin/python scripts/nyiso_diagnostic.py
-Reads the zips fetched by scripts/nyiso_fetch.py; writes panel +
-figures/CSVs to outputs/nyiso_diagnostic/.
-"""
-from __future__ import annotations
+  * Panel A (merged, `nyc_longil` combined, 10 zones): full load-archive
+    depth from 2001-06-01. Writes
+    `data/interim/nyiso_diagnostic_panel_merged.parquet` and
+    `outputs/nyiso_diagnostic_merged/`.
+  * Panel B (split, today's 11-zone convention): from 2005-01-31 onward —
+    the raw load frame is filtered to that window *before* `parse_load`
+    runs, so its unknown-zone-name guard stays live rather than being
+    silenced. Writes `data/interim/nyiso_diagnostic_panel_split.parquet`
+    and `outputs/nyiso_diagnostic_split/`.
 
-import io
-import zipfile
-from pathlib import Path
-
-import pandas as pd
-
-from surg.diagnostics.stage1 import (
-    COMMON_OVERLAP_END,
-    COMMON_OVERLAP_START,
-    FAR_FUTURE,
-    add_zone_gradients,
-    assert_panel_quality,
-    data_quality_report,
-    level_vs_volatility,
-    trend_tables,
-)
-from surg.preprocessing.nyiso_features import ZONES, parse_lbmp, parse_load
-
-RAW = Path("data/raw/nyiso")
-PANEL = Path("data/interim/nyiso_diagnostic_panel.parquet")
-FIGDIR = Path("outputs/nyiso_diagnostic")
-TIME = "datetime_beginning_ept"
-# Max window = load∩price availability (load is binding: 2001-06).
-MAX_START = pd.Timestamp("2001-06-01")
-
-
-def read_family(subdir: str) -> pd.DataFrame:
-    frames = []
-    for zpath in sorted((RAW / subdir).glob("*.zip")):
-        with zipfile.ZipFile(zpath) as zf:
-            for member in sorted(zf.namelist()):
-                frames.append(pd.read_csv(io.BytesIO(zf.read(member))))
-    if not frames:
-        raise RuntimeError(f"no zips under {RAW / subdir}")
-    return pd.concat(frames, ignore_index=True)
-
-
-def build_panel() -> pd.DataFrame:
-    panel = parse_load(read_family("palIntegrated"))
-    panel = panel.sort_values(TIME, kind="stable").reset_index(drop=True)
-    panel = add_zone_gradients(panel, ZONES, time_col=TIME)
-    assert_panel_quality(panel, ZONES, time_col=TIME, dst_pairs_per_year=1)
-
-    da = parse_lbmp(read_family("damlbmp_zone"), prefix="da_lbmp")
-    rt = parse_lbmp(read_family("realtime_zone"), prefix="rt_lbmp")
-    for prices in (da, rt):
-        before = len(panel)
-        panel = panel.merge(prices, on=TIME, how="left", validate="m:1")
-        if len(panel) != before:
-            raise AssertionError(f"price join changed row count: {before} -> {len(panel)}")
-
-    PANEL.parent.mkdir(parents=True, exist_ok=True)
-    panel.to_parquet(PANEL, index=False)
-    print(f"panel: {panel.shape} -> {PANEL}")
-    return panel
-
-
-if __name__ == "__main__":
-    panel = build_panel()
-    price_cols = [c for c in panel.columns if c.startswith(("da_lbmp_", "rt_lbmp_"))]
-    data_quality_report(panel, price_cols, time_col=TIME,
-                        window_start=MAX_START, figdir=FIGDIR)
-    trend_tables(panel, ZONES, time_col=TIME, figdir=FIGDIR, market="NYISO")
-    for label, start, end in [
-        ("max", MAX_START, FAR_FUTURE),
-        ("overlap", COMMON_OVERLAP_START, COMMON_OVERLAP_END),
-    ]:
-        level_vs_volatility(panel, ZONES, price_cols, time_col=TIME,
-                            window_start=start, window_end=end,
-                            figdir=FIGDIR, market="NYISO", label=label)
-```
+Both panels also run the common-overlap window. The price side (11 NY
+zones, four external buses dropped) is identical in both panels and is
+read once, not rebuilt per panel. The actual shipped driver is
+`scripts/nyiso_diagnostic.py`; its content is not reproduced here to avoid
+a second copy that can drift from the real file.
 
 - [ ] **Step 2: Smoke run on the two already-fetched months**
 
@@ -855,7 +804,7 @@ Expected: ~926 zips (~300/family), ~2–3 h at the 2 s sleep. Monitor: `tail -f 
 - [ ] **Step 4: Production run**
 
 Run: `.venv/bin/python scripts/nyiso_diagnostic.py 2>&1 | tee ~/nyiso-diagnostic-run.log`
-Expected: panel ≈ 220K rows; quality gate passes; three figures + CSVs in `outputs/nyiso_diagnostic/`. **Read the data-quality report before interpreting** (gate criterion: data-quality gate, not results gate). ⚠️ If early-era RT files change cadence (pre-2005 eras), `parse_lbmp`'s hourly `groupby(...).mean()` already normalizes them — but check the rows/year table for anomalies and note any in the entry.
+Expected (actual, 2026-08-09): Panel A (merged) `(220290, 44)`; Panel B (split) `(188648, 46)`; both quality gates pass; each panel's figures + CSVs land in its own `outputs/nyiso_diagnostic_{merged,split}/` directory. **Read the data-quality report before interpreting** (gate criterion: data-quality gate, not results gate). ⚠️ If early-era RT files change cadence (pre-2005 eras), `parse_lbmp`'s hourly `groupby(...).mean()` already normalizes them — but check the rows/year table for anomalies and note any in the entry.
 
 - [ ] **Step 5: Record results**
 

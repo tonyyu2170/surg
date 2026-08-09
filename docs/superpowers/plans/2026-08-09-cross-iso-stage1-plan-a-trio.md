@@ -1097,22 +1097,23 @@ def parse_load(raw: pd.DataFrame) -> pd.DataFrame:
     if sub.empty:
         raise ValueError("no CAISO TAC rows found — wrong file family?")
     sub["datetime_beginning_ppt"] = _to_ppt(sub["INTERVALSTARTTIME_GMT"])
+    sub["_gmt"] = pd.to_datetime(sub["INTERVALSTARTTIME_GMT"], utc=True)
 
     wide = (
         sub.pivot_table(
-            index="datetime_beginning_ppt", columns="TAC_AREA_NAME",
+            index=["datetime_beginning_ppt", "_gmt"], columns="TAC_AREA_NAME",
             values="MW", aggfunc="first",
         )
         .rename(columns=TAC_MAP)
         .add_prefix("load_mw_")
         .reset_index()
-        .sort_values("datetime_beginning_ppt")
+        .sort_values(["datetime_beginning_ppt", "_gmt"])
         .reset_index(drop=True)
     )
     # GMT is unambiguous, so the fall-back pair arrives as two distinct GMT
     # hours mapping to the same PPT wall clock: flag exactly that.
     wide["dst_transition_hour"] = wide["datetime_beginning_ppt"].duplicated(keep=False)
-    return wide
+    return wide.drop(columns="_gmt")
 
 
 def parse_dam_lmp(raw: pd.DataFrame) -> pd.DataFrame:

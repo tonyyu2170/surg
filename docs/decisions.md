@@ -4560,3 +4560,156 @@ single-digit neighbors; see `docs/external-context-research-2026-08.md` §7).
 the restored panels without reinterpretation. SKFFSCRK (new, no baseline) is
 characterised rather than verified, per plan. Plan B is complete pending the
 push.
+
+## 2026-08-08 — Sub-q1 figure set built: twelve figures, every caption number recomputed
+
+**Context.** `docs/superpowers/specs/2026-07-30-subq1-figure-set-design.md`
+specifies twelve figures for the sub-question 1 report. They were built over
+Tasks 0–13 of
+`docs/superpowers/plans/2026-08-08-subq1-figure-set-build.md`, on branch
+`feature/subq1-figure-set`. **No caption number was transcribed from the
+design spec.** Every one is computed at plot time from the current panels or
+from `outputs/figure_inputs/*.json`, because three drafted captions turned
+out to assert values the data contradicts (F4, F8, and the shared
+`ARTIFACT_NOTE`). 97 tests cover the set; `python -m
+scripts.plot_subq1_results` regenerates all twelve PNGs from a clean slate
+under `-W error::UserWarning`.
+
+**Spec value vs recomputed value.**
+
+| quantity | spec | recomputed | note |
+|---|---|---|---|
+| F1 load growth | +21.5% | **+28.0%** | spec compared a half-year to a full one |
+| F1 ramp p90 range | — | 21.91 → 28.38 MW/min | OLS trend p=0.158, not significant |
+| F3 congestion p90 by year | — | 9.56 / 8.81 / 13.46 / **60.76** | 2026 is 6.4× 2023 |
+| F4b `>$100` per year | 479 / 804 / 1,505 / 3,737 | 479 / 804 / 1,505 / **3,768** | 2023–25 exact |
+| F4b `>$250` per year | 59 / 206 / 399 / 1,612 | 59 / 206 / 399 / **1,620** | 2023–25 exact |
+| F4b `>$500` per year | — | **0** / 73 / 128 / 681 | 2023 still zero |
+| F4b `>$1000` per year | — | 0 / 7 / 13 / 62 | worst month is 2026-06, not 2026-01 |
+| F5 2024 τ=0.90 pre-registered | +0.0367 [+0.0107, +0.0665] | +0.0367 [**+0.0095, +0.0631**] | point exact, CI drifts |
+| F5 2024 τ=0.90 load-controlled | −0.0266 [−0.0416, −0.0103] | −0.0266 [**−0.0420, −0.0115**] | point exact, CI drifts |
+| F11 20–22 GW row | 1.89 / 5.58 / 5.03 / 37.80 % | 1.89 / 5.58 / 5.02 / **35.84** % | |
+| F11 load-growth share | 85.2 / 59.1 / 12.2 % | 85.1 / 59.2 / **12.7** % | |
+
+2026 values drift where 2023–2025 match exactly. That is the data-revision
+signature already established in the 2026-08-08 Plan B entry above, not a
+computational disagreement.
+
+**1. F5 — two reversal counts, not one.** Adding load level as a control
+reverses the sign of the ramp coefficient in **8 of 10** period × τ cells.
+But only **3** of those (2024 τ=0.90, pooled τ=0.90, pooled τ=0.95) have
+*both* confidence intervals excluding zero. The other five are two imprecise
+estimates disagreeing, which is not the same claim. Quoting "8 of 10" alone
+overstates the finding 2.7×; the figure states both, and prose about the
+specification conflict must do the same.
+
+**2. F7 — the locational contrast was measured across mismatched windows.**
+Ashburn TX1 enters the hourly panel only on 2024-08-06. Comparing its late
+window against other pnodes' full-panel statistics inflates the gap, since
+congestion escalated sharply in 2026. On the **common window**
+(2024-08-06 → 2026-05-10, n=15,432) the Ashburn-vs-SKFFSCRK gap is **~3×**
+(4.78% vs 1.60% above $100), not the ~4.9× the spec implies. **The
+locational finding stands; its magnitude was overstated.** A second result
+strengthens it: Ashburn correlates only 0.25–0.48 with every other series,
+while the cluster, both controls and SKFFSCRK intercorrelate at 0.83–0.94 —
+Ashburn is doing its own thing, not riding a common DOM signal.
+
+**3. The unnamed variable at `:4286` is closed.** That entry records the
+`:4031` numbers as resting on a variable "unnamed in the record" that "must
+not be guessed." It is **`congestion_price_rt`**: it reproduces $610.03 /
+4.78% and $95.92 / 0.96% exactly, whereas `total_lmp_rt` gives $803.97 /
+11.54% and $301.29 / 5.38% — nowhere close.
+
+**4. The held-out correlation the `:4281` ruling requires is now computed.**
+SKFFSCRK sits inside the 6-node `cluster_mean` it is compared against
+(verified equal to the 6-pnode mean to 2.3e-13), so part of the recorded
++0.870 is self-correlation. On the common window: **0.8703 primary vs 0.8283
+held out** (inflation +0.042); on the full window 0.8526 vs 0.8049 (+0.048).
+**The contamination is modest and the qualitative finding survives** at
+r≈0.83 — which reinforces the standing reading that congestion in this
+pocket is network-wide rather than data-center-localised. F7 reports both
+series and labels the node "SKFFSCRK (inside cluster)", never "control".
+
+**5. The load-artifact screen needs a revision note.** Entries `:4048` and
+`:4150` record "roughly **4** extreme reversion excursions (> 1,500 MW) …
+they move system energy **$0–4**, where the confirmed-real 2024-07-10 NERC
+trip (1,479 MW) moved it **$81**." Recomputed on the current panel with a
+**gap-aware** delta, the criterion and the class both reproduce, but two
+numbers move:
+
+| time | drop MW | rebound MW | system-energy response |
+|---|---|---|---|
+| 2023-12-06 11:10 | −1,709.7 | +1,529.2 | +$2.35 |
+| 2025-08-13 10:30 | −1,630.4 | +1,730.5 | **−$13.30** (price rose) |
+| 2026-06-11 07:40 | −1,575.0 | +1,683.7 | **−$1.05** (price rose) |
+| **2024-07-10 19:05 (real trip)** | −1,478.6 | +24.8 | **+$80.06** |
+
+There are **3**, not 4, and the worst response is **$13.30**, not $0–4. Two
+of the three moved price *upward*, which strengthens the positive control
+rather than weakening it: drop magnitude alone predicts no price response,
+and only the non-reverting trip moved price. The ruling itself is unchanged —
+the spike class stays unfiltered. `_style.ARTIFACT_NOTE`, which every
+tail-touching figure appends, was corrected to these values.
+
+**Gap-awareness matters here.** A bare `.diff()` on the 5-min panel reads the
+5h50m hole between 2024-07-10 21:45 and 2024-07-11 03:35 as a single
+**−4,933 MW** step — larger than anything real in 3.4 years, and it would
+have ranked first in any unguarded screen.
+
+**6. F8 — the restored no-filter script would have mislabelled its output.**
+The archived `run_5min_nofilter.py` called `run_tail_risk_curves(...)`
+without `resolution=`, whose default is `"hourly"` and which is stamped into
+every result (`tail_risk_curves.py:444`, `:546`). That is the `c4a64e7` bug
+class. Fixed and verified on the smoke pass before the production run. At
+**n_boot=1000** over 351,371 rows the curve is flat across all ten deciles
+(1.78–1.95%) with **d10/d1 = 0.9797** at $100 — reproducing the recorded 0.98.
+Note the figure's stated precision (±8.1% of the mean rate, per-decile) is a
+*different quantity* from the ±19% recorded at `:4045`, which is the
+resolution on the d10/d1 contrast.
+
+**7. F9 — Spec B's trajectory, and the secular component.** The continuous
+ξ(Z) slope is β₁ = **−0.0074 / −0.0073 / −0.0260 / +0.0104** at threshold
+quantiles 0.90 / 0.95 / 0.99 / 0.995. Every interval spans zero, so
+"underpowered per pre-reg Rule 2" stands; the magnitude deepens to q=0.99
+and then **flips sign at q=0.995 on a CI four times as wide**, which a single
+quoted number hides. The secular component (primary − year-FE) excludes zero
+at τ=0.90 (+0.138 [+0.100, +0.193]) and τ=0.95 (+0.158 [+0.022, +0.282]) and
+spans it at τ=0.99 (−0.258 [−0.947, +0.352]).
+
+**8. F11 — what the 2026 escalation is, and is not.** Within fixed 2,000 MW
+load bins, 2026 exceeds $100 far more often than 2023 at the *same* load:
+1.89% → 35.84% in the 20–22 GW bin. Applying 2023's conditional response to
+each later year's load distribution, load growth explains 85.1% of 2024,
+59.2% of 2025, and only **12.7%** of 2026. **Two caveats travel in the
+caption and must travel with any prose use.** The counterfactual's magnitude
+is unreliable — 2023 barely visited the load levels later years reach
+(22–24 GW has 10 baseline observations, 24–26 GW has none), so it
+extrapolates without support; the direction is solid, the number is not.
+And **the change is not local**: it is a January-2026 step in both congestion
+and system energy, system energy is locationally uniform across PJM, and
+there is no non-DOM control pnode in this panel. **A substantial part of the
+2026 escalation is system-wide and its driver is unidentified. It must not be
+attributed to data centers.**
+
+**Presentation rulings carried into the code.** Bars encode magnitude by
+length, which is meaningless on a log axis, so symlog series are drawn as
+markers and lines (F4b, F3). F4b buckets by **month, not year**, so the
+partial 2026 is never annualised — the finding survives the conservative
+presentation, since 3,768 intervals above $100 in six months already exceeds
+1,505 in twelve. Unvisited load bins are NaN rather than 0.0% (F11), so a
+line breaks instead of drawing a measured zero where there is no
+measurement. F5's and F6's provenance quote the **pooled** cell's n, since
+per-period n ranges 51,746 → 352,467.
+
+**Decision.** The figure set is complete and its numbers are the ones above.
+Where a recomputed value disagrees with the design spec or with an earlier
+entry, **the recomputed value governs** and the divergence is recorded here
+rather than by editing the earlier entry, per this log's append-only
+convention. The `:4048` / `:4150` artifact-screen numbers are superseded by
+item 5; the `:4286` open question is closed by item 3; the `:4281`
+disclosure requirement is satisfied by item 4.
+
+**Revisit when.** The panels are re-pulled again (2026 values drift with
+revision), or the advisor rules on framing, at which point F5's two reversal
+counts and F11's two caveats are the constraints any narrative has to
+respect.

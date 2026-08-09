@@ -146,3 +146,183 @@ def plot_f11(d: dict, out_path: Path) -> None:
         "non-DOM control pnode in this panel.")
     S.finish(fig, Path(out_path), footer=footer, caption=caption)
     plt.close(fig)
+
+
+def _threshold_key(by_threshold: dict, threshold: str | float) -> str:
+    """Match "100" against the run's "100.0" keys without string luck."""
+    want = float(threshold)
+    for k in by_threshold:
+        if float(k) == want:
+            return k
+    raise KeyError(
+        f"threshold {threshold!r} not among {sorted(by_threshold)}")
+
+
+def prepare_f8(curve_json: Path, *, threshold: str = "100",
+               response: str = "congestion") -> dict:
+    d = json.loads(Path(curve_json).read_text())
+    filt = d.get("filter", "")
+    if "passes_proposal_filter" in filt:
+        raise ValueError(
+            f"F8 requires the no-filter run; this source has filter={filt!r}")
+    if d.get("resolution") != "5-min":
+        raise ValueError(
+            f"F8 expects resolution '5-min'; got {d.get('resolution')!r}")
+
+    # run_tail_risk_curves writes results[response] as a list of decile
+    # records, each carrying by_threshold[<t>]{p_hat, n_exc, ci_95}. Read the
+    # shape the run actually produces.
+    rows = sorted(d["results"][response], key=lambda r: r["decile"])
+    key = _threshold_key(rows[0]["by_threshold"], threshold)
+    cells = [r["by_threshold"][key] for r in rows]
+    prob = [float(c["p_hat"]) for c in cells]
+    lo = [float(c["ci_95"][0]) for c in cells]
+    hi = [float(c["ci_95"][1]) for c in cells]
+    # MDE proxy: half-width of the widest CI, relative to the mean rate.
+    mean_rate = float(np.mean(prob)) or float("nan")
+    half = max((h - l) / 2.0 for l, h in zip(lo, hi))
+    return {
+        "deciles": [int(r["decile"]) for r in rows],
+        "prob": prob, "ci_lo": lo, "ci_hi": hi,
+        "threshold": key, "response": response,
+        "mde_pct": float(100.0 * half / mean_rate),
+        # The headline read on this curve, computed rather than transcribed.
+        "d10_over_d1": (prob[-1] / prob[0]) if prob[0] else float("nan"),
+        "n": int(d.get("n_total_filtered") or sum(d.get("decile_n_obs", [0]))),
+        "n_boot": d.get("n_boot"),
+        "filter": filt or "none (full panel)",
+    }
+
+
+def plot_f8(d: dict, out_path: Path) -> None:
+    fig, ax = plt.subplots(figsize=(9, 5.5))
+    x = d["deciles"]
+    ax.plot(x, [100 * v for v in d["prob"]], "o-", color=S.COLOR["primary"])
+    ax.fill_between(x, [100 * v for v in d["ci_lo"]],
+                    [100 * v for v in d["ci_hi"]],
+                    color=S.COLOR["primary"], alpha=0.18)
+    ax.set_xlabel("Ramp (Z) decile")
+    ax.set_ylabel(f"P({d['response']} > ${float(d['threshold']):,.0f}) (%)")
+    ax.set_title("F8 — Tail-risk by volatility decile, no proposal filter")
+
+    footer = S.provenance(source="outputs/fivemin_nofilter/pooled",
+                          n=d["n"], window="full 3.4-year panel",
+                          spec=f"tail-risk deciles, filter: {d['filter']}",
+                          resolution="5-min")
+    caption = (
+        f"Top decile over bottom decile is {d['d10_over_d1']:.2f}. Each "
+        f"decile's rate carries a 95% interval up to ±{d['mde_pct']:.1f}% of "
+        f"the mean rate, wider than the 2–5% lift the volatility hypothesis "
+        f"predicts, so a flat curve here is a NON-RESULT rather than a "
+        f"refutation. (This is the per-decile precision; the recorded ±19% "
+        f"figure is the resolution on the d10/d1 contrast, a different "
+        f"quantity.) " + S.ARTIFACT_NOTE)
+    S.finish(fig, Path(out_path), footer=footer, caption=caption)
+    plt.close(fig)
+
+
+SPEC_A_CAPTION = (
+    "Spec A re-read: a heavier tail at LOW Z is what a level-driven "
+    "constraint story predicts, because low-Z intervals are the "
+    "sustained-load ones. This is not evidence for a volatility channel.")
+
+
+def prepare_f9(out_root: Path) -> dict:
+    root = Path(out_root)
+
+    def _load(rel):
+        return json.loads((root / rel).read_text())
+
+    # Spec B publishes no `beta1`: the continuous xi(Z) slope is the SECOND
+    # entry of `linear.shape_coefficients`, with its CI in the matching slot
+    # of shape_coefficients_bootstrap_ci_95. Reading [0] would plot the
+    # intercept (~0.9) where the slope (~-0.007) belongs.
+    spec_b = []
+    for e in _load("gpd_continuous/primary.json")["threshold_sweep"]:
+        lin = e["linear"]
+        spec_b.append({
+            "quantile": float(e["threshold_quantile"]),
+            "beta1": float(lin["shape_coefficients"][1]),
+            "ci": [float(v) for v in
+                   lin["shape_coefficients_bootstrap_ci_95"][1]],
+            "converged": lin.get("convergence_status") == "converged",
+            "n_exceedances": e.get("n_exceedances"),
+        })
+    spec_b.sort(key=lambda r: r["quantile"])
+
+    # Likewise there is no `raw_by_year`/`year_fe_z_slope` pair. Layer 3 is
+    # the trend test: secular component = primary_z_slope - year_fe_z_slope.
+    yfe = _load("year_fe_diagnostic/primary.json")
+    secular = []
+    for key, v in yfe["layer3_secular_component_bootstrap"].items():
+        secular.append({
+            "tau": float(key.removeprefix("tau_")),
+            "primary": float(v["primary_z_slope"]),
+            "year_fe": float(v["year_fe_z_slope"]),
+            "point": float(v["secular_component_point"]),
+            "ci": [float(x) for x in v["secular_component_ci"]],
+        })
+    secular.sort(key=lambda r: r["tau"])
+
+    return {
+        # unwrap the nested block so callers see the statistics directly
+        "conditional_z": _load("gpd/primary.json")["conditional_z"],
+        "qr_full": _load("qr_full/primary.json"),
+        "spec_b": spec_b,
+        "secular": secular,
+        "spec_a_caption": SPEC_A_CAPTION,
+    }
+
+
+def plot_f9(d: dict, out_path: Path) -> None:
+    fig, axes = plt.subplots(2, 2, figsize=(13, 9))
+
+    sd = d["conditional_z"]["shape_difference"]
+    lo, hi = sd["bootstrap_ci_95"]
+    S.forest(axes[0][0],
+             [("ξ(high Z) − ξ(low Z)", sd["diff"], lo, hi, S.COLOR["primary"])],
+             xlabel="GPD shape difference")
+    axes[0][0].set_title("(a) Conditional-Z GPD (Spec A)")
+
+    fits = sorted(d["qr_full"]["fits"], key=lambda f: f["tau"])
+    taus = [f["tau"] for f in fits]
+    slopes = [f["z_slope"] for f in fits]
+    cis = [f["z_slope_bootstrap_ci_95"] for f in fits]
+    axes[0][1].errorbar(
+        taus, slopes,
+        yerr=[[s - c[0] for s, c in zip(slopes, cis)],
+              [c[1] - s for s, c in zip(slopes, cis)]],
+        fmt="o-", color=S.COLOR["primary"], capsize=3)
+    axes[0][1].axhline(0, color=S.MUTED, lw=1, ls="--")
+    axes[0][1].set_xlabel("τ")
+    axes[0][1].set_ylabel("z_slope")
+    axes[0][1].set_title("(b) QR-full τ sweep")
+
+    # The whole threshold sweep, not one row: the slope deepens to q=0.99 and
+    # then flips at q=0.995 on a CI four times as wide -- a trajectory a
+    # single quoted number hides.
+    S.forest(axes[1][0],
+             [(f"q={r['quantile']:g}" + ("" if r["converged"] else " (no conv.)"),
+               r["beta1"], r["ci"][0], r["ci"][1], S.COLOR["total_lmp"])
+              for r in d["spec_b"]],
+             xlabel="β₁ of continuous ξ(Z)")
+    axes[1][0].set_title("(c) Spec B — continuous ξ(Z) by threshold")
+
+    S.forest(axes[1][1],
+             [(f"τ={r['tau']:g}  (primary {r['primary']:+.2f}, "
+               f"year-FE {r['year_fe']:+.2f})",
+               r["point"], r["ci"][0], r["ci"][1], S.COLOR["dom_zonal"])
+              for r in d["secular"]],
+             xlabel="secular component (primary − year-FE)")
+    axes[1][1].set_title("(d) Secular component vs year fixed effects")
+
+    fig.suptitle("F9 — Supporting mechanism tests (hourly)", y=0.99)
+    footer = S.provenance(source="analysis_panel.parquet",
+                          n=31608, window="2022-10-02 to 2026-05-10",
+                          spec="conditional-Z / QR-full / Spec B / year-FE",
+                          resolution="hourly")
+    caption = (
+        d["spec_a_caption"] + " Panels (c) and (d) are read the same way: "
+        "a filled marker means the interval excludes zero.")
+    S.finish(fig, Path(out_path), footer=footer, caption=caption)
+    plt.close(fig)

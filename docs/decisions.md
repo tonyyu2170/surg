@@ -4713,3 +4713,206 @@ disclosure requirement is satisfied by item 4.
 revision), or the advisor rules on framing, at which point F5's two reversal
 counts and F11's two caveats are the constraints any narrative has to
 respect.
+
+## 2026-08-09 — NYISO Stage-1 production run: BLOCKED by two zone-name defects in the committed features module
+
+Task 5's driver (`scripts/nyiso_diagnostic.py`) was written verbatim from the
+plan and run against the full 928-zip real archive. It failed. Two
+independent, real-data defects live in the already-committed
+`src/surg/preprocessing/nyiso_features.py`, which is out of scope for Task 5
+to fix (per the session's explicit "do not modify anything NYISO/CAISO
+outside what Task 5 creates" instruction). Neither is a one-line driver fix.
+
+**Defect 1 — `parse_load`'s `ZONE_MAP` does not cover NYISO's pre-2005 combined zone.**
+From the start of the load archive (2001-06-01) through 2005-01-30, NYISO
+reports a single combined `"N.Y.C._LONGIL"` zone instead of the split
+`"N.Y.C."` / `"LONGIL"` pair the 11-entry `ZONE_MAP` (nyiso_features.py:7-12)
+expects. The split takes effect exactly on 2005-01-31 (verified day-by-day
+across the `20050101` zip). 1,320 of the archive's daily `palIntegrated`
+files carry the combined name. `parse_load`'s strict
+`unknown = set(out["Name"]) - set(ZONE_MAP)` check
+(nyiso_features.py:34-36) raises `ValueError: unknown NYISO zone names:
+['N.Y.C._LONGIL']` on any read that includes this era — which every read
+does, since `scripts/nyiso_diagnostic.py`'s `read_family` concatenates the
+entire archive before `parse_load` ever runs, and `MAX_START` (driver line
+29, `2001-06-01`) is never used to truncate the raw files read — only to
+filter reporting windows after the fact.
+
+**Defect 2 — `parse_lbmp`'s `ZONE_MAP` never covers NYISO's external interface/proxy zones.**
+Independent of any date range: every `damlbmp_zone` and `realtime_zone` file
+across the full 1999-2026 archive (checked at the earliest zip, the
+2004/2005 boundary, and the most recent zip) reports LBMPs for four
+zones beyond the 11 internal load zones — `H Q`, `NPX`, `O H`, `PJM`
+(external interface/proxy points: Hydro-Québec, Neptune, Ontario-Hydro tie,
+PJM). `parse_lbmp`'s identical strict check (nyiso_features.py:67-69) raises
+`ValueError: unknown NYISO zone names: ['H Q', 'NPX', 'O H', 'PJM']` on
+literally every price file in the archive, at every date. This means the
+price side of the driver cannot succeed against real data at *any* window,
+not just the pre-2005 era — a change to `MAX_START` alone would not have
+unblocked the run even if defect 1 didn't exist.
+
+**Why this isn't a driver-only fix.** Both defects are inside the
+already-committed `nyiso_features.py` (Task 4), not
+`scripts/nyiso_diagnostic.py` (Task 5's own file). The driver's `read_family`
+has no date-filtering or zone-filtering hook before handing frames to
+`parse_load`/`parse_lbmp`. Fixing either defect changes `ZONE_MAP` and/or the
+strict-unknown-name check in a file this task was told not to touch.
+
+**Recommended lowest-blast-radius fix (not implemented — human call).**
+For defect 1: either (a) restrict the driver's effective load-read window to
+start 2005-01-31 (accepting the loss of the 2001-06 -> 2005-01 pre-split
+era), or (b) extend `ZONE_MAP` to accept `"N.Y.C._LONGIL"` as its own
+combined-zone column and decide how a 10-zone early era reconciles with the
+11-zone `ZONES` list used everywhere downstream (`add_zone_gradients`,
+`assert_panel_quality`'s per-zone NaN check, `trend_tables`). For defect 2:
+extend the "known but ignored" set in `parse_lbmp` to drop `H Q`/`NPX`/`O
+H`/`PJM` before the unknown-name check, mirroring how loss/congestion
+columns are already dropped by column selection rather than raising. Option
+(b)-for-defect-1 plus the defect-2 drop together would be the smallest
+change; both require touching `nyiso_features.py`, so a human should decide
+whether that reopens Task 4 or gets folded into a new task.
+
+**Status.** Not committed. `scripts/nyiso_diagnostic.py` is untracked in the
+worktree (transcribed verbatim from the plan, unmodified) for reference. No
+panel, no figures, no results. Per the session's explicit contingency for
+this scenario, IESO (Tasks 9-11) proceeded independently and is reported
+separately below.
+
+## 2026-08-09 — IESO Stage-1 production run: fetch, features, and results
+
+**Task 9 (fetch) — plan-text contradiction, not a blocker.** `scripts/ieso_fetch.py`
+was transcribed verbatim and run inline. It exited 1: the docstring
+(lines 1268-1269 of the plan) states the HOEP era ended 2025-04-30, but
+`LAST_YEAR = 2026` (line 1287) applies uniformly to all three families with
+no per-family override (loop at lines 1296-1305), so the script 404s
+fetching `PriceHOEPPredispOR/PUB_PriceHOEPPredispOR_2026.csv` — a file that
+does not exist because the era it would belong to ended in April 2025. This
+is the last file of the last family processed, so every file the fetch
+needed to have landed by then already had: 24 `DemandZonal` (2003-2026), 25
+`Demand` (2002-2026, unused by the Task 11 driver), 24 `PriceHOEPPredispOR`
+(2002-2025) — 73 files total, matching the plan's own "~73 files" estimate.
+Verified by directory listing before proceeding. Committed as printed
+(`b3a5cdd`) per the transcribe-verbatim path (constraint 1), not stopped,
+since the underlying data goal was met and the defect is a fetch-loop range
+bound, not a data-correctness bug.
+
+**Task 9 Step 3 — real HOEP header confirmed, no `HOEP_COLS` change needed.**
+`head -8 data/raw/ieso/PriceHOEPPredispOR/PUB_PriceHOEPPredispOR_2024.csv`:
+three `\`-prefixed preamble lines, then header row
+`Date,Hour,HOEP,Hour 1 Predispatch,Hour 2 Predispatch,Hour 3 Predispatch,OR 10 Min Sync,OR 10 Min non-sync,OR 30 Min`.
+`Date`, `Hour`, `HOEP` are exactly as `HOEP_COLS` (Task 10) assumed —
+verified against the real file both by inspecting bytes and by loading it
+through the exact `pd.read_csv(path, comment="\\")` path Task 11 uses. The
+real `DemandZonal` header was checked the same way and also matches
+Task 10's `ZONE_MAP` source names exactly. Neither constant needed
+adjustment.
+
+**Task 10/11 — a defect the printed test suite couldn't see: mixed date formats.**
+`ieso_features.py`'s `_hour_ending_to_beginning` called
+`pd.to_datetime(dates)` with no explicit format (as printed). Task 10's
+tests passed (4/4) because the synthetic fixture uses one date string per
+test. Running Task 11 against the real, full `DemandZonal` archive (all 24
+years concatenated) crashed: `PUB_DemandZonal_2017.csv` uses `"2017/01/01"`
+while every other year (2003-2016, 2018-2026) uses `"2017-01-01"`-style
+dashes — a one-year formatting quirk in IESO's own publication, confirmed by
+scanning the first row of every year's file in both `DemandZonal` and
+`PriceHOEPPredispOR` (the latter is dash-consistent across all 24 years, so
+only `DemandZonal` needed the fix). Unlike the NYISO defects above, this
+file is Task 10's own output from this session, not on the
+do-not-modify list, so it was fixed directly:
+`pd.to_datetime(dates)` -> `pd.to_datetime(dates, format="mixed")`
+(`ieso_features.py:23`), matching the sibling NYISO module's existing
+`format="mixed"` precedent (`nyiso_features.py:17`). Year-first in both
+formats, so no dayfirst ambiguity. A regression test
+(`test_parse_demand_zonal_mixed_date_format`) was added. Committed
+separately (`2c6393d`): `fix(ieso): parse mixed date formats - 2017
+DemandZonal uses slashes`.
+
+**Production run.** Panel: `(204023, 25)` rows. `assert_panel_quality`
+passed with `dst_pairs_per_year=0` (IESO is fixed-EST; zero duplicate
+timestamps, zero `dst_transition_hour` flags, as expected). Rows/year is
+8760 (8784 in leap years 2004/2008/2012/2016/2020/2024) for every full year;
+the three exceptions are explained by data coverage, not gaps: 2003 = 5,880
+rows (`PUB_DemandZonal_2003.csv` starts 2003-05-01, not January — `MAX_START
+= 2003-01-01` in the driver precedes the data by four months, harmless for
+windowing but noted here so it doesn't read as a hole); 2025 = 8,759 rows
+(one hour short of a full non-leap year; not investigated further — flagged
+for anyone extending this panel); 2026 = 5,280 rows (partial year, archive
+current through roughly August 2026).
+
+Price quality (HOEP, from `MAX_START = 2003-01-01`): n = 192,857,
+negative_share = 3.74%, median = $29.33/MWh, p99 = $135.36/MWh.
+
+Level-vs-volatility horse race, **max window** (2003-01-01 -> 2025-05-01
+exclusive, i.e. through 2025-04-30, the Market Renewal boundary):
+
+```
+     zone price_series  beta_level  beta_volatility       r2      n  level_wins
+  ontario         hoep    0.539397         0.008923 0.291318 192856        True
+northwest         hoep    0.377407         0.052088 0.148660 192856        True
+northeast         hoep    0.341326         0.027285 0.117989 192856        True
+   ottawa         hoep    0.505896        -0.029211 0.252172 192856        True
+     east         hoep    0.375105        -0.015324 0.140706 192856        True
+  toronto         hoep    0.429030         0.026708 0.183973 192856        True
+     essa         hoep    0.419530        -0.029999 0.174648 192856        True
+    bruce         hoep    0.049892         0.002020 0.002496 192856        True
+southwest         hoep    0.494489         0.000300 0.244527 192856        True
+  niagara         hoep    0.535674         0.029667 0.287853 192856        True
+     west         hoep    0.566242        -0.013350 0.319209 192856        True
+level wins in 11 of 11 cells
+```
+
+**overlap window** (2023-01-01 -> 2025-05-01 exclusive):
+
+```
+     zone price_series  beta_level  beta_volatility       r2     n  level_wins
+  ontario         hoep    0.408710         0.012621 0.167707 20424        True
+northwest         hoep    0.176111         0.067407 0.036543 20424        True
+northeast         hoep    0.266063         0.028168 0.072128 20424        True
+   ottawa         hoep    0.356920         0.004746 0.127823 20424        True
+     east         hoep    0.323087         0.066899 0.110652 20424        True
+  toronto         hoep    0.344009         0.020778 0.118214 20424        True
+     essa         hoep    0.391174         0.003844 0.153396 20424        True
+    bruce         hoep    0.229340        -0.024013 0.051602 20424        True
+southwest         hoep    0.367493         0.012962 0.135449 20424        True
+  niagara         hoep    0.344866         0.011371 0.119196 20424        True
+     west         hoep    0.397985         0.000528 0.158425 20424        True
+level wins in 11 of 11 cells
+```
+
+Level wins in all 11 of 11 cells at both windows — no time controls, so
+`beta_level` carries shared diurnal/seasonal structure (same descriptive-only
+caveat as ERCOT and NYISO).
+
+**Trend headline, 2004 -> 2024 (earliest -> latest full calendar year; 2003
+and 2026 are partial, see above).** System (Ontario) mean load fell -8.5%
+(17,468 -> 15,986 MW); normalized volatility (`grad_mean_norm`) was
+essentially flat (-1.1%). Per zone, load and normalized-volatility change
+both vary in sign and magnitude across the 11 zones (bruce +174.9% load /
+-66.2% norm-vol; northwest -43.9% load / +33.6% norm-vol; toronto +0.9% load
+/ -9.4% norm-vol; full table in `outputs/ieso_diagnostic/trends_by_zone_year.csv`).
+These are raw numbers only — no cross-zone driver analysis was performed
+here.
+
+**Caveats (IESO memo §6, front-of-caption for any use of these numbers):**
+- **ICI / Global Adjustment peak-shaving endogeneity** — the strongest
+  peak-response endogeneity effect in this project. Class A consumers pay
+  Global Adjustment pro-rata to their share of Ontario's top five annual
+  demand peaks; IESO itself publishes a "Peak Tracker." Observed zonal load
+  at system peaks is behaviorally suppressed by design, and any data center
+  on Class A billing inherits this incentive. Ontario's top-hour load shape
+  is partly a policy artifact, not a physical one.
+- **HOEP is a wholesale-energy-only signal.** Global Adjustment means HOEP
+  alone understates the all-in price large consumers actually face. Fine
+  for cross-market comparability; must travel as one caption line wherever
+  HOEP is used as "the price."
+- **Prices are CAD**, not USD — no FX adjustment was applied here.
+- **Embedded generation nets out of "Ontario Demand"** before it ever
+  reaches this panel (CAISO-style metered-load caveat, milder scale here).
+- **HOEP era ends 2025-04-30** (Market Renewal, 2025-05-01): dispatch,
+  price formation, and settlement all changed at that boundary. Both
+  horse-race windows in this run stop at that boundary by construction
+  (`HOEP_END = 2025-05-01` exclusive); the load series itself is unaffected
+  by the regime change and continues past it in the panel.
+
+Committed: `scripts/ieso_diagnostic.py` + this entry.

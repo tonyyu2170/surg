@@ -4916,3 +4916,130 @@ here.
   by the regime change and continues past it in the panel.
 
 Committed: `scripts/ieso_diagnostic.py` + this entry.
+
+## 2026-08-09 — NYISO Stage-1 zone-convention fixes + two-panel production run
+
+Resolves the blocker recorded above ("NYISO Stage-1 production run: BLOCKED
+by two zone-name defects"). Both defects lived in the already-committed
+`src/surg/preprocessing/nyiso_features.py` (Task 4); fixed there, not in
+the driver, per the human decision to reopen Task 4 rather than work around
+it in `scripts/nyiso_diagnostic.py`.
+
+**Fix 1 (`parse_lbmp`, external proxy buses).** Added a module-level
+`EXTERNAL_PRICE_ZONES = {"H Q", "NPX", "O H", "PJM"}` (Hydro-Quebec,
+Neptune, Ontario-Hydro tie, PJM). Rows with these names are dropped before
+the unknown-name check; anything else unrecognized still raises
+`ValueError`, so the drift guard is unchanged for genuine schema drift —
+mirrors the roster-filter pattern already used in `caiso_features.py`'s
+`TAC_MAP`/WEIM exclusion.
+
+**Fix 2 (`parse_load`, pre/post-2005 zone convention).** Added a
+keyword-only `merge_nyc_longil: bool = False` parameter. Default (`False`,
+today's split behavior, unchanged): 11 zones; the pre-2005-01-31 combined
+`N.Y.C._LONGIL` name is not in `ZONE_MAP`, so it still hits the existing
+"unknown zone name" raise — pre-split rows are rejected, not silently
+dropped, exactly as required. `merge_nyc_longil=True`: a new
+`MERGED_ZONE_MAP`/`MERGED_ZONES` (10 zones) collapses `N.Y.C._LONGIL`
+(pre-split), `N.Y.C.`, and `LONGIL` (post-split) into one `nyc_longil`
+column; post-split the pair is summed via
+`pivot[raw_names].sum(axis=1, min_count=1)` (`min_count=1` so a
+genuinely-all-missing row still surfaces as NaN and trips
+`assert_panel_quality`, rather than silently reading as 0 MW).
+
+**Boundary verified clean, not assumed.** Queried the raw
+`palIntegrated` archive day-by-day from 2005-01-25 to 2005-02-05:
+`N.Y.C._LONGIL` reports on every day through 2005-01-30 and never again;
+`N.Y.C.`/`LONGIL` report from 2005-01-31 onward and never before. No
+overlap day, so the merged-mode summation cannot double-count and
+`SPLIT_START = 2005-01-31` is the correct split-mode window boundary (not
+2025-02-01).
+
+**Tests.** 5 new tests added to `tests/test_nyiso_features.py`: external-bus
+dropping, still-raises on a genuinely unrecognized name, merged-mode
+summation of the post-2005 pair, merged-mode continuity across the
+boundary (single combined value pre-split, summed pair post-split, no
+NaNs), and split-mode rejection of combined-zone rows. `pytest
+tests/test_nyiso_features.py -q`: 9 passed (4 baseline + 5 new). Full
+suite: 468 passed, 5 skipped (baseline 463 passed + 5 new; skip count
+unchanged).
+
+**Driver (Task 5) ships two panels**, both against the full real archive
+(928 zips): Panel A (merged, 10 zones, full depth) and Panel B (split, 11
+zones, from 2005-01-31). Panel B's raw load frame is filtered to
+`Time Stamp >= 2005-01-31` *before* `parse_load` runs, so the split-mode
+"reject combined rows" guard stays live rather than being bypassed. The
+price side (11 NY zones, four external buses dropped) is read once and
+merged into both panels unchanged — `level_vs_volatility` takes a cross
+product of load zones x price columns, so no name alignment between the
+merged/split load zones and the price zones is required or attempted; no
+merged price series was invented. Both panels also run the common-overlap
+window (2023-01-01 → 2025-05-01 exclusive). Total wall time: ~97s for both
+panels combined.
+
+Non-float `load_mw_*` dtype check (added defensively for this run) did not
+fire on either panel — the "sum instead of rename" restructure did not
+silently pass a non-numeric column through.
+
+**Panel A (merged) — rows/year.** 2001 = 4,656 (partial, archive starts
+2001-06); 2002 = 8,758; 2003 = 8,726; 2004 = 8,782; 2005 = 8,756; 2006 =
+8,759; 2007 = 8,759; 2008 = 8,783; 2009–2011 = 8,760; 2012 = 8,784 (leap);
+2013–2015 = 8,760; 2016 = 8,783; 2017–2019 = 8,760; 2020 = 8,784 (leap);
+2021–2023 = 8,760; 2024 = 8,784 (leap); 2025 = 8,760; 2026 = 5,296
+(partial, archive current). 2002/2003/2004/2005/2007/2008/2016 deviate
+from their expected 8,760/8,784 by 1–34 hours; not investigated further,
+flagged here per the plan's anomaly-noting instruction. `assert_panel_quality`
+passed: 42 `dst_transition_hour` rows flagged across 26 distinct years
+(budget `2*26=52`), zero duplicate non-DST timestamps, no gap exceeding
+tolerance, `panel.shape == (220290, 44)`.
+
+**Panel B (split) — rows/year.** 2005 = 8,036 (partial, window starts
+2005-01-31); 2006–2026 identical to Panel A above (same underlying data
+from 2006 onward). `assert_panel_quality` passed: 34 `dst_transition_hour`
+rows flagged across 22 distinct years (budget `2*22=44`), `panel.shape ==
+(188648, 46)`.
+
+**Price quality (horse-race window, both panels — RT and DA, all 11 NY
+zones).** RT negative_share ranges 0.77%–4.5%–5.1% (north highest in both
+panels — 4.55% Panel A, 5.14% Panel B); RT median $29.72–$42.01/MWh, RT p99
+$203.80–$426.47/MWh (longil highest in both). DA negative_share is much
+smaller, ≤0.09% in every zone, several zones exactly 0.0% in the
+horse-race window; DA median $31.57–$47.84/MWh, DA p99 $129.08–$221.23/MWh.
+Full per-zone tables (11 RT + 11 DA rows each) written to
+`outputs/nyiso_diagnostic_{merged,split}/price_quality.csv`.
+
+**Level-vs-volatility horse race — summary.** Full zone x price-column
+tables (no time controls; standardized OLS; same descriptive-only caveat
+as ERCOT/CAISO/IESO) written to
+`outputs/nyiso_diagnostic_{merged,split}/fig3_level_vs_volatility_{max,overlap}.csv`.
+Win counts (level beats |gradient| beta):
+- Panel A, max window (2001-06 → present): level wins in **220 of 220**
+  cells (100%).
+- Panel A, overlap window (2023-01 → 2025-05 excl.): level wins in
+  **213 of 220** cells (96.8%); all 7 non-wins are the `north` zone.
+- Panel B, max window (2005-01-31 → present): level wins in **242 of 242**
+  cells (100%).
+- Panel B, overlap window: level wins in **235 of 242** cells (97.1%);
+  all 7 non-wins are again the `north` zone (same 7 price columns as
+  Panel A's non-wins).
+
+No substantive interpretation attempted here per this task's scope —
+numbers and anomalies only; conclusions are a later step with a human.
+
+**Memo cross-check.** `docs/nyiso-data-availability-research.md` §6 states
+"Footprint: stable since 1999 — no joins, no boundary changes, uniquely
+among the six markets researched." That claim is the apparent source of
+the plan's now-corrected Task 4 comment and is itself empirically false
+for load (the 2005-01-31 N.Y.C./LONGIL split documented above). The memo
+itself was left unedited — out of this task's scope — but is flagged here
+for whoever next touches it.
+
+**NYISO memo §6 caveats (apply to both panels, no time controls in
+either):** Zone J (nyc/nyc_longil) weather dominance can swamp zone-level
+variance; the DC/crypto question lives upstate (C/D zones). BTM solar is
+growing statewide, strongest in Long Island/Hudson Valley. ICAP tag/SCR
+peak-response programs give large consumers a peak-shaving incentive.
+The 2022 PoW crypto moratorium is a policy break inside the load class of
+interest — any upstate trend crossing 2022 carries it.
+
+Committed: `src/surg/preprocessing/nyiso_features.py`,
+`tests/test_nyiso_features.py`, `scripts/nyiso_diagnostic.py`, this entry.

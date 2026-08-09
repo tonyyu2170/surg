@@ -3198,6 +3198,59 @@ git commit -m "feat(figures): orchestrator regenerating the full twelve-figure s
 
 ---
 
+## AS-BUILT — Tasks 9 to 13 (2026-08-08)
+
+Commits `49c34bd` (F5/F6), `f00e137` (F11), `8a8458a` (F8 — **also contains
+F9's code**, since the whole of `mechanism.py` was staged), `caf8935` (F9 +
+orchestrator). **97 tests pass**; a clean-slate `python -m
+scripts.plot_subq1_results` writes all 12 PNGs under `-W error::UserWarning`.
+
+**Step-count lines in Tasks 9–13 are all stale** — the suite grew from the
+drafted counts (Task 9 "6 passed" → 9; Task 10 "5 passed" → 8; Task 11 "10
+passed" → 13; Task 12 "13 passed" → 18; plus 4 orchestrator tests).
+
+**The expensive step in Task 9 was unnecessary.** `spec_sensitivity.json` and
+`tau_sweep.json` were already on disk at `n_boot=200` from Tasks 4–5, so the
+1.5–2.5 h detached compute was skipped. Check timestamps before ever re-running it.
+
+Defects found, by task:
+
+- **Task 9 (F5/F6).** The caption conflated point-estimate sign flips with
+  significant ones: **8 of 10** cells flip, but only **3** have both CIs
+  excluding zero — reporting the first alone overstates the finding 2.7×.
+  Both are computed now. F6 encoded period as "pooled solid, everything else
+  dashed"; the real sweep has **five** periods, so 8 of 10 lines drew
+  identically — period now carries marker and dash, spec keeps colour. Both
+  footers quoted `rows[0]`'s n (2023's 90,689) as the whole figure's, on a
+  figure spanning 51,746→352,467; they quote the pooled cell now.
+  `_style.ARTIFACT_NOTE` was also corrected — it hardcoded the "~4 excursions,
+  $0–4" claim Task 8 disproved.
+- **Task 10 (F11).** The fixture spanned **139 days**; at 5-min steps 40,000
+  rows never reach 2024, so every per-year assertion would `KeyError`. Raised
+  to 360,000. Its 17,000 MW knee sat above 2023's ceiling, making the baseline
+  rate identically zero. And an **unvisited bin reported 0.0%**, drawing 2023
+  flat across load levels it never reached — NaN now, so the line breaks.
+- **Task 11 (F8).** The drafted `prepare_f8` **could not parse a real file**:
+  it expected `results[response][threshold]` as parallel arrays; production
+  writes `results[response]` as a **list of decile records** with
+  `by_threshold["100.0"]{p_hat, n_exc, ci_95}`. Rewritten against the real
+  schema. The `resolution="5-min"` fix landed and was verified on the smoke pass.
+- **Task 12 (F9).** Both "unverified" guesses were wrong. `gpd_continuous`
+  has **no `beta1`** — it is `linear.shape_coefficients[1]`; reading `[0]`
+  plots the intercept (~0.9) as the slope (~−0.007). `year_fe_diagnostic` has
+  **no `raw_by_year`** — the trend test is `layer3_secular_component_bootstrap`
+  keyed `tau_0.90/0.95/0.99`.
+- **Task 13 (orchestrator).** F4b's real filename is
+  `F4b_severity_by_month.png`. `python scripts/plot_subq1_results.py` dies
+  with `ModuleNotFoundError: No module named 'scripts'` — `scripts` is a
+  package, so it must run as `python -m scripts.plot_subq1_results`.
+
+**Housekeeping:** commit `d21f66a` (titled `x`) is an empty commit created by
+a stray fallback clause. It holds no changes and can be dropped whenever
+history rewriting is authorised.
+
+---
+
 ## Task 14: Record recomputed numbers in decisions.md
 
 Every task recorded actual values in its commit message. Consolidate them into the project's durable record, flagging any that moved materially from the 2026-07-30 design spec.
@@ -3241,7 +3294,11 @@ Follow the file's existing entry conventions (check the last entry for heading s
 5. **The unnamed variable at `decisions.md:4286` is closed**: it is `congestion_price_rt`, which reproduces the `:4031` figures ($610.03 / 4.78% and $95.92 / 0.96%) while `total_lmp_rt` gives $803.97 / 11.54% and $301.29 / 5.38%.
 6. **The held-out correlation the `decisions.md:4281` ruling requires**: 6-node ↔ SKFFSCRK is **0.8703** on the common window (the recorded +0.870) against **0.8283** held out, an inflation of +0.042; on the full window 0.8526 vs 0.8049. The qualitative finding survives SKFFSCRK's removal, which reinforces the network-wide rather than data-center-localised reading.
 7. **The load-artifact screen needs a revision note, not a rewrite** (see Task 8 AS-BUILT). `:4048` and `:4150` say "roughly 4 … reversion excursions (> 1,500 MW) … move system energy $0–4" against the trip's "$81". Recomputed on the current panel with a gap-aware delta: **3** such excursions, responses **+$2.35 / −$13.30 / −$1.05**, trip **$80.06**. Same criterion and same class — the count and the "$0–4" range are what moved.
-8. **The Task 6 exceedance counts** (2023 / 2024 / 2025 / 2026): `>$100` = 479 / 804 / 1,505 / 3,768; `>$250` = 59 / 206 / 399 / 1,620; `>$500` = 0 / 73 / 128 / 681; `>$1000` = 0 / 7 / 13 / 62. 2023–2025 match the spec exactly; 2026 drifted (3,737→3,768, 1,612→1,620) from data revision. Note that F4b buckets by month, not year, so partial 2026 is never annualised.
+8. **F5's two reversal counts**: 8 of 10 period × τ cells flip sign under the load control, but only **3** have both CIs excluding zero (2024 τ=0.90, pooled τ=0.90, pooled τ=0.95). The 2024 τ=0.90 anchor recomputes to +0.0367 [+0.0095, +0.0631] pre-registered vs −0.0266 [−0.0420, −0.0115] load-controlled — point estimates match the spec exactly, CI bounds drift slightly.
+9. **F11's actuals**: 20–22 GW row = 1.89 / 5.58 / 5.02 / 35.84 % (spec 1.89 / 5.58 / 5.03 / 37.80); load-growth shares 85.1 / 59.2 / 12.7 % (spec 85.2 / 59.1 / 12.2). Unsupported bins: 22–24 GW (2023 n=10), 24–26 GW (2023 n=0).
+10. **F8 at n_boot=1000**: d10/d1 = **0.9797** at $100 (recorded 0.98), curve flat across all ten deciles (1.78–1.95%), n=351,371. The per-decile precision is ±8.1% of the mean rate — a *different quantity* from the recorded ±19% on the d10/d1 contrast; the caption says so.
+11. **F9's Spec B trajectory**: β₁ = −0.0074 (q=0.90), −0.0073 (q=0.95), −0.0260 (q=0.99), **+0.0104** (q=0.995); every CI spans zero, so "underpowered" stands, and the q=0.995 sign flip comes with a CI four times as wide. Secular component excludes zero at τ=0.90 (+0.138 [+0.100, +0.193]) and τ=0.95 (+0.158 [+0.022, +0.282]), spans it at τ=0.99 (−0.258 [−0.947, +0.352]).
+12. **The Task 6 exceedance counts** (2023 / 2024 / 2025 / 2026): `>$100` = 479 / 804 / 1,505 / 3,768; `>$250` = 59 / 206 / 399 / 1,620; `>$500` = 0 / 73 / 128 / 681; `>$1000` = 0 / 7 / 13 / 62. 2023–2025 match the spec exactly; 2026 drifted (3,737→3,768, 1,612→1,620) from data revision. Note that F4b buckets by month, not year, so partial 2026 is never annualised.
 
 - [ ] **Step 3: Commit**
 

@@ -20,7 +20,7 @@ HOEP_COLS = {"date": "Date", "hour": "Hour", "hoep": "HOEP"}
 
 
 def _hour_ending_to_beginning(dates: pd.Series, hours: pd.Series) -> pd.Series:
-    parsed = pd.to_datetime(dates)
+    parsed = pd.to_datetime(dates, format="mixed")
     if parsed.isna().any():
         raise ValueError("unparseable Date values in IESO frame")
     numbers = pd.to_numeric(hours, errors="coerce")

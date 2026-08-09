@@ -47,3 +47,13 @@ def test_parse_hoep():
     prices = parse_hoep(raw)
     assert prices.loc[0, "hoep"] == 25.1
     assert prices.loc[0, "datetime_beginning_est"] == pd.Timestamp("2024-06-01 00:00:00")
+
+
+def test_parse_demand_zonal_mixed_date_format():
+    # Real PUB_DemandZonal_2017.csv uses "2017/01/01" while every other year
+    # (2003-2016, 2018-2026) uses "2017-01-01"; found running Task 11 against
+    # the full archive.
+    frame = demand_frame()
+    frame.loc[0, "Date"] = "2026/01/01"
+    panel = parse_demand_zonal(frame)
+    assert panel.loc[0, "datetime_beginning_est"] == pd.Timestamp("2026-01-01 00:00:00")

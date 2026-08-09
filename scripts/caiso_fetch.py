@@ -30,20 +30,43 @@ def stamp(ts: pd.Timestamp) -> str:
     return ts.strftime("%Y%m%dT%H:%M-0000")
 
 
+FAILED: list[str] = []
+
+
 def pull(client: httpx.Client, params: dict, out: Path) -> None:
+    """Fetch one chunk, retrying transport failures as well as bad responses.
+
+    OASIS is intermittently slow: the same request can time out and then
+    succeed seconds later (verified 2026-08-09 - one 28-day chunk timed out
+    at 40 s twice, then returned 200 in 25 s). `client.get` therefore raises
+    `httpx.ReadTimeout` straight out of the retry loop unless it is caught
+    here, which previously killed the whole multi-hour run on the first slow
+    request.
+
+    After the retry budget is spent the chunk is recorded in `FAILED` and the
+    run continues, so one bad chunk cannot cost the other ~1,500. Failures are
+    reported loudly at the end, and would also surface downstream as a panel
+    gap - they are never silently skipped.
+    """
     if out.exists() and out.stat().st_size > 0:
         return
     for attempt in range(5):
-        resp = client.get(BASE, params=params, timeout=180.0)
+        wait = 30 * (attempt + 1)
+        try:
+            resp = client.get(BASE, params=params, timeout=180.0)
+        except httpx.HTTPError as exc:
+            print(f"  retry {out.name}: {type(exc).__name__}; sleeping {wait}s", flush=True)
+            time.sleep(wait)
+            continue
         if resp.status_code == 200 and resp.content[:2] == b"PK":
             out.write_bytes(resp.content)
             print(f"  {out.name} ({len(resp.content)//1024} KB)", flush=True)
             time.sleep(SLEEP_S)
             return
-        wait = 30 * (attempt + 1)
         print(f"  retry {out.name}: HTTP {resp.status_code}; sleeping {wait}s", flush=True)
         time.sleep(wait)
-    raise RuntimeError(f"gave up on {out.name}")
+    FAILED.append(out.name)
+    print(f"  GAVE UP on {out.name} - continuing", flush=True)
 
 
 def chunks(start: pd.Timestamp) -> list[tuple[pd.Timestamp, pd.Timestamp]]:
@@ -70,6 +93,13 @@ def main() -> None:
                     "node": node,
                     "startdatetime": stamp(a), "enddatetime": stamp(b), "resultformat": "6",
                 }, RAW / "da_lmp" / f"{node}_{a:%Y%m%d}_{b:%Y%m%d}.zip")
+
+    if FAILED:
+        print(f"\n=== {len(FAILED)} CHUNKS NEVER FETCHED - rerun to retry ===", flush=True)
+        for name in FAILED:
+            print(f"  {name}", flush=True)
+    else:
+        print("\n=== all chunks present ===", flush=True)
 
 
 if __name__ == "__main__":

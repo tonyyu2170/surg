@@ -307,6 +307,9 @@ def plot_f9(d: dict, out_path: Path) -> None:
               for r in d["spec_b"]],
              xlabel="β₁ of continuous ξ(Z)")
     axes[1][0].set_title("(c) Spec B — continuous ξ(Z) by threshold")
+    # β₁ is O(0.01), so the default locator packs enough ticks that adjacent
+    # labels ("-0.050", "-0.025") run together.
+    axes[1][0].locator_params(axis="x", nbins=5)
 
     S.forest(axes[1][1],
              [(f"τ={r['tau']:g}  (primary {r['primary']:+.2f}, "

@@ -195,6 +195,18 @@ Same era boundary as load: **annual zips through 2024, dailies 2025 →**. The l
 common-overlap headline window (2023-01 → 2025-05) is therefore fully covered on both
 the load and price sides.
 
+**Full price-zip depth, every year probed individually (2026-08-10):**
+
+| Year | 2016 | 2017 | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 |
+|---|---|---|---|---|---|---|---|---|---|
+| Size (MB) | 355.9 | 370.9 | 222.4 | 228.7 | 232.7 | 261.8 | 280.5 | 286.1 | 294.3 |
+
+All nine return HTTP 200 with a ZIP signature; **2.53 GB total**. The DA LMP side
+therefore covers the locked SPP max window (2016-01 →) on its own evidence — this is not
+an inference from the load side's 2011–2024 span. Recorded because the first version of
+this document verified only 2022–2024 on the price side, which left the 2016 window start
+unsourced.
+
 ### Roster growth (verified in-data)
 
 | Period | Zones | Note |

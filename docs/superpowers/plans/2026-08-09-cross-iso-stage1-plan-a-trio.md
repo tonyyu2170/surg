@@ -1104,77 +1104,44 @@ git commit -m "feat(caiso): pure transforms for TAC load and DAM LMPs"
 
 - [ ] **Step 1: Write the driver**
 
-```python
-"""Stage-1 CAISO diagnostic. Usage: .venv/bin/python scripts/caiso_diagnostic.py"""
-from __future__ import annotations
+**Superseded 2026-08-09.** The driver originally printed here used the full
+6-zone `TAC_MAP` roster from `MAX_START = 2009-04-01`, but the CAISO TAC
+roster grew over the archive: scanning all 227 completed load zips on disk
+found that only 4 of the 6 zones (`CA ISO-TAC`, `PGE-TAC`, `SCE-TAC`,
+`SDGE-TAC`) are present from the start of the archive (2009-04-01); `VEA-TAC`
+first appears 2013-01-02 and `MWD-TAC` first appears 2018-03-21.
+`assert_panel_quality` raises on any NaN in `load_mw_<zone>` across the
+whole unwindowed panel, so the 6-zone/2009 combination fails immediately.
+The fix (same pattern as the NYISO driver's Task 5 supersession) is a
+**two-panel** design rather than one:
 
-import io
-import zipfile
-from pathlib import Path
+  * Panel A (full depth, 4 zones — `caiso_total`, `pge`, `sce`, `sdge`):
+    full load-archive depth from 2009-04-01. Writes
+    `data/interim/caiso_diagnostic_panel_full_depth.parquet` and
+    `outputs/caiso_diagnostic_full_depth/`.
+  * Panel B (modern, all 6 zones): from 2018-03-21 onward — the point at
+    which the last zone to appear, `MWD-TAC`, has entered the roster. The
+    raw load frame is filtered to that window *before* `parse_load` runs.
+    Writes `data/interim/caiso_diagnostic_panel_modern.parquet` and
+    `outputs/caiso_diagnostic_modern/`.
 
-import pandas as pd
-
-from surg.diagnostics.stage1 import (
-    COMMON_OVERLAP_END, COMMON_OVERLAP_START, FAR_FUTURE,
-    add_zone_gradients, assert_panel_quality, data_quality_report,
-    level_vs_volatility, trend_tables,
-)
-from surg.preprocessing.caiso_features import ZONES, parse_dam_lmp, parse_load
-
-RAW = Path("data/raw/caiso")
-PANEL = Path("data/interim/caiso_diagnostic_panel.parquet")
-FIGDIR = Path("outputs/caiso_diagnostic")
-TIME = "datetime_beginning_ppt"
-MAX_START = pd.Timestamp("2009-04-01")
-
-
-def read_zips(subdir: str) -> pd.DataFrame:
-    frames = []
-    for zpath in sorted((RAW / subdir).glob("*.zip")):
-        with zipfile.ZipFile(zpath) as zf:
-            for member in sorted(zf.namelist()):
-                frames.append(pd.read_csv(io.BytesIO(zf.read(member))))
-    if not frames:
-        raise RuntimeError(f"no zips under {RAW / subdir}")
-    return pd.concat(frames, ignore_index=True)
-
-
-def build_panel() -> pd.DataFrame:
-    panel = parse_load(read_zips("load"))
-    panel = add_zone_gradients(panel, ZONES, time_col=TIME)
-    assert_panel_quality(panel, ZONES, time_col=TIME, dst_pairs_per_year=1)
-
-    prices = parse_dam_lmp(read_zips("da_lmp"))
-    before = len(panel)
-    panel = panel.merge(prices, on=TIME, how="left", validate="m:1")
-    if len(panel) != before:
-        raise AssertionError(f"price join changed row count: {before} -> {len(panel)}")
-
-    PANEL.parent.mkdir(parents=True, exist_ok=True)
-    panel.to_parquet(PANEL, index=False)
-    print(f"panel: {panel.shape} -> {PANEL}")
-    return panel
-
-
-if __name__ == "__main__":
-    panel = build_panel()
-    price_cols = [c for c in panel.columns if c.startswith("da_lmp_")]
-    data_quality_report(panel, price_cols, time_col=TIME,
-                        window_start=MAX_START, figdir=FIGDIR)
-    trend_tables(panel, ZONES, time_col=TIME, figdir=FIGDIR, market="CAISO")
-    for label, start, end in [
-        ("max", MAX_START, FAR_FUTURE),
-        ("overlap", COMMON_OVERLAP_START, COMMON_OVERLAP_END),
-    ]:
-        level_vs_volatility(panel, ZONES, price_cols, time_col=TIME,
-                            window_start=start, window_end=end,
-                            figdir=FIGDIR, market="CAISO", label=label)
-```
+Both panels also run the common-overlap window. The price side (7
+`NODE_MAP` nodes) is identical in both panels and is read once, not rebuilt
+per panel. `caiso_features.py` gained a new `FULL_DEPTH_ZONES` constant (the
+4-zone list) alongside the existing `ZONES` (the complete 6-zone roster),
+with the empirical first-seen dates above recorded in a comment. The actual
+shipped driver is `scripts/caiso_diagnostic.py`; its content is not
+reproduced here to avoid a second copy that can drift from the real file.
 
 - [ ] **Step 2: Smoke run on the smoke-fetched chunks**
 
 Run: `.venv/bin/python scripts/caiso_diagnostic.py`
-Expected: small panel from ~60 smoke days; quality gate passes; overlap window prints the empty-cell message (fine).
+Expected: Panel A builds a small panel from the smoke-fetched days and its
+quality gate passes; overlap window prints the empty-cell message (fine).
+⚠️ Panel B needs load rows from 2018-03-21 onward — if the smoke-fetched
+chunks don't reach that date, `parse_load` raises `no CAISO TAC rows found`
+for Panel B. That's expected at smoke scale, not a regression; re-check
+once the full fetch (Step 3) has run.
 
 ⚠️ If `assert_panel_quality` fails on a fall-back pair where OASIS delivered only one of the two GMT hours (possible at chunk edges), check the rows/year print and the chunk boundary before touching tolerance — re-fetch the boundary chunk first.
 
@@ -1186,9 +1153,9 @@ Run: `nohup .venv/bin/python scripts/caiso_fetch.py > ~/caiso-fetch.log 2>&1 &`
 - [ ] **Step 4: Production run + record**
 
 Run: `.venv/bin/python scripts/caiso_diagnostic.py 2>&1 | tee ~/caiso-diagnostic-run.log`
-Expected: panel ≈ 150K rows; quality gate passes.
+Expected: Panel A (full depth) and Panel B (modern) both build; both quality gates pass; each panel's figures + CSVs land in its own `outputs/caiso_diagnostic_{full_depth,modern}/` directory. **Read the data-quality report before interpreting** (gate criterion: data-quality gate, not results gate).
 
-Append the decisions.md entry with the **BTM-solar caveat stapled to the level/volatility trends** (pre-committed framing per checkpoint): metered load ≠ consumption; duck→canyon structural change; WEIM exclusion; Santa Clara invisibility.
+Append the decisions.md entry with the **BTM-solar caveat stapled to the level/volatility trends** (pre-committed framing per checkpoint): metered load ≠ consumption; duck→canyon structural change; WEIM exclusion; Santa Clara invisibility. Note the roster-growth split (full depth vs. modern panels) alongside it.
 
 - [ ] **Step 5: Commit**
 

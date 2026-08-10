@@ -40,6 +40,29 @@ disagree, they are wrong — three of four checked memo claims have been falsifi
    overlap being the capstone headline. Unchanged from Plan A.
 4. Stage 1 uses **total price only** — no congestion decomposition. Unchanged from Plan A.
 
+## Deviations shipped during execution (2026-08-10)
+
+Recorded here so the plan matches what is actually on the branch.
+
+1. **ISO-NE hour convention — plan code was wrong, fixed in `a390c68`.** Task 4's module
+   asserted a uniform fixed 24-hour grid and `dst_pairs_per_year=0`. Verified against all
+   11 workbooks: the convention **changes at 2024**. 2016–2023 is a fixed grid with int64
+   `Hr_End`; 2024 onward is real local prevailing time with a **string** `Hr_End`, a
+   25-row fall-back day marking the repeated hour `'02X'`, and a 23-row spring-forward
+   day. The Phase-2 recon sampled 2016, 2023 and 2026 only, and the 2026 workbook stops at
+   2026-06-30, so it never reached a November fall-back — a real sampling gap in the
+   recon, not a memo error. Shipped fix: `parse_hour_ending` maps `'02X'` → hour 2 so the
+   pair becomes a genuine duplicate timestamp; `build_panel` assembles zones
+   **positionally** rather than merging on `TIME` (a key merge fans duplicate rows out
+   combinatorially); the driver drops its `drop_duplicates(subset=[TIME])` (years never
+   overlap, and it would delete half of each fall-back pair) and passes
+   `dst_pairs_per_year=1`. Four tests added; `tests/test_isone_features.py` is now 10, not 6.
+2. **`outputs/` is gitignored by project convention.** Tasks 7–9 Step 4 as originally
+   written say `git add scripts/<mkt>_diagnostic.py outputs/<mkt>_diagnostic`, which fails
+   — `.gitignore` excludes everything under `outputs/` except two `.gitkeep` files.
+   Diagnostic outputs are regeneratable and stay untracked, exactly as in Plan A. **Commit
+   the driver script only.** Corrected inline in Tasks 8 and 9 below.
+
 ## Standing execution rules (carried from Plan A, proven)
 
 - **Verify plan code blocks by regex-extract + `difflib`** against the on-disk files after
@@ -1519,7 +1542,7 @@ time before changing any parsing logic.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add scripts/spp_diagnostic.py outputs/spp_diagnostic
+git add scripts/spp_diagnostic.py
 git commit -m "feat(spp): Stage-1 diagnostic driver and production results"
 ```
 
@@ -1694,7 +1717,7 @@ decade before the Stage-1 start and is not a concern here.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add scripts/miso_diagnostic.py outputs/miso_diagnostic
+git add scripts/miso_diagnostic.py
 git commit -m "feat(miso): Stage-1 diagnostic driver and production results"
 ```
 

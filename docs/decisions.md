@@ -5048,3 +5048,235 @@ interest — any upstate trend crossing 2022 carries it.
 
 Committed: `src/surg/preprocessing/nyiso_features.py`,
 `tests/test_nyiso_features.py`, `scripts/nyiso_diagnostic.py`, this entry.
+
+## 2026-08-09 — CAISO Stage-1: OASIS `PRC_LMP` retention window falsifies the project's own memo; two-node scope; two-panel production run
+
+**⚠️ Second research-memo claim falsified by real data in this project.**
+The first was the NYISO §6 "footprint stable since 1999" claim corrected in
+the entry directly above (false: the 2005-01-31 N.Y.C./LONGIL split). This
+entry documents the second: `docs/caiso-data-availability-research.md`
+(referenced by name in the Phase-1 memo set) claimed roughly 2010-era price
+depth for CAISO OASIS. **That claim is false for `PRC_LMP` (the DAM LMP
+endpoint this diagnostic uses).** It appears to have verified the *load*
+endpoint (`SLD_FCST`), which genuinely does span 2009-2026 (227/227 load
+chunks complete, confirmed below), and conflated that with the price
+endpoint, which does not. **Recommendation: verify the remaining ISO
+memos' depth and footprint claims against real downloaded files before
+relying on them for Plan B (MISO, ISONE, SPP) — two claims have now failed
+empirical checks out of two checked closely.**
+
+**The discovery, empirically verified.** `PRC_LMP` DAM v12 has a ~3-year
+rolling retention window. Of 637 price zips fetched across the three DLAP
+nodes that got fetched before the run was stopped (PGAE, SCE, SDGE — VEA
+and the three `TH_*` trading hubs were never fetched at all), 549 (86%;
+82% for SCE specifically, 183 of 224) are ~649-byte zips that are valid
+archives (start with `PK`) but contain a single **XML** file
+(`..._PRC_LMP_DAM_..._v12.xml`) holding only an OASIS "no data" disclaimer,
+not a CSV. Real price data begins **2023-04-12** for every node checked.
+Per-node real-data chunk counts: PGAE 43/226, SCE 41/224, SDGE 4/187. The
+download stalls that plagued the original fetch clustered in the oldest
+retained window (2023-05-10 to 2023-08-30) — consistent with that being
+cold storage server-side, not a client-side issue. Load is unaffected:
+all 227 load zips are 100% CSV, no XML disclaimers, genuine 2009-2026
+depth.
+
+**`read_zips` fix (Task 1).** The function did `pd.read_csv` on every
+member of every zip, so it crashed or silently ingested XML bytes as a
+malformed one-column CSV on the 549 disclaimer archives. Fixed to read
+only members ending in `.csv`; an archive with no CSV member (a pure XML
+disclaimer) is skipped entirely rather than read. The "no zips found"
+`RuntimeError` behavior is unchanged. `scripts/nyiso_diagnostic.py`'s
+`read_family` has the structurally identical defect (reads every zip
+member regardless of extension) — checked all 928 NYISO zips (`palIntegrated`,
+`damlbmp_zone`, `realtime_zone`): 100% CSV members, zero non-CSV archives,
+so the bug is latent there, not live. Left unchanged per scope (NYISO's
+run already succeeded and is not being re-run). The IESO reader
+(`scripts/ieso_diagnostic.py`'s `read_family`) reads raw `.csv` files
+directly off disk, never unzips anything, so this bug class does not
+apply to it.
+
+**Two-node scope decision (Task 2, human decision).** The price side is
+restricted to **PGAE and SCE only** via a new `ANALYZED_NODES` module
+constant in `scripts/caiso_diagnostic.py`. SDGE has only 4 chunks (~1
+month) of real data within the retention window and would produce a
+ragged series; the fetch was stopped deliberately rather than spend
+another 1-2 hours completing it. VEA and the three `TH_*` hubs were never
+fetched. `NODE_MAP` in `src/surg/preprocessing/caiso_features.py` is
+**unchanged** — it stays the 7-node allowlist of recognized nodes, not a
+scope filter, so a future fetch of the remaining nodes would still parse
+correctly.
+
+**Two unplanned driver-level fixes found while running Panel B, both
+confined to `scripts/caiso_diagnostic.py` (not the shared `stage1.py`
+core, not `caiso_features.py`).** Panel B had never been run against real
+data before this entry (`dbb3d66`, "code only, NOT run").
+1. `MODERN_START` was `2018-03-21` (mwd's first-appearance date), but
+   first-appearance is not the same as complete coverage. `vea` has a
+   genuine single-hour gap in the raw OASIS archive at **2018-10-31
+   14:00 PPT** — confirmed present in neither of the two adjacent chunk
+   files (not a chunking artifact; it is absent from the source). That
+   gap is later than `mwd`'s own last gap (2018-03-29 13:00) and tripped
+   `assert_panel_quality`'s deliberate "do not interpolate, investigate"
+   guard. Scanned all 6 zones' full NaN history: the latest NaN of any
+   zone is `vea`'s 2018-10-31 14:00; zero NaNs for any zone from
+   **2018-11-01** onward. `MODERN_START` moved to `2018-11-01` (cost:
+   ~1 month off a ~7.8-year panel; 2018 was already a partial year).
+2. The `bad_dtype` check (`dtype.kind != "f"`) then raised on **all six**
+   Panel B zones. Root cause: raw `MW` is `int64` in the OASIS CSVs, and
+   `pivot_table`/`unstack` only upcasts a column to `float64` when the
+   pivot block it shares has missing cells to fill. Panel A's full
+   2009-2026 pivot upcasts every zone (even NaN-free ones) because
+   `vea`/`mwd`'s historical gaps live in the same shared block; Panel B's
+   now-clean, fully-rectangular 2018-11-01-onward window has no missing
+   cells anywhere, so pandas correctly keeps it `int64`. Non-float was
+   never a valid proxy for schema drift here. Fixed to accept `kind in
+   "if"` (int or float), rejecting only genuinely non-numeric dtypes
+   (e.g. `object`, from a stray string) — the actual drift signal the
+   check intended to catch.
+
+**Tests.** No new tests: `read_zips`/`ANALYZED_NODES`/`MODERN_START` live
+in `scripts/caiso_diagnostic.py`, a driver script, not a `src/` module —
+matches the precedent set by the NYISO and IESO driver commits (both
+script-only, zero new tests; NYISO's 5 new tests went into the separate
+`src/` module commit `52d941e`). Full suite: **474 passed, 5 skipped**,
+unchanged from baseline.
+
+**Production run.**
+
+Panel A (full depth, 4 zones — `caiso_total`, `pge`, `sce`, `sdge` — from
+2009-04-01): `panel.shape == (152135, 14)`, `assert_panel_quality` passed.
+Rows/year: 2009 = 6,608 (partial, archive starts 2009-04-01) through 2025
+= 8,760, 2026 = 5,272 (partial, current). No anomalies beyond the expected
+partial edge years.
+
+Panel B (modern, 6 zones — adds `vea`, `mwd` — from 2018-11-01):
+`panel.shape == (68104, 16)`, `assert_panel_quality` passed. Rows/year:
+2018 = 1,465 (partial, window starts 2018-11-01) through 2025 = 8,760,
+2026 = 5,272 (partial).
+
+**Price quality (horse-race window, both panels — identical, because the
+retention window binds regardless of the load window's start date):**
+
+```
+    price_series     n  negative_share   median        p99
+ da_lmp_dlap_sce 26776        0.111817 37.13587 107.598675
+da_lmp_dlap_pgae 28120        0.028343 40.30052 113.626843
+```
+
+SCE's 11.2% negative-price share is notably higher than PGAE's 2.8%; not
+investigated further here. Both panels' `data_quality_report` windows
+start well before 2023-04-12 (2009-04-01 for Panel A, 2018-11-01 for
+Panel B), so `n ≈ 27-28k` against panel sizes of 152,135 and 68,104 rows
+*is the retention window visibly showing up in the output* — prices exist
+for about 18% of Panel A's rows and about 41% of Panel B's, all
+concentrated in the last ~2.3 years. **No horse-race cell was dropped**:
+`min_rows=1000` never bound — every cell had n between 15,623 and 28,120,
+one to two orders of magnitude above the floor.
+
+**Level vs volatility, Panel A (full depth), max window** (2009-04-01 →
+present):
+
+```
+       zone     price_series  beta_level  beta_volatility       r2     n  level_wins
+caiso_total da_lmp_dlap_pgae    0.339523         0.012682 0.117877 28120        True
+caiso_total  da_lmp_dlap_sce    0.301722         0.052977 0.102677 26776        True
+        pge da_lmp_dlap_pgae    0.507948        -0.075814 0.242599 28120        True
+        pge  da_lmp_dlap_sce    0.487939        -0.074476 0.224129 26776        True
+        sce da_lmp_dlap_pgae    0.185908        -0.067036 0.032409 28120        True
+        sce  da_lmp_dlap_sce    0.141697        -0.067812 0.019649 26776        True
+       sdge da_lmp_dlap_pgae    0.428275        -0.131178 0.189686 28120        True
+       sdge  da_lmp_dlap_sce    0.497410        -0.183260 0.262629 26776        True
+level wins in 8 of 8 cells
+```
+
+**Panel A, overlap window** (2023-01-01 → 2025-05-01 exclusive):
+
+```
+       zone     price_series  beta_level  beta_volatility       r2     n  level_wins
+caiso_total da_lmp_dlap_pgae    0.404146        -0.012137 0.160193 16967        True
+caiso_total  da_lmp_dlap_sce    0.372796         0.037084 0.149402 15623        True
+        pge da_lmp_dlap_pgae    0.516257        -0.074471 0.249920 16967        True
+        pge  da_lmp_dlap_sce    0.507637        -0.080400 0.241403 15623        True
+        sce da_lmp_dlap_pgae    0.263629        -0.027197 0.065982 16967        True
+        sce  da_lmp_dlap_sce    0.223107        -0.016549 0.047941 15623        True
+       sdge da_lmp_dlap_pgae    0.475935        -0.065714 0.228715 16967        True
+       sdge  da_lmp_dlap_sce    0.554181        -0.126030 0.317836 15623        True
+level wins in 8 of 8 cells
+```
+
+**Level vs volatility, Panel B (modern), max window** (2018-11-01 →
+present):
+
+```
+       zone     price_series  beta_level  beta_volatility       r2     n  level_wins
+caiso_total da_lmp_dlap_pgae    0.339523         0.012682 0.117877 28120        True
+caiso_total  da_lmp_dlap_sce    0.301722         0.052977 0.102677 26776        True
+        pge da_lmp_dlap_pgae    0.507948        -0.075814 0.242599 28120        True
+        pge  da_lmp_dlap_sce    0.487939        -0.074476 0.224129 26776        True
+        sce da_lmp_dlap_pgae    0.185908        -0.067036 0.032409 28120        True
+        sce  da_lmp_dlap_sce    0.141697        -0.067812 0.019649 26776        True
+       sdge da_lmp_dlap_pgae    0.428275        -0.131178 0.189686 28120        True
+       sdge  da_lmp_dlap_sce    0.497410        -0.183260 0.262629 26776        True
+        vea da_lmp_dlap_pgae    0.244663        -0.045091 0.052762 28120        True
+        vea  da_lmp_dlap_sce    0.253862        -0.064582 0.054590 26776        True
+        mwd da_lmp_dlap_pgae   -0.035175        -0.012672 0.001384 28120        True
+        mwd  da_lmp_dlap_sce   -0.020184        -0.009964 0.000501 26776        True
+level wins in 12 of 12 cells
+```
+
+**Panel B, overlap window** (2023-01-01 → 2025-05-01 exclusive):
+
+```
+       zone     price_series  beta_level  beta_volatility       r2     n  level_wins
+caiso_total da_lmp_dlap_pgae    0.404146        -0.012137 0.160193 16967        True
+caiso_total  da_lmp_dlap_sce    0.372796         0.037084 0.149402 15623        True
+        pge da_lmp_dlap_pgae    0.516257        -0.074471 0.249920 16967        True
+        pge  da_lmp_dlap_sce    0.507637        -0.080400 0.241403 15623        True
+        sce da_lmp_dlap_pgae    0.263629        -0.027197 0.065982 16967        True
+        sce  da_lmp_dlap_sce    0.223107        -0.016549 0.047941 15623        True
+       sdge da_lmp_dlap_pgae    0.475935        -0.065714 0.228715 16967        True
+       sdge  da_lmp_dlap_sce    0.554181        -0.126030 0.317836 15623        True
+        vea da_lmp_dlap_pgae    0.243444        -0.053748 0.051079 16967        True
+        vea  da_lmp_dlap_sce    0.252967        -0.070977 0.053173 15623        True
+        mwd da_lmp_dlap_pgae   -0.040904        -0.001816 0.001692 16967        True
+        mwd  da_lmp_dlap_sce   -0.015569        -0.029240 0.001192 15623       False
+level wins in 11 of 12 cells
+```
+
+The one non-win is `mwd` × `da_lmp_dlap_sce` in Panel B's overlap window
+(`beta_level = -0.0156`, `beta_volatility = -0.0292`): `mwd` (Metropolitan
+Water District) has the smallest R² of any zone in either panel
+(0.0005-0.0017), consistent with it being a small, likely
+weather/agriculture-driven load pocket rather than one where wholesale
+price tracks either load measure well. Not investigated further.
+
+**What these results can and cannot support, given a 2.3-year price
+window.** The load-based trend outputs (`fig1_volatility_trend_normalized.png`,
+`fig2_level_trend.png`, `trends_by_zone_year.csv`) genuinely span the full
+load-archive depth of each panel (2009-2025 for Panel A, 2018-2025 for
+Panel B) — that part of the memo's depth claim, for load, holds. But
+**every horse-race result (level vs. volatility, both panels, both
+windows) is confined to 2023-04-12 onward**, because that is all the price
+data that exists, not a windowing choice. CAISO's horse race cannot speak
+to whether load level has "always" dominated volatility in the way the
+16-year ERCOT and 24-year NYISO panels can; it is a 2.3-year snapshot,
+coincident with the overlap window used for the trio comparison in the
+entry below. Treat the CAISO price-side numbers as descriptive of the
+current regime only.
+
+**BTM-solar caveat, pre-committed framing (stapled to the level/volatility
+trends per the 2026-08-09 checkpoint).** Metered load is not consumption:
+CAISO's TAC-area load is net of behind-the-meter (BTM) solar, which has
+grown enormously in California since 2009 — the well-known
+"duck-to-canyon" structural change in the net-load shape is a visibility
+artifact of this panel, not a change in underlying demand. The 6-zone
+`ZONES` roster is CAISO TAC areas only (WEIM member entities excluded by
+construction, per `caiso_features.py`'s `TAC_MAP` filter, memo §4); a
+large embedded municipal load such as Santa Clara (Silicon Valley Power,
+not a CAISO TAC area) is invisible to this panel entirely. Any load-growth
+or volatility reading from these panels inherits both caveats.
+
+**No substantive interpretation attempted beyond what is stated above** —
+numbers and anomalies only; conclusions are a later step with a human.
+
+Committed: `scripts/caiso_diagnostic.py`, this entry.

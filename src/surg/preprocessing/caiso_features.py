@@ -12,6 +12,17 @@ TAC_MAP = {
 }
 TACS = list(TAC_MAP)
 ZONES = list(TAC_MAP.values())
+
+# The TAC roster grew over the archive: not every zone above is present
+# from day one. Empirically verified by scanning all completed load zips
+# on disk (227 files):
+#   CA ISO-TAC, PGE-TAC, SCE-TAC, SDGE-TAC -> present from 2009-04-01
+#   VEA-TAC -> first appears 2013-01-02
+#   MWD-TAC -> first appears 2018-03-21
+# FULL_DEPTH_ZONES is the subset that spans the full 2009-04-01 archive
+# depth; ZONES (the complete 6-zone roster) is only valid from 2018-03-21
+# onward, once the last zone (MWD) has appeared.
+FULL_DEPTH_ZONES = ["caiso_total", "pge", "sce", "sdge"]
 NODE_MAP = {
     "DLAP_PGAE-APND": "dlap_pgae", "DLAP_SCE-APND": "dlap_sce",
     "DLAP_SDGE-APND": "dlap_sdge", "DLAP_VEA-APND": "dlap_vea",

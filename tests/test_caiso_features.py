@@ -4,7 +4,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from surg.preprocessing.caiso_features import TACS, parse_dam_lmp, parse_load
+from surg.preprocessing.caiso_features import FULL_DEPTH_ZONES, TACS, ZONES, parse_dam_lmp, parse_load
 
 
 def load_row(start_gmt: str, tac: str, mw: float) -> dict:
@@ -55,3 +55,17 @@ def test_parse_dam_lmp_filters_lmp_rows_and_pivots():
     prices = parse_dam_lmp(raw)
     assert prices.loc[0, "da_lmp_dlap_pgae"] == 51.7
     assert prices.shape[1] == 2  # time + one node
+
+
+def test_full_depth_zones_are_the_four_zones_present_since_2009():
+    # CA ISO-TAC, PGE-TAC, SCE-TAC, SDGE-TAC are the only TAC areas present
+    # from the start of the archive (2009-04-01); VEA and MWD arrive later.
+    assert FULL_DEPTH_ZONES == ["caiso_total", "pge", "sce", "sdge"]
+
+
+def test_full_depth_zones_is_strict_subset_of_complete_roster():
+    assert set(FULL_DEPTH_ZONES) < set(ZONES)
+
+
+def test_complete_roster_is_unchanged_at_six_zones():
+    assert len(ZONES) == 6

@@ -14,9 +14,9 @@ PJM/DOM project history.
 | | **PJM/DOM** | **ERCOT** | **MISO** | **SPP** | **CAISO** | **IESO** | **NYISO** | **ISONE** |
 |---|---|---|---|---|---|---|---|---|
 | **Load zones** | zones/pnodes | 8 weather zones + total | 6 LRZ groups + total | 20 control zones | 5 TACs + total | 10 zones + Ontario | 11 zones | 8 zones |
-| **Zonal load history (hourly)** | 2022-10 → (built) | 2004 → (clean schema 2017 →) | **2013-06 →** | 2025 → verified; 2011 → visible ⚠️ naming | **2009-04 →** | **2003 →** (best archive) | **2001-06 →** | 2003 → (SMD) ⚠️ access |
+| **Zonal load history (hourly)** | 2022-10 → (built) | 2004 → (clean schema 2017 →) | **2013-06 →** | **2011 →** verified | **2009-04 →** | **2003 →** (best archive) | **2001-06 →** | 2003 → (SMD) ⚠️ access |
 | **Deep 5-min load?** | bought (quota) | 31-day rolling only | no | no | no | no | **yes — `pal` to 2001** ⚠️ cadence | API only |
-| **Price history** | 2022-10 → (built) | 2010 → | 2023 → daily; pre-2023 in bundles ⚠️ | 2025 → verified; 2014 → behind naming ⚠️ | **2009-04 →** | HOEP 2002 → 2025-04; LMP era ⚠️ ~90-day rolling | **DA 1999-11 →, RT 2001 →** | ≥2015 → verified open (2003 nominal) |
+| **Price history** | 2022-10 → (built) | 2010 → | 2023 → daily; pre-2023 in bundles ⚠️ | 2025 → verified; 2014 → behind naming ⚠️ | **2009-04 →** | HOEP 2002 → 2025-04; LMP era ⚠️ ~90-day rolling | **DA 1999-11 →, RT 2001 →** | **2016 →** verified |
 | **Congestion decomposed?** | yes | no (derivation) | **yes** (MCC/MLC) | **yes** (MCC/MLC/MEC) | **yes** (MCC/MCL/MCE) | LMP era only | **yes, to 1999** | **yes** |
 | **Free 5-min prices?** | quota workaround | yes (SPP files) | **yes, final, 2023 →** | yes (By_Interval) | yes (PRC_INTVL_LMP) | yes but ⚠️ rolling | yes (realtime files) | prelim files |
 | **Gates** | quota (gridstatus.io) | none | **none** | none (but UI-only listing) | **none** | none | **none** | load: registration or file-hunt ⚠️ |
@@ -25,7 +25,7 @@ PJM/DOM project history.
 | **DC-load visibility** | none (pnode geography) | partial registry (no hyperscalers) | 1 named pricing node (`GRE.REC.DATA`) | none | none — Santa Clara invisible (muni) | none; LDC filings | **Gold Book Table IV-7: >12 GW load requests** | ~nothing to see (control) |
 | **DC growth scale** | the treatment market | large (LFL ~11% of energy) | **largest forecast: +32 GW peak by 2046; LF 63→68%** | near-doubling of peak in 10 yr (HILL/CHILL) | small: +1.8 GW by 2030 | DC = 8.6% of 2050 demand; EV-dominated | modest; near-term revised **down** | **~none — the control** |
 | **Dominant confound** | system-wide 2026 escalation | wind (FWEST) + 4CP | wind (LRZ1/3_5) | **wind (strongest)** + CHILL curtailment | **BTM solar (strongest)** | **ICI/GA peak-shaving (strongest endogeneity)** | Zone J weather; 2022 crypto moratorium | BTM solar + winter gas tail |
-| **Stage-1 verdict** | done (home market) | done (132/135 level wins) | **GO** (window 2023-01 →) | **CONDITIONAL** ⚠️ naming task first | **GO** (easiest, full window) | **GO** (load + HOEP; LMP era prospective) | **GO** (strongest candidate) | **GO** (one access fork) |
+| **Stage-1 verdict** | done (home market) | done (132/135 level wins) | **GO** (window 2023-01 →) | **GO** — blocker eliminated | **GO** (easiest, full window) | **GO** (load + HOEP; LMP era prospective) | **GO** (strongest candidate) | **GO** — fork dissolved |
 
 ## What generalized across all six markets
 

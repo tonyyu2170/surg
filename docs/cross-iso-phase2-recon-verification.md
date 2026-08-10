@@ -82,6 +82,15 @@ stream and read the first chunk.
   DA_CC, DA_MLC, RT_LMP, RT_EC, RT_CC, RT_MLC, Dry_Bulb, Dew_Point`.
 - `Hr_End` is int 1–24; `Date` is a date.
 
+**CORRECTION (2026-08-10, found during Plan B Task 4 execution):** the "identical across
+all three" claim above is wrong from 2024 onward. This section sampled only 2016, 2023,
+and 2026 (which stops at 2026-06-30, before that year's November fall-back) — a real
+sampling gap, not a memo error. Verified against all 11 workbooks: **2016–2023** matches
+the structure above, with `Hr_End` as int64. **2024 onward** uses real local prevailing
+clock time and `Hr_End` is a **string**: the fall-back day carries 25 rows with the
+repeated hour written `'02X'` (verified 2024-11-03, 2025-11-02), and the spring-forward
+day carries 23 rows with hour 2 absent (verified 2024-03-10, 2025-03-09, 2026-03-08).
+
 ### The finding that changes the plan
 
 **The workbook carries load *and* decomposed DA/RT LMP *and* weather, per zone, in one
@@ -96,14 +105,25 @@ it documented for any future nodal work.
 
 2023 has **8760 rows = 365 × 24**, and **both** DST transition days (2023-03-12 and
 2023-11-05) have exactly 24 rows. 2016 has 8784 = 366 × 24 (leap year). So the series
-carries no DST pairs and no short days.
+carries no DST pairs and no short days *in the years sampled here (2016, 2023)*.
 
 **`dst_pairs_per_year = 0` for ISONE** — same gate setting as MISO and IESO, not the
 NYISO/CAISO setting of 1.
 
+**CORRECTION (2026-08-10, found during Plan B Task 4 execution): the two claims above
+are FALSE from 2024 onward.** This section sampled 2016, 2023, and 2026 only, and the
+2026 workbook ends 2026-06-30 — before that year's November fall-back — so the sampling
+never reached the failure case. Verified against all 11 workbooks: 2016–2023 is a fixed
+24-hour grid (matches the claim above, `Hr_End` int64); **2024 onward is real local
+prevailing clock time**, and `Hr_End` is a **string**: the fall-back day carries 25 rows
+with the repeated hour written `'02X'` (verified 2024-11-03, 2025-11-02), and the
+spring-forward day carries 23 rows with hour 2 absent (verified 2024-03-10, 2025-03-09,
+2026-03-08). **The correct setting is `dst_pairs_per_year = 1`, not 0.**
+
 ⚠️ 2026 partial file: 4343 rows spanning 2026-01-01 → 2026-06-30, one short of 181 × 24 =
-4344. Data ends **2026-06-30**. The quality gate should locate the missing hour rather
-than tolerate it silently.
+4344. Data ends **2026-06-30**. **Resolved by the correction above**: the missing hour is
+2026-03-08 02:00, the spring-forward hour that correctly does not exist — not a data
+defect, and not something a quality gate needs to locate as an anomaly.
 
 ### Engines
 
@@ -253,16 +273,21 @@ Elasticsearch write endpoint.
 ## 5. Memo reliability scorecard
 
 Four Phase-1 memo claims have now been checked against real files. **Three were false.**
+A fourth claim was checked during Plan B execution — this time **this recon document's
+own claim, not a memo's** — and it was also false.
 
-| Claim | Memo | Reality |
+| Claim | Source | Reality |
 |---|---|---|
-| NYISO footprint "stable since 1999" | nyiso §6 | **FALSE** — combined `N.Y.C._LONGIL` pre-2005-01-31; 4 external proxy buses in every price file (Plan A defect #3) |
-| CAISO price depth "2010 →" | caiso | **FALSE** — `PRC_LMP` retention ~3 yr; real data starts 2023-04-12 |
-| ISONE price depth "2015 verified / 2003 nominal" | isone §3, §5 | **FALSE** — 2015 returns an empty sentinel; real start is 2016-01 |
-| SPP wide→long break at 2026-03-24 | spp §4 | **TRUE** ✓ |
+| NYISO footprint "stable since 1999" | nyiso memo §6 | **FALSE** — combined `N.Y.C._LONGIL` pre-2005-01-31; 4 external proxy buses in every price file (Plan A defect #3) |
+| CAISO price depth "2010 →" | caiso memo | **FALSE** — `PRC_LMP` retention ~3 yr; real data starts 2023-04-12 |
+| ISONE price depth "2015 verified / 2003 nominal" | isone memo §3, §5 | **FALSE** — 2015 returns an empty sentinel; real start is 2016-01 |
+| SPP wide→long break at 2026-03-24 | spp memo §4 | **TRUE** ✓ |
+| ISONE SMD workbook structure "verified identical in 2016, 2023, 2026," `dst_pairs_per_year = 0` | **this document, §2** (not a memo) | **FALSE** — checked 2026-08-10 against all 11 workbooks: the convention changes at 2024 (string `Hr_End`, 25-row fall-back day with the repeated hour written `'02X'`, 23-row spring-forward day). Correct setting is `dst_pairs_per_year = 1`. Root cause: this section sampled only 2016/2023/2026, and the 2026 workbook ends 2026-06-30 — before that year's fall-back — so the sampling never reached the failure case. |
 
-The failure mode is consistent: **claims verified by HTTP status or by UI appearance,
-never by reading the payload.** Any remaining unverified memo claim — MISO/ISONE/SPP
+The failure mode for the four memo claims is consistent: **claims verified by HTTP
+status or by UI appearance, never by reading the payload.** The fifth (this document's
+own) failed for a related but distinct reason: **verified against too few sampled years
+to reach the failure case.** Any remaining unverified memo claim — MISO/ISONE/SPP
 footprint and depth assertions not listed above — should be treated as a hypothesis until
 a real file confirms it.
 
@@ -279,7 +304,8 @@ a real file confirms it.
 4. **SPP: strip column names** (whitespace drift at 2015) and **infer datetime format per
    era**; handle roster growth (16 → 17 → 20) by panel, per the CAISO precedent.
 7. **ISONE: one workbook per year, 11 URLs**, three of them numeric-id constants.
-8. **ISONE: `dst_pairs_per_year = 0`.**
+8. **ISONE: `dst_pairs_per_year = 1`** (corrected 2026-08-10; this section originally
+   said `= 0`, which was itself a falsified claim — see §2 and §5).
 9. **Verify plan code blocks by regex-extract + `difflib`** against on-disk files per
    batch — it caught all four Plan A defects at near-zero cost.
 

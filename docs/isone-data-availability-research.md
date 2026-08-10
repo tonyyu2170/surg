@@ -41,12 +41,16 @@ trivially — there is very little facility to find.
 
 **Better:**
 
-- **Open, deep, decomposed prices without login**: `static-transform/csv/histRpts/da-lmp/
-  WW_DALMP_ISO_{YYYYMMDD}.csv` — verified 200 at 2015-08-06, 2023-08-06, 2026-08-06;
-  schema `Date, Hour Ending, Location ID, Location Name, Location Type, LMP, Energy
-  Component, Congestion Component, Marginal Loss Component`; one daily CSV carries
-  every location (network nodes, LOAD ZONE rows, hub). 5-minute RT files exist under
-  the sibling `histRpts/5min-rt-prelim/` pattern.
+- **Open, decomposed prices without login**: `static-transform/csv/histRpts/da-lmp/
+  WW_DALMP_ISO_{YYYYMMDD}.csv` — schema `Date, Hour Ending, Location ID, Location Name,
+  Location Type, LMP, Energy Component, Congestion Component, Marginal Loss Component`;
+  one daily CSV carries every location (network nodes, LOAD ZONE rows, hub). 5-minute RT
+  files exist under the sibling `histRpts/5min-rt-prelim/` pattern. **Corrected
+  2026-08-10**: the "verified 200 at 2015-08-06" claim checked status codes, not
+  payloads — that date returns an HTTP 200 with a 31-byte empty-sentinel body ("No data
+  exists for this period."). Real usable depth is **2016-01 → present** (dense monthly
+  sampling every year 2016–2025); see
+  `docs/cross-iso-phase2-recon-verification.md` §1.
 - The **IRTT public interconnection queue** (irtt.iso-ne.com) is a clean, queryable
   tracking tool.
 - Stable footprint (8 load zones: ME, NH, VT, CT, RI, SEMA, WCMA, NEMA) since the 2003
@@ -64,8 +68,10 @@ trivially — there is very little facility to find.
   ungated; FERC-714 covers deeper totals.
 - DA LMP daily files are all-locations (~thousands of rows/day) — trivial compute, just
   bulkier than zone-only files.
-- ⚠️ Exact histRpts depth edge unprobed (2015 verified; SMD-era nominally 2003) —
-  confirm the earliest daily file during the pull.
+- **Corrected 2026-08-10**: the depth edge is now probed, and the "2015 verified;
+  SMD-era nominally 2003" framing above was wrong — 2015-08-06 and every probed date
+  ≤ Nov 2015 return an empty sentinel, not data. Real depth is **2016-01 → present**
+  (December 2015 is patchy); see `docs/cross-iso-phase2-recon-verification.md` §1.
 
 ## 4. Zonal load archive
 
@@ -81,14 +87,18 @@ trivially — there is very little facility to find.
 
 ## 5. Price archive (verified)
 
-- **DA hourly**: `WW_DALMP_ISO_{YYYYMMDD}.csv` daily files, open, decomposition columns,
-  verified at 2015/2023/2026. LOAD ZONE rows give the 8 zonal price series; `.H.INTERNAL_HUB`
-  is the hub.
+- **DA hourly**: `WW_DALMP_ISO_{YYYYMMDD}.csv` daily files, open, decomposition columns.
+  LOAD ZONE rows give the 8 zonal price series; `.H.INTERNAL_HUB` is the hub.
+  **Corrected 2026-08-10**: "verified at 2015/2023/2026" checked HTTP status only — the
+  2015 file is an empty sentinel. Real depth is **2016-01 → present**
+  (`docs/cross-iso-phase2-recon-verification.md` §1). Stage 1 does not use this daily-CSV
+  route at all — see the §9 workbook route.
 - **RT**: hourly final and 5-minute prelim under sibling `histRpts` paths (pattern from
   the gridstatus scraper, partially verified via the DA family; ⚠️ verify RT-final path
   shape at pull time).
 - **Window fit**: DOM-matched horse race (2022-10 →) fully covered by verified-open
-  files; full-history 2003 → available pending the depth-edge check.
+  files. **Corrected 2026-08-10**: full-history depth is **2016-01 → present**, not
+  2003 → (the "pending the depth-edge check" note above resolved false).
 - Winter price spikes (gas constraints) dominate the tail of any ISO-NE price series —
   see §6.
 
@@ -134,22 +144,29 @@ trivially — there is very little facility to find.
 
 ## 9. Concrete Stage-1 pull spec
 
+**Corrected 2026-08-10** (`docs/cross-iso-phase2-recon-verification.md` §2): the daily
+`WW_DALMP_ISO` CSV route below is superseded for Stage 1. One annual SMD workbook per
+year carries load *and* decomposed DA/RT LMP *and* weather, per zone, in a single file —
+11 workbooks (~85 MB) replace the ~1.4K daily CSVs this table originally budgeted for
+price, and the load-access fork closes: **no CAPTCHA, no registration, no login**. (The
+`zone-info` page's own download interface *is* CAPTCHA-gated and must not be used; the
+11 workbooks are published separately as open static assets and are unaffected by that
+gate.)
+
 | Need | Source | Est. volume |
 |---|---|---|
-| DA LMP (8 zones + hub), 2022-10 → (or 2003 →) | daily `WW_DALMP_ISO` CSVs, open | ~1.4K files for DOM window; zones extracted from LOAD ZONE rows |
-| Hourly zonal load 2003 → | SMD annual xlsx (URLs to enumerate) **or** API (user registration decision) | ~24 workbooks |
+| DA/RT LMP + load + weather, 8 zones + system, 2016-01 → 2026-06-30 | 11 annual SMD workbooks (`static-assets/documents/...`; 2016 `.xls`, 2017–2023 dated-folder `.xlsx`, 2024–2026 numeric-id `.xlsx` — verified constants, not a computed pattern) | ~85 MB total |
 | System total hourly (backstop) | EIA-930 six-month CSVs | trivial |
 | RT / 5-min | histRpts RT families | out of Stage-1 scope |
 
-- **Blocking decision for the checkpoint**: SMD-file enumeration (no gate, small task)
-  vs. API registration (cleaner, but a gate the design reserves to the user). Either
-  unblocks the full Stage 1.
+- **Blocking decision resolved**: the prior "SMD-file enumeration vs. API registration"
+  fork is gone — all 11 workbook URLs are verified constants requiring no registration.
 - **Horse race**: 8 zones × own-zone DA LMP (+ hub) — NYISO-style one-to-one alignment.
-  Window: DOM-matched exactly.
-- Excel engine required for SMD workbooks (openpyxl — already a Phase-2 prerequisite
-  via MISO).
+  Window: 2016-01 → 2026-06-30 (workbook depth), or DOM-matched (2022-10 →) as a subset.
+- Excel engines required: `xlrd` for the 2016 `.xls` workbook, `openpyxl` for 2017+
+  `.xlsx` (both already a Phase-2 prerequisite via MISO).
 - **Recommendation to checkpoint**: run ISO-NE — as the control market its value is
-  highest per byte; the load-access decision is the only fork.
+  highest per byte; the load-access fork has dissolved, so there is no remaining fork.
 
 ## 10. Source index
 

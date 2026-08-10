@@ -62,12 +62,16 @@ a stronger, formalized version of the ERCOT 4CP endogeneity.
 
 **Worse:**
 
-- **The portal's history is opaque.** Year folders back to 2011 render in the UI, but the
-  file-browser's listing API returns empty to every programmatic shape tried (plain,
-  JSON-Accept, XHR headers, session cookies, same-origin browser fetch), and current
-  daily filenames 404 before ~2025. Old files exist under consolidated names that only
-  the interactive UI reveals. ⚠️ **Open item: enumerate pre-2025 names via a browser
-  session (~15-minute task) before any Phase-2 pull design.**
+- **Corrected 2026-08-10** (`docs/cross-iso-phase2-recon-verification.md` §3): the
+  "opaque pre-2025 naming" problem below is resolved — no browser-UI enumeration needed.
+  The listing API never revealed it, but the consolidated pre-2025 archives are per-year
+  zips at a fixed, guessable path: `https://portal.spp.org/file-browser-api/download/
+  {fileset}?path=/{YYYY}/{YYYY}.zip` (verified 200 with ZIP signature; `hourly-load`
+  2011–2024, `da-lmp-by-settlement-location` verified 2022–2024). **SPP Stage-1 price
+  feasibility flips CONDITIONAL → GO** (see §9). Original open item, for the record: year
+  folders back to 2011 render in the UI, but the file-browser's listing API returns empty
+  to every programmatic shape tried (plain, JSON-Accept, XHR headers, session cookies,
+  same-origin browser fetch), and current daily filenames 404 before ~2025.
 - **Two footprint changes, one very recent**: the Integrated System (WAUE et al.) joined
   October 2015, and **RTO West expansion went live 2026** — the load roster already
   carries `WACM`, `WAUW`, `PRPA` (verified in the 2026-08-06 file). Any SPP trend window
@@ -84,40 +88,60 @@ Control Zone Name, Forecast Area Type, Load MW` (verified).**
 - **20 control zones** in the current file: CSWS, EDE, GRDA, INDN, KACY, KCPL, LES, MPS,
   NPPD, OKGE, OPPD, PRPA, SECI, SPRM, SPS, WACM, WAUE, WAUW, WFEC, WR — the finest zonal
   granularity of any market probed (vs. MISO's 6 groups, ERCOT's 8 zones). PRPA/WACM/WAUW
-  are RTO-West additions; WAUE arrived with the 2015 IS join.
-- **⚠️ Timestamps appear to be GMT** — the daily file's `Market Hour` runs 06:00 → 05:00
-  (24 hours, verified), i.e. a GMT day over a Central-time market day. Price files carry
-  explicit local + GMT columns; the load file carries one unlabeled column. Pin down in
-  Phase 2 before any join — this is the SPP version of the ERCOT hour-ending trap.
+  are RTO-West additions; WAUE arrived with the 2015 IS join. **Corrected 2026-08-10**:
+  this 20-zone long-format roster is the 2026-03-25 → present era only. 2011–2015 is wide
+  format with 16 zones (no WAUE); 2016–2025 is wide with 17 zones (WAUE present, the
+  Oct-2015 IS join); 2026-03-25 → is long with 20 zones
+  (`docs/cross-iso-phase2-recon-verification.md` §3 era table).
+- **Timezone — Corrected 2026-08-10, RESOLVED.** `Market Hour` is GMT, hour-ending,
+  verified on both 2025-11-02 (fall back, 25 rows, `11/02 06:00` → `11/03 06:00`) and
+  2026-03-08 (spring forward, 23 rows, `03/08 07:00` → `03/09 05:00`). Row counts follow
+  the **local** Central day (23/24/25); the timestamp itself is GMT — convert to
+  America/Chicago before any join, and cross-check against the DA LMP files' explicit
+  local + `GMTIntervalEnd` columns in the same row.
 - **Verified access**: `portal.spp.org/file-browser-api/download/hourly-load?path=
   /{YYYY}/DAILY_HOURLY_LOAD-{YYYYMMDD}.csv` for 2025 → present (200 at 2025-08-06 and
   2026-08-06; 404 at 2024-08-06 and every earlier year probed).
 - **Schema break**: wide format until **2026-03-24**, long after (per the gridstatus
   parser constant; the 2026-08 file verified long). A pull spanning the break parses two
   families.
-- **Pre-2025 history**: the portal tree shows year folders **2011 → 2026**, so roughly
-  15 years of hourly zonal load exist ungated — behind the unresolved consolidated
-  naming (§3). Backstops verified reachable: **EIA-930** (SPP BA total, hourly, 2015 →)
-  and **FERC-714** (planning-area hourly, annual filings, decades deep) — totals only,
-  no control-zone split.
+- **Pre-2025 history — Corrected 2026-08-10.** The consolidated naming is resolved (§3):
+  `…download/hourly-load?path=/{YYYY}/{YYYY}.zip` returns the full year as a ZIP,
+  verified 2011–2024 (2025, 2026 → 404, as expected — those years are daily-file only).
+  **⚠️ Double-count trap inside the zips**: each year's zip holds both daily CSVs
+  (`DAILY_HOURLY_LOAD-YYYYMMDD.csv`, present 2019 partial, dense 2022–2024) *and* 12
+  monthly rollups (`HOURLY_LOAD-YYYYMM.csv`) covering the same hours — globbing the zip
+  double-counts the year. **The monthly family is the only one present in every archived
+  year (2011–2024)** — parse from monthlies, not dailies, for the annual-zip era.
+  Backstops verified reachable: **EIA-930** (SPP BA total, hourly, 2015 →) and
+  **FERC-714** (planning-area hourly, annual filings, decades deep) — totals only, no
+  control-zone split.
+- **⚠️ CF+NC summing rule (long-format era only, 2026-03-25 →)**: `Forecast Area Type`
+  takes values `CF` and `NC`; seven zones (KCPL, LES, NPPD, OPPD, WACM, WAUE, WR) carry
+  both. A pivot on `(Market Hour, Control Zone Name)` alone collides on those seven and
+  silently drops 5–31% of their load — the wide column equals **CF + NC**, so long-format
+  parsing must sum both types per (hour, zone).
 
 ## 5. Price archive
 
 - **DA LMP by settlement location** (`da-lmp-by-settlement-location` fileset):
   `/{YYYY}/{MM}/By_Day/DA-LMP-SL-{YYYYMMDD}0100.csv`, ~38.6K rows/day = 1,609 locations
-  × 24 h, full decomposition. **Verified 200 at 2025-08 and 2026-08; 404 at 2024-08 and
-  earlier** — same ~current+1yr daily retention pattern as load, older files behind the
-  consolidated naming.
+  × 24 h, full decomposition. Verified 200 at 2025-08 and 2026-08; 404 at 2024-08 and
+  earlier under the daily-file naming. **Corrected 2026-08-10**: older years are not
+  missing — `…?path=/{YYYY}/{YYYY}.zip` returns the full year as a ZIP (verified 2024:
+  200, ~294 MB; 2025: 404, as expected — daily-file only), same era boundary as load
+  (annual zips through 2024, dailies 2025 →). The locked common-overlap headline window
+  (2023-01 → 2025-05) is fully covered on both the load and price sides.
 - **RTBM (real-time) LMP** (`rtbm-lmp-by-location`): 5-minute interval files verified
-  (`By_Interval/{DD}/RTBM-LMP-SL-{YYYYMMDDHHMM}.csv`, 200 at 2026-08-06 01:05). Daily
-  rollups (`By_Day/RTBM-LMP-DAILY-SL-…`) 404'd at every date/suffix tried — ⚠️ exact
-  daily-rollup naming unresolved, same enumeration task as above.
-- **Window fit is the SPP problem**: the DOM-matched horse-race window (2022-10 →, or
-  2023-01 → as run for MISO) sits **almost entirely behind the consolidation boundary**.
-  Until the old names are enumerated, the only programmatically-verified SPP price window
-  is ~2025 → present (~1.5 yr) — too short for a comparable horse race. **SPP Stage-1
-  price feasibility = CONDITIONAL.** The data exists (2014 →, visible in the UI tree);
-  only the URL grammar is missing.
+  (`By_Interval/{DD}/RTBM-LMP-SL-{YYYYMMDDHHMM}.csv`, 200 at 2026-08-06 01:05). Annual
+  zip verified for 2022 (200 ZIP, **5.02 GB/yr**) — confirms 5-minute RTBM stays out of
+  Stage-1 scope on size grounds alone. Daily rollups (`By_Day/RTBM-LMP-DAILY-SL-…`)
+  404'd at every date/suffix tried; naming unresolved, but out of scope for Stage 1.
+- **Window fit — Corrected 2026-08-10, CONDITIONAL → GO**: the "opaque pre-2025 naming"
+  blocker is resolved (§3): `?path=/{YYYY}/{YYYY}.zip` gives the full annual archive with
+  no browser-UI enumeration needed. **SPP Stage-1 price feasibility = GO.** The
+  DOM-matched and common-overlap windows are both covered by verified annual-zip +
+  daily routes.
 - WEIS (Western Energy Imbalance Service, pre-RTO-West) prices exist as a separate
   fileset — relevant only if the western zones' pre-2026 history is ever wanted.
 
@@ -173,25 +197,30 @@ Control Zone Name, Forecast Area Type, Load MW` (verified).**
 
 ## 9. Concrete Stage-1 pull spec
 
-**Conditional on resolving the consolidated naming (one browser-UI session):**
+**Corrected 2026-08-10** (`docs/cross-iso-phase2-recon-verification.md` §3): **Stage-1
+verdict flips CONDITIONAL → GO.** The consolidated-naming blocker is resolved — no
+browser-UI enumeration needed; annual zips at `?path=/{YYYY}/{YYYY}.zip` cover the
+pre-2025 years on both load and price.
 
 | Need | Source (verified pattern) | Est. volume |
 |---|---|---|
 | Zonal load 2025 → present | `hourly-load` dailies (~40 KB/day, ~580 files) | ~23 MB |
-| Zonal load 2011 → 2024 | portal tree, consolidated names ⚠️ unresolved | unknown; UI shows full years |
+| Zonal load 2011 → 2024 | `hourly-load?path=/{YYYY}/{YYYY}.zip`, **monthly rollups only** (double-count trap: zips also hold dailies covering the same hours) | 0.58–1.45 MB/yr |
 | DA LMP 2025 → present | `da-lmp-by-settlement-location` By_Day dailies (~4 MB/day) | ~2.3 GB raw → extract hubs |
-| DA LMP 2014 → 2024 | consolidated names ⚠️ unresolved | unknown |
-| RTBM 5-min | By_Interval files (288/day) | out of Stage-1 scope |
+| DA LMP 2022 → 2024 | `da-lmp-by-settlement-location?path=/{YYYY}/{YYYY}.zip` | ~280–294 MB/yr |
+| RTBM 5-min | By_Interval files (288/day); annual zip confirmed 5.02 GB/yr | out of Stage-1 scope |
 
-- **Horse race design (if unblocked)**: 20 zones × 2 system hubs (+ per-utility hubs
-  optional), DA (and RTBM daily if naming resolves). Window 2023-01 → present to match
-  MISO, else 2014-03 → for a full-market-life run.
-- **Prerequisites**: none beyond stock pandas (CSV throughout — no Excel engines needed,
-  unlike MISO). Politeness throttling on portal.spp.org.
-- **Timezone task**: resolve the load `Market Hour` GMT question with a DST-transition
-  day before any join (assert 23/25-hour local days reconstruct correctly).
-- **Recommendation to checkpoint**: hold SPP Stage-1 until the 15-minute enumeration
-  task runs; do not design around guessed names.
+- **Horse race design**: 20 zones × 2 system hubs (+ per-utility hubs optional), DA.
+  Window 2023-01 → present to match MISO, else 2011-01 → for a full-market-life run
+  (subject to the era table in §4 for parse family/schema/roster per date range).
+- **Prerequisites**: none beyond stock pandas (CSV/ZIP throughout — no Excel engines
+  needed, unlike MISO). Politeness throttling on portal.spp.org.
+- **Timezone — RESOLVED**: `Market Hour` is GMT hour-ending; convert to America/Chicago
+  before any join (see §4).
+- **Recommendation to checkpoint**: run SPP Stage-1 now — the naming blocker is gone;
+  implement from the §4 era table (parse family, schema, roster, CF/NC rule, and
+  datetime format each change on a different date) rather than independent conditionals,
+  and never glob a zip.
 
 ## 10. Source index
 

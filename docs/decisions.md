@@ -5370,3 +5370,113 @@ human, per the project's standing convention.
 Committed: this entry (`docs/decisions.md` only, per the plan's own Task
 12 commit step — no `outputs/` files staged, matching the NYISO/IESO
 precedent).
+
+---
+
+## 2026-08-10 — Cross-ISO Stage-1 CAPSTONE: eight markets, eleven panels
+
+Plan B (`docs/superpowers/plans/2026-08-10-cross-iso-stage1-plan-b.md`) added
+MISO, ISO-NE and SPP to the five markets already run, completing the cross-ISO
+Stage-1 sweep. Same descriptive horse race as Plan A: standardized OLS of price
+on own-zone load **level** vs own-zone **|load gradient|**, **no time controls**,
+run at each market's max window and at the locked common-overlap window
+(2023-01-01 → 2025-05-01 excl.).
+
+### The eight-market table
+
+| market / panel | price depth used | load growth % (earliest→latest full year) | normalized volatility change % | level-wins, overlap | level-wins, max | median R², overlap |
+|---|---|---|---|---|---|---|
+| DOM (5-min, reference) | ~3.4 yr | +28.0% (2023→2026) | 0.1850%→0.1596% (falling) | see quantile-regression findings | — | — |
+| ERCOT (hourly, reference) | ~9 yr (2017-2025) | +36.7% | −20.7% | 132/135 (97.8%) | (single window) | R² 0.004–0.056 |
+| NYISO — merged (10 zone) | ~25 yr | −4.5% (2002→2025) | −12.6% | 213/220 (96.8%) | 220/220 (100%) | 0.175 |
+| NYISO — split (11 zone) | ~21 yr | −6.5% (2006→2025) | −8.7% | 235/242 (97.1%) | 242/242 (100%) | 0.163 |
+| CAISO — full-depth (4 zone) | ~2.3 yr | +31.4% (2010→2025) | −9.8% | 8/8 (100%) | 8/8 (100%) | 0.194 |
+| CAISO — modern (6 zone) | ~2.3 yr | +2.4% (2019→2025) | −3.5% | 11/12 (91.7%) | 12/12 (100%) | 0.108 |
+| IESO (Ontario) | ~22 yr (HOEP era) | −8.5% (2004→2024) | −1.1% (flat) | 11/11 (100%) | 11/11 (100%) | 0.119 |
+| **MISO (6 LRZ groups)** | 2023-01 → 2026-08 | **+3.8%** (2023→2025) | **−5.6%** | **36/36 (100%)** | 36/36 (100%) | **0.332** |
+| **ISO-NE (8 zones, CONTROL)** | 2016-01 → 2026-06 | **−5.2%** (2016→2025) | **+9.9%** ⚠️ | **64/64 (100%)** | 64/64 (100%) | **0.274** |
+| **SPP (17 zones)** | 2017-01 → 2026-03 | **+13.2%** (2016→2025) | **−14.2%** | **289/289 (100%)** | 289/289 (100%) | **0.245** |
+
+### Finding 1 — level beats volatility, now essentially without exception
+
+All three new markets return **100% level-wins at both windows**. Across all
+eleven panels the range is 91.7%–100%. Whatever explains price levels in these
+markets, it tracks how much load there is far better than how fast load is
+moving. This is the most robust cross-market regularity in the project.
+
+### Finding 2 — the "normalized volatility always falls" regularity BREAKS, and it breaks in the control market
+
+Plan A recorded normalized volatility falling or flat in **all eight panels,
+zero exceptions**. That claim no longer holds. **ISO-NE is the first exception:
++9.9%, with 5 of 8 zones rising** (ct, me, ri, sema, vt; range −9.5% to +57.7%).
+
+The decomposition matters and must not be skipped:
+
+| market | raw \|gradient\| change | mean load change | normalized change |
+|---|---|---|---|
+| ISO-NE | **+3.7%** (rising in only 3/8 zones) | −5.2% | +9.9% |
+| MISO | −2.2% | +3.8% | −5.6% |
+| SPP | −4.6% | +13.2% | −14.2% |
+
+**ISO-NE's exception is mostly a denominator effect, not a volatility story.**
+Normalization divides by mean load, and ISO-NE's load *fell* 5.2%, so normalized
+volatility rises even in zones where raw volatility fell — CT is raw −7.8%, load
+−9.6%, normalized +2.1%; SEMA is raw −3.2%, load −3.4%, normalized +0.2%. Only
+**VT (raw +38.9%) and ME (raw +18.9%)** show genuinely rising absolute
+volatility; both are small, rural, high-renewable-share zones.
+
+The honest statement is therefore: *raw* load volatility is flat-to-falling in
+every market measured, including ISO-NE at the system level; the normalized
+measure inverts wherever load is shrinking. Any future use of `grad_mean_norm`
+as a headline number needs this caveat attached.
+
+### Finding 3 — the control market behaves exactly like the treated markets
+
+ISO-NE was chosen as the **low-data-center control**: the ISO's own May-2026
+statement is that New England "has not experienced similar growth so far, and
+only a small amount is expected in the coming decade." It nonetheless shows the
+level-over-volatility result at **64/64 — the same 100% as SPP and MISO** — and
+a *higher* median R² (0.274) than most treated markets.
+
+**This cuts against a data-center-specific reading of the project's premise.**
+If the pattern held only where data centers are concentrated, it would be
+evidence about data centers. It holds just as strongly where they are absent, so
+on this evidence it is a property of how power systems price load, not a
+signature of data-center growth. That belongs in the framing of any write-up,
+not in a footnote.
+
+### Per-market caveats (these bound the numbers above)
+
+- **MISO's 36/36 is inflated.** MISO publishes no zonal price and its node names
+  carry no LRZ code — the probe found no LRZ token in any of 432 `Loadzone`
+  names and no utility→LRZ crosswalk in scope. The documented eight-hub
+  geographic fallback was used, under which **LRZ3_5 and LRZ4 both map to
+  `ILLINOIS.HUB` and are byte-identical series**. Those cells are not
+  independent, so the effective cell count is below 36.
+- **SPP's zone price is an estimator, not a settlement price** — the unweighted
+  mean of nodal LMPs matching the zone prefix (64.5%–75.1% of locations match,
+  stable across eras). SPP's west is the most wind-penetrated in North America
+  and the negative-price share is large (SECI 17.9%, WR 11.3%, NPPD 8.8%); any
+  SPP price statistic is partly a wind story.
+- **SPP price starts 2017, load starts 2016.** The 2016 price zip mixes two
+  naming families with only 184 of 366 days in the standard one. SPP's panel
+  ends 2026-03-23, the last day before the wide→long schema break.
+- **ISO-NE 2026 is a half year** (ends 2026-06-30) and is excluded from the
+  growth columns, which use 2016→2025.
+- Nine SPP rows with missing zone load were **dropped, never interpolated**, and
+  are listed by timestamp in the run log.
+
+### What this does NOT support
+
+No causal claim of any kind. No attribution of any price behaviour to data
+centers — the control-market result actively argues against that. These are
+uncontrolled OLS horse races: `beta_level` absorbs shared diurnal and seasonal
+structure that the DOM `z_slope` specification strips out, so "level wins" means
+"level is the better single predictor here", not "load level causes price". The
+eleven panels are not directly comparable in magnitude — depths, zone
+definitions, price products and price-construction methods all differ.
+
+Interpretation with a human is a later step, per standing convention.
+
+Committed: this entry (`docs/decisions.md` only; `outputs/` stays untracked,
+matching the NYISO/IESO/CAISO precedent).

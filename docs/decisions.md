@@ -5280,3 +5280,93 @@ or volatility reading from these panels inherits both caveats.
 numbers and anomalies only; conclusions are a later step with a human.
 
 Committed: `scripts/caiso_diagnostic.py`, this entry.
+
+## 2026-08-09 — Cross-ISO Stage-1 trio interim synthesis: NYISO, CAISO, IESO, alongside the earlier DOM/ERCOT results
+
+**What ran.** Three markets against real, fully-fetched archives, each at
+both the "max" (full available) and "overlap" (2023-01-01 → 2025-05-01
+exclusive, common to all three) windows: NYISO (two zone-convention
+panels: merged/10-zone and split/11-zone), CAISO (two roster-growth
+panels: full-depth/4-zone and modern/6-zone, this entry's companion
+above), IESO (one panel, HOEP era only). Numbers below are recomputed
+from each panel's own `trends_by_zone_year.csv` and
+`fig3_level_vs_volatility_overlap.csv` with a short throwaway script (not
+reproduced here); DOM and ERCOT rows are the already-recorded figures
+from the 2026-07-30 and 2026-08-07 entries, included as reference, not
+recomputed.
+
+**⚠️ Price-history depth used for the horse race varies by roughly an
+order of magnitude across the trio, and that gap is now empirically
+grounded, not assumed:** NYISO ≈25 years (2001/2005 → 2026), IESO ≈22
+years (2003 → 2025-04, HOEP era), **CAISO ≈2.3 years (2023-04-12 →
+present) regardless of which load window is used** — the retention-window
+discovery documented above. Load-side depth is not the constraint for any
+of the three; the price side is, and CAISO's is dramatically shorter than
+the other two.
+
+| market / panel | price depth used | load growth % (earliest→latest full year) | normalized volatility change % | level-wins, overlap window | level-wins, max window | median R², overlap |
+|---|---|---|---|---|---|---|
+| DOM (5-min, reference) | ~3.4 yr | +28.0% (2023→2026 annual mean) | 0.1850%→0.1596% (falling) | not computed in this OLS framework — see quantile-regression findings instead | — | — |
+| ERCOT (hourly, reference) | ~9 yr (2017-2025) | +36.7% | −20.7% | 132/135 (97.8%) | (single window reported) | not recorded (R² range 0.004–0.056) |
+| NYISO — merged (10 zone) | ~25 yr | −4.5% (2002→2025) | −12.6% | 213/220 (96.8%) | 220/220 (100%) | 0.175 |
+| NYISO — split (11 zone) | ~21 yr | −6.5% (2006→2025) | −8.7% | 235/242 (97.1%) | 242/242 (100%) | 0.163 |
+| CAISO — full-depth (4 zone) | ~2.3 yr | +31.4% (2010→2025) | −9.8% | 8/8 (100%) | 8/8 (100%) | 0.194 |
+| CAISO — modern (6 zone) | ~2.3 yr | +2.4% (2019→2025) | −3.5% | 11/12 (91.7%) | 12/12 (100%) | 0.108 |
+| IESO (Ontario) | ~22 yr (HOEP era) | −8.5% (2004→2024; 17,468→15,986 MW) | −1.1% (flat) | 11/11 (100%) | 11/11 (100%) | 0.119 |
+
+Load growth/normalized-volatility columns use each panel's own full
+load-archive depth (system-wide series: summed zone means for NYISO,
+`caiso_total` for CAISO, `ontario` for IESO), not the price-truncated
+overlap window; level-wins and median R² are always the overlap window,
+the one common across every market including DOM/ERCOT.
+
+**Two findings worth flagging for Plan B's capstone framing.**
+
+1. **Normalized volatility falls (or is flat) in every single panel
+   examined across the whole project so far — DOM, ERCOT, both NYISO
+   panels, both CAISO panels, IESO. Zero exceptions, eight panels.** This
+   is the single most consistent result in the project. The plan
+   explicitly asked to flag a market with *rising* normalized volatility
+   as a capstone-framing risk; none was found. If MISO/ISONE/SPP also
+   fall in line, "volatility is not what's growing" becomes a genuinely
+   strong, well-replicated cross-market claim.
+2. **Load growth diverges sharply by market, and the direction itself is
+   informative.** DOM, ERCOT, and both CAISO panels show *rising* system
+   load (+2.4% to +36.7%) over their respective full-year windows; NYISO
+   (both panels) and IESO show system load *falling* (−4.5% to −8.5%)
+   over multi-decade windows. This is not a data defect — it is
+   consistent with each market's own memo caveats (NYISO: BTM solar,
+   ICAP/SCR peak-shaving; IESO: ICI/Global Adjustment peak-shaving,
+   embedded-generation netting) already documented as reasons metered
+   load can decouple from underlying consumption. It means "data centers
+   are driving load growth" cannot be asserted as a shared, market-wide
+   phenomenon from these numbers alone — the sign of the trend itself
+   splits the six panels roughly down the middle.
+3. **Level beats volatility almost everywhere.** The weakest showing is
+   CAISO-modern's overlap window at 11/12 (91.7%); every other
+   market/panel/window combination is at or above 96.8%, several at
+   100%. This replicates the ERCOT and DOM qualitative finding
+   (congestion/price tracks load *level*, not load *ramp rate*) in four
+   more independently governed markets.
+
+**What this does NOT support.** No MISO, ISONE, or SPP data has been
+touched (Plan B scope, not yet started). No capstone claim is being made
+here — three markets is not six, and this synthesis is descriptive
+inventory, not a conclusion. Every number above comes from a **Stage-1
+descriptive horse race with no time controls**: `beta_level` and
+`beta_volatility` are standardized OLS coefficients on load level and
+|load gradient| against price, with no hour-of-day, day-of-week, or
+seasonal fixed effects — `beta_level` in particular carries shared
+diurnal and seasonal structure that a controlled specification (like the
+DOM z_slope work) would strip out. Treat "level wins" as "level is a
+better *raw* correlate than ramp rate," not as a causal or even a
+fully-adjusted descriptive claim. Per-market caveats apply on top of this
+by reference to each market's own research memo (NYISO §6, IESO §6,
+CAISO memo — noting the CAISO memo's depth claim is now known-wrong per
+the entry above) and are not repeated here. No policy or data-center
+conclusion is drawn in this entry; that is explicitly a later step with a
+human, per the project's standing convention.
+
+Committed: this entry (`docs/decisions.md` only, per the plan's own Task
+12 commit step — no `outputs/` files staged, matching the NYISO/IESO
+precedent).

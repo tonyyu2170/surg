@@ -22,6 +22,17 @@ gate: the free-registration web-services API (401 verified) or annually-posted S
 whose URLs move year to year (⚠️ unresolved). The facility-level negative holds,
 trivially — there is very little facility to find.
 
+**Corrected 2026-08-10** (`docs/cross-iso-phase2-recon-verification.md` §1–§2): two
+claims above are wrong. The "verified back to at least 2015" price claim checked HTTP
+status, not payload — 2015-08-06 returns an HTTP 200 with a 31-byte "No data exists for
+this period." body; real usable price depth is **2016-01 → present**. And the "hourly
+zonal load...sits behind a gate" framing does not hold either: the annual SMD workbooks
+are published as **open static assets at 11 verified URLs, requiring no CAPTCHA, no
+registration, and no login** — "URLs move year to year (⚠️ unresolved)" is resolved by
+the 11 fixed URLs, not by enumeration. (The `zone-info` page's own download interface
+*is* CAPTCHA-gated, but that interface is not the route used.) Load is therefore open on
+the same no-gate terms as price; see §3, §4, §5, §9.
+
 ## 2. Facility-level / data-center-specific data hunt
 
 - **No facility-level load telemetry**, and — uniquely — not much facility either: New
@@ -78,10 +89,16 @@ trivially — there is very little facility to find.
 - **Structure**: 8 load zones + system total, hourly, hour-ending, Eastern prevailing
   with DST conventions (the SMD workbooks carry the 02X/duplicate-hour handling —
   ⚠️ verify exact encoding when the files are in hand).
-- **Access routes** (§3): SMD annual xlsx (public, URLs to enumerate) or web-services
-  API (registration) or EIA-930 totals (ungated, 2015 →, no zonal split).
-- **Depth**: SMD era begins March 2003 — 23 years of 8-zone hourly load once the file
-  URLs are enumerated.
+- **Access routes** (§3): SMD annual xlsx **or** web-services API (registration) or
+  EIA-930 totals (ungated, 2015 →, no zonal split). **Corrected 2026-08-10**: "URLs to
+  enumerate" is resolved — all 11 SMD workbook URLs (2016–2026) are verified open
+  static-asset constants, no CAPTCHA/registration/login/enumeration needed
+  (`docs/cross-iso-phase2-recon-verification.md` §2); see §9.
+- **Depth**: SMD era begins March 2003 — 23 years of 8-zone hourly load. **Corrected
+  2026-08-10**: the "once the file URLs are enumerated" caveat no longer applies for
+  2016–2026 (11 workbooks, all verified). Recon confirmed those 11 URLs only; the
+  2003–2015 portion of this depth claim was not probed and remains unverified either
+  way.
 - RT 5-minute demand per zone exists via API only — no deep open 5-min load, same as
   every market except NYISO.
 

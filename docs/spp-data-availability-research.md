@@ -7,6 +7,8 @@
 **Verification:** Schema and retention claims verified by downloading and reading real files
 on 2026-08-09 unless flagged ⚠️. One structural unknown (pre-2025 file naming) survived a
 time-boxed probe campaign and is flagged prominently — it is SPP's main open item.
+**Corrected 2026-08-10**: that unknown is resolved — see §1 and
+`docs/cross-iso-phase2-recon-verification.md` §3.
 
 ---
 
@@ -19,6 +21,11 @@ free and ungated (no key, no quota, no registration), with full LMP decompositio
 20-zone load, but the portal's consolidated pre-2025 file naming could not be resolved
 programmatically, so **Stage-1 price feasibility is conditional** on a small enumeration
 task. The facility-level negative holds here as everywhere.
+
+**Corrected 2026-08-10** (`docs/cross-iso-phase2-recon-verification.md` §3): the naming
+problem above is resolved, not conditional. Consolidated pre-2025 archives are per-year
+zips at a fixed path (`?path=/{YYYY}/{YYYY}.zip`, verified 200 with ZIP signature) — no
+enumeration task was needed. **SPP Stage-1 price feasibility = GO.** See §3, §5, §9.
 
 One premise-relevant wrinkle: SPP's new **CHILL** service (Conditional HILL) grants fast
 grid access *in exchange for curtailability during system stress* — meaning future SPP

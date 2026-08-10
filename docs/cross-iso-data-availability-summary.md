@@ -14,12 +14,12 @@ PJM/DOM project history.
 | | **PJM/DOM** | **ERCOT** | **MISO** | **SPP** | **CAISO** | **IESO** | **NYISO** | **ISONE** |
 |---|---|---|---|---|---|---|---|---|
 | **Load zones** | zones/pnodes | 8 weather zones + total | 6 LRZ groups + total | 20 control zones | 5 TACs + total | 10 zones + Ontario | 11 zones | 8 zones |
-| **Zonal load history (hourly)** | 2022-10 → (built) | 2004 → (clean schema 2017 →) | **2013-06 →** | **2011 →** verified | **2009-04 →** | **2003 →** (best archive) | **2001-06 →** | 2003 → (SMD) ⚠️ access |
+| **Zonal load history (hourly)** | 2022-10 → (built) | 2004 → (clean schema 2017 →) | **2013-06 →** | **2011 →** verified | **2009-04 →** | **2003 →** (best archive) | **2001-06 →** | 2003 → (SMD, 2016–26 verified) — no gate |
 | **Deep 5-min load?** | bought (quota) | 31-day rolling only | no | no | no | no | **yes — `pal` to 2001** ⚠️ cadence | API only |
-| **Price history** | 2022-10 → (built) | 2010 → | 2023 → daily; pre-2023 in bundles ⚠️ | 2025 → verified; 2014 → behind naming ⚠️ | **2009-04 →** | HOEP 2002 → 2025-04; LMP era ⚠️ ~90-day rolling | **DA 1999-11 →, RT 2001 →** | **2016 →** verified |
+| **Price history** | 2022-10 → (built) | 2010 → | 2023 → daily; pre-2023 in bundles ⚠️ | **2011 →** zips (verified 2022–24) + 2025 → dailies | **2009-04 →** | HOEP 2002 → 2025-04; LMP era ⚠️ ~90-day rolling | **DA 1999-11 →, RT 2001 →** | **2016 →** verified |
 | **Congestion decomposed?** | yes | no (derivation) | **yes** (MCC/MLC) | **yes** (MCC/MLC/MEC) | **yes** (MCC/MCL/MCE) | LMP era only | **yes, to 1999** | **yes** |
 | **Free 5-min prices?** | quota workaround | yes (SPP files) | **yes, final, 2023 →** | yes (By_Interval) | yes (PRC_INTVL_LMP) | yes but ⚠️ rolling | yes (realtime files) | prelim files |
-| **Gates** | quota (gridstatus.io) | none | **none** | none (but UI-only listing) | **none** | none | **none** | load: registration or file-hunt ⚠️ |
+| **Gates** | quota (gridstatus.io) | none | **none** | none (but UI-only listing) | **none** | none | **none** | **none** |
 | **Timezone regime** | EPT | Central prevailing, hour-ending | **fixed EST** (no DST) | GMT + local ⚠️ load col unlabeled | **GMT** | **fixed EST** (no DST) | Eastern + explicit EST/EDT flag | Eastern, hour-ending |
 | **Footprint breaks** | none | none | South joins **2013-12-19** (in-data) | IS 2015; **RTO West 2026** (in-window!) | WEIM roster growth in report | none (load); market regime break 2025-05 | **none since 1999** | none since 2003 |
 | **DC-load visibility** | none (pnode geography) | partial registry (no hyperscalers) | 1 named pricing node (`GRE.REC.DATA`) | none | none — Santa Clara invisible (muni) | none; LDC filings | **Gold Book Table IV-7: >12 GW load requests** | ~nothing to see (control) |

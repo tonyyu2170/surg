@@ -5384,18 +5384,31 @@ run at each market's max window and at the locked common-overlap window
 
 ### The eight-market table
 
-| market / panel | price depth used | load growth % (earliest→latest full year) | normalized volatility change % | level-wins, overlap | level-wins, max | median R², overlap |
-|---|---|---|---|---|---|---|
-| DOM (5-min, reference) | ~3.4 yr | +28.0% (2023→2026) | 0.1850%→0.1596% (falling) | see quantile-regression findings | — | — |
-| ERCOT (hourly, reference) | ~9 yr (2017-2025) | +36.7% | −20.7% | 132/135 (97.8%) | (single window) | R² 0.004–0.056 |
-| NYISO — merged (10 zone) | ~25 yr | −4.5% (2002→2025) | −12.6% | 213/220 (96.8%) | 220/220 (100%) | 0.175 |
-| NYISO — split (11 zone) | ~21 yr | −6.5% (2006→2025) | −8.7% | 235/242 (97.1%) | 242/242 (100%) | 0.163 |
-| CAISO — full-depth (4 zone) | ~2.3 yr | +31.4% (2010→2025) | −9.8% | 8/8 (100%) | 8/8 (100%) | 0.194 |
-| CAISO — modern (6 zone) | ~2.3 yr | +2.4% (2019→2025) | −3.5% | 11/12 (91.7%) | 12/12 (100%) | 0.108 |
-| IESO (Ontario) | ~22 yr (HOEP era) | −8.5% (2004→2024) | −1.1% (flat) | 11/11 (100%) | 11/11 (100%) | 0.119 |
-| **MISO (6 LRZ groups)** | 2023-01 → 2026-08 | **+3.8%** (2023→2025) | **−5.6%** | **36/36 (100%)** | 36/36 (100%) | **0.332** |
-| **ISO-NE (8 zones, CONTROL)** | 2016-01 → 2026-06 | **−5.2%** (2016→2025) | **+9.9%** ⚠️ | **64/64 (100%)** | 64/64 (100%) | **0.274** |
-| **SPP (17 zones)** | 2017-01 → 2026-03 | **+13.2%** (2016→2025) | **−14.2%** | **289/289 (100%)** | 289/289 (100%) | **0.245** |
+| market / panel | price depth used | load growth % (span) | **annualized %/yr** | normalized volatility change % | level-wins, overlap | level-wins, max | median R², overlap |
+|---|---|---|---|---|---|---|---|
+| DOM (5-min, reference) | ~3.4 yr | +28.0% (2023→2026, 3 yr) | **+8.58** | 0.1850%→0.1596% (falling) | see quantile-regression findings | — | — |
+| ERCOT (hourly, reference) | ~9 yr (2017-2025) | +36.7% (2017→2025, 8 yr) | **+3.99** | −20.7% | 132/135 (97.8%) | (single window) | R² 0.004–0.056 |
+| NYISO — merged (10 zone) | ~25 yr | −4.5% (2002→2025, 23 yr) | **−0.20** | −12.6% | 213/220 (96.8%) | 220/220 (100%) | 0.175 |
+| NYISO — split (11 zone) | ~21 yr | −6.5% (2006→2025, 19 yr) | **−0.35** | −8.7% | 235/242 (97.1%) | 242/242 (100%) | 0.163 |
+| CAISO — full-depth (4 zone) | ~2.3 yr | +31.4% (2010→2025, 15 yr) | **+1.84** | −9.8% | 8/8 (100%) | 8/8 (100%) | 0.194 |
+| CAISO — modern (6 zone) | ~2.3 yr | +2.4% (2019→2025, 6 yr) | **+0.40** | −3.5% | 11/12 (91.7%) | 12/12 (100%) | 0.108 |
+| IESO (Ontario) | ~22 yr (HOEP era) | −8.5% (2004→2024, 20 yr) | **−0.44** | −1.1% (flat) | 11/11 (100%) | 11/11 (100%) | 0.119 |
+| **MISO (6 LRZ groups)** | 2023-01 → 2026-08 | **+3.8%** (2023→2025, **2 yr**) | **+1.88** | **−5.6%** | **36/36 (100%)** | 36/36 (100%) | **0.332** |
+| **ISO-NE (8 zones, CONTROL)** | 2016-01 → 2026-06 | **−5.2%** (2016→2025, 9 yr) | **−0.59** | **+9.9%** ⚠️ | **64/64 (100%)** | 64/64 (100%) | **0.274** |
+| **SPP (17 zones)** | 2017-01 → 2026-03 | **+13.2%** (2016→2025, 9 yr) | **+1.39** | **−14.2%** | **289/289 (100%)** | 289/289 (100%) | **0.245** |
+
+⚠️ **Read the annualized column, not the total-growth column, for any cross-market
+comparison.** The spans differ by an order of magnitude (2 years for MISO, 23 for
+NYISO), so the raw totals are not comparable and invert the ranking in at least
+one place: MISO's **+3.8%** looks like the weakest growth of the three new
+markets next to SPP's **+13.2%**, but MISO is compounding at **1.88%/yr against
+SPP's 1.39%/yr** — MISO's load is growing *faster*. This is the same defect class
+as the F1 figure correction recorded at `decisions.md` 2026-08-08 (a half-year
+compared against a full one, +21.5% → +28.0%); the totals are kept only because
+each is the honest figure for its own window.
+
+Annualized figures are compound rates, `(1 + total)^(1/years) − 1`, computed from
+the same first/last full-year zone means as the total column.
 
 ### Finding 1 — level beats volatility, now essentially without exception
 

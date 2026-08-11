@@ -13,6 +13,11 @@ planned for backfill. Sister docs:
 Update this file whenever a feed's window changes, a new feed is added,
 or a derived artifact's schema changes.
 
+**Layout of this file:** §§ 1–5 cover the **PJM core** (the primary case
+study, pulled via `surg-pull`). § 6 covers the **eight-market cross-ISO
+Stage-1** feeds. § 7 covers the **UKPN data-centre load profiles**. Total
+`data/` footprint is **~6.0 GB**, all gitignored.
+
 ---
 
 ## Snapshot
@@ -392,3 +397,108 @@ Not part of the production data pipeline; can be deleted if
 - `mad_smoke__*.parquet` under `sync_reserve_events/2026/` and
   `reserve_market_results/2026/` should be removed before Plan 2 runs
   (avoids event_id duplication; see Plan 2 task list)
+
+---
+
+## 6. Cross-ISO Stage-1 feeds
+
+Eight markets running the shared level-vs-volatility Stage-1 diagnostic
+(`src/surg/diagnostics/stage1.py`). Each market has a paired driver:
+`.venv/bin/python scripts/<market>_fetch.py` then
+`scripts/<market>_diagnostic.py`. All are **public archives requiring no
+API key** except the PJM 5-min feed (gridstatus.io).
+
+Raw data lands in `data/raw/<market>/`; each driver writes an assembled
+panel to `data/interim/<market>_diagnostic_panel*.parquet`.
+
+### Raw holdings on disk (2026-08-11)
+
+| Market | `data/raw/` | Files | Size | Notes |
+|---|---|---|---|---|
+| MISO | `miso/` | 1,317 | 1.4 GB | `da_expost_lmp`, `df_al` |
+| SPP | `spp/` | 914 | 3.7 GB | `load`, `price`; annual zips + daily era |
+| NYISO | `nyiso/` | 928 | 393 MB | `damlbmp_zone`, `palIntegrated`, `realtime_zone` |
+| ERCOT | `ercot/` | 30 | 179 MB | `Native_Load_*.xlsx/zip` |
+| ISO-NE | `isone/` | 10 | 83 MB | SMD hourly workbooks, one per year |
+| IESO | `ieso/` | 73 | 28 MB | `Demand`, `DemandZonal`, `PriceHOEPPredispOR` |
+| CAISO | `caiso/` | 864 | 24 MB | `da_lmp`, `load` |
+| PJM 5-min | `gridstatus/` | 750 | 48 MB | `pjm_lmp_real_time_5_min`, `pjm_load` |
+
+### Assembled panels (`data/interim/`)
+
+| Panel | Rows | Size | Window |
+|---|---|---|---|
+| `nyiso_diagnostic_panel_merged` | 220,290 | 28.7 MB | 2001-06-21 → 2026-08-09 |
+| `ieso_diagnostic_panel` | 204,023 | 7.9 MB | 2003-05-01 → 2026-08-08 |
+| `nyiso_diagnostic_panel_split` | 188,648 | 27.8 MB | 2005-01-31 → 2026-08-09 |
+| `caiso_diagnostic_panel_full_depth` | 152,135 | 4.2 MB | 2009-03-31 → 2026-08-08 |
+| `isone_diagnostic_panel` | 92,015 | 14.0 MB | 2016-01-01 → 2026-06-30 |
+| `spp_diagnostic_panel` | 89,609 | 36.3 MB | 2016-01-01 → **2026-03-23** |
+| `ercot_diagnostic_panel` | 83,975 | 18.9 MB | 2017-01-01 → 2026-07-31 |
+| `caiso_diagnostic_panel_modern` | 68,104 | 2.4 MB | 2018-11-01 → 2026-08-08 |
+| `miso_diagnostic_panel` | 31,584 | 3.4 MB | 2023-01-01 → 2026-08-08 |
+
+**Window caveats — do not read these spans as "price depth":**
+
+- **SPP stops at 2026-03-23 by decision, not availability.** The load CSV
+  schema flips wide→long on 2026-03-24 and the RTO-West roster jumps;
+  the panel is deliberately cut before both. See `scripts/spp_fetch.py`.
+- **CAISO ships two panels.** `full_depth` reaches back to 2009 on
+  *load*, but CAISO **price** data only starts 2023-04-12 (~2.3 y) —
+  the deep window is not deep in price. `modern` is the safer default.
+- **NYISO ships two panels** (`merged` vs `split`) reflecting a zone
+  roster change; pick deliberately, they are not interchangeable.
+- **MISO 36/36 level-beats-volatility is inflated** — LRZ3_5 and LRZ4
+  share `ILLINOIS.HUB`, so those cells are not independent.
+- **ISO-NE real price depth starts 2016-01**, not 2003, despite what the
+  older memo claimed.
+
+Sourcing constraints per market live in
+`docs/<market>-data-availability-research.md`, with the cross-market
+summary in `docs/cross-iso-data-availability-summary.md` and endpoint
+verification in `docs/cross-iso-phase2-recon-verification.md`.
+
+---
+
+## 7. UK Power Networks — data-centre load profiles
+
+**The only facility-level data-centre load data in the project.** UKPN is
+a distribution network operator (DNO), not an ISO — this feed answers
+*load shape*, never price.
+
+- **Fetch:** `.venv/bin/python scripts/ukpn_fetch.py` (idempotent;
+  skips slices already on disk)
+- **Raw:** `data/raw/ukpn/` — year-partitioned parquet
+- **Key:** `UK_POWER_API_KEY` in `.env`
+- **Licence:** CC BY 4.0, UK Power Networks (company no. 3870728)
+
+| Dataset | Records | Grain | Window |
+|---|---|---|---|
+| `ukpn-data-centre-demand-profiles` | 5,442,348 | half-hourly, 96 sites | 2023-01-01 → 2026-05-13 |
+| `ukpn-data-centres-by-local-authority` | 45 | per district | snapshot (mod. 2026-04-24) |
+| `ukpn-large-demand-list` | 496 | per project | snapshot (mod. 2025-11-04) |
+
+Fields on the profiles feed: `cleansed_voltage_level`,
+`anonymised_data_centre_name`, `dc_type`, `local_timestamp`,
+`utc_timestamp`, `hh_utilisation_ratio`.
+
+**Four traps, all documented in `docs/ukpn-api-constraints.md`:**
+
+1. **`hh_utilisation_ratio` is not bounded [0,1]** — range [0, 3.992].
+2. **`local_timestamp` is UTC despite its name** — verified across
+   116,636 rows and 7 DST boundaries. Convert to `Europe/London`
+   yourself for any diurnal work.
+3. **13.1 % of rows are exact zeros** across 69 of 96 sites; **4 sites
+   are 100 % dead**. Structure is bimodal — a few months-long outages
+   *plus* ~1,700 short dropouts (median 2 intervals, 754 singletons).
+   The singletons manufacture fake full-scale ramps and will corrupt any
+   volatility statistic. Mask before computing anything.
+4. **`ukpn-large-demand-list` cannot be filtered to data centres** —
+   `demand_technology_type` has only two values (Large Demand,
+   Distributed Energy Resource).
+
+**Scope limits:** no MW (ratio is observed ÷ *contracted* capacity, so
+levels are not comparable across sites — only shapes), no location, no
+price. Covers UKPN's three licence areas only (LPN/EPN/SPN), which
+**excludes the Slough and West London cluster** (SSEN territory) and all
+transmission-connected hyperscale sites.

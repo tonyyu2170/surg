@@ -4,7 +4,7 @@
 
 **Goal:** Pull a 1-year, 3-pnode, 5-minute two-sided panel (Z from gridstatus `pjm_load.dom`, nodal LMP from `pjm_lmp_real_time_5_min`), and replicate three pre-registered sub-q1 tests (QR-full, Spec A GPD, decile tail-risk curves) at 5-min resolution.
 
-**Design:** `docs/superpowers/specs/2026-07-17-5min-two-sided-companion-design.md` (commit `6492184`).
+**Design:** `docs/specs/2026-07-17-5min-two-sided-companion-design.md` (commit `6492184`).
 
 **Architecture:** New gridstatus acquisition module mirroring the PJM client (30-day UTC chunks, cursor pagination, cache-per-chunk, quota preflight); a 5-min preprocessing pipeline reusing the hourly feature functions via small parameterizations; analysis modules reused via new parameters (island-cluster bootstrap for in-filter GPD, constant overrides for tail-risk curves). Pre-reg entry committed BEFORE the pull; results entry after.
 
@@ -207,7 +207,7 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'surg.acquisition.grids
 """Sync httpx wrapper for the gridstatus.io hosted API.
 
 Mirrors `client.PJMClient` in shape. Facts encoded here come from
-`docs/gridstatus-api-constraints.md`:
+`docs/sources/gridstatus-api-constraints.md`:
   - auth header `x-api-key`; base https://api.gridstatus.io/v1
   - NEVER follow redirects (the /datasets/ trailing-slash 307 downgrades
     to cleartext HTTP and would replay the api key)
@@ -561,8 +561,8 @@ Expected: FAIL — module not found.
 ```python
 """Orchestrator: pull the 5-min two-sided panel inputs from gridstatus.io.
 
-Design: docs/superpowers/specs/2026-07-17-5min-two-sided-companion-design.md
-Datasets and constraints: docs/gridstatus-api-constraints.md
+Design: docs/specs/2026-07-17-5min-two-sided-companion-design.md
+Datasets and constraints: docs/sources/gridstatus-api-constraints.md
 Pull plan: docs/gridstatus-5min-pull-plan.md
 
 Chunks are 30-day half-open UTC windows cached via storage.write_chunk:
@@ -1174,7 +1174,7 @@ Expected: FAIL — module not found.
 """Load cached gridstatus chunks into canonical DataFrames.
 
 Column renames map gridstatus names onto the repo's PJM-panel
-conventions (docs/gridstatus-api-constraints.md, dataset table):
+conventions (docs/sources/gridstatus-api-constraints.md, dataset table):
     lmp        -> total_lmp_rt
     energy     -> system_energy_price_rt
     congestion -> congestion_price_rt
@@ -2041,7 +2041,7 @@ If `latest_available_time_utc` ≥ `2026-06-24T04:00Z` for both datasets, keep t
 ```markdown
 ## 2026-07-XX — Sub-q1 5-min two-sided companion: pre-registration
 
-**Design:** `docs/superpowers/specs/2026-07-17-5min-two-sided-companion-design.md`
+**Design:** `docs/specs/2026-07-17-5min-two-sided-companion-design.md`
 (commit `6492184`). This entry locks every spec BEFORE any 5-min pull
 or result computation. Data limitation, disclosed once here and once in
 the eventual methods/limitations section: Z is measured via gridstatus's
@@ -2119,7 +2119,7 @@ Expected: `preflight OK`, per-chunk `wrote ...` lines, `pull complete`. On quota
   --start <FINAL_START>Z --end <FINAL_END>Z
 ```
 
-Expected: 5 `[PASS]` lines + `validation passed` (exit 0). Interval-count note: a 365-day window = 105,120 intervals; the validator derives the expected count from the window, so a leap-day window is handled automatically. On any FAIL: stop, diagnose against `docs/gridstatus-api-constraints.md`, surface to the user before re-spending quota.
+Expected: 5 `[PASS]` lines + `validation passed` (exit 0). Interval-count note: a 365-day window = 105,120 intervals; the validator derives the expected count from the window, so a leap-day window is handled automatically. On any FAIL: stop, diagnose against `docs/sources/gridstatus-api-constraints.md`, surface to the user before re-spending quota.
 
 ---
 

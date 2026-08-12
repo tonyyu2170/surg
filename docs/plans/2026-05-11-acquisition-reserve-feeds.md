@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.11+, pytest, httpx (existing), pandas/pyarrow (existing). No new dependencies.
 
-**Prerequisite reading:** `docs/plans/2026-05-11-phase-transition-methodology.md` (the design spec); `docs/decisions.md` § "2026-05-11 — Phase 3 method: TAR + quantile regression"; `docs/pjm-api-constraints.md` (API constraints, including the `operational_reserves` 15-day retention note).
+**Prerequisite reading:** `docs/plans/2026-05-11-phase-transition-methodology.md` (the design spec); `docs/decisions.md` § "2026-05-11 — Phase 3 method: TAR + quantile regression"; `docs/sources/pjm-api-constraints.md` (API constraints, including the `operational_reserves` 15-day retention note).
 
 **Test discipline:** TDD throughout — failing test, verify failure, minimal implementation, verify pass, commit. Existing 53 tests must remain passing after every task.
 

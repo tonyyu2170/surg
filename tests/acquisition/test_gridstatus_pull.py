@@ -114,7 +114,7 @@ def test_pull_writes_load_and_per_pnode_lmp_chunks(tmp_path: Path):
 
 def test_lmp_chunks_are_narrower_than_load_chunks(tmp_path: Path):
     """The location_id-filtered LMP query hits a ~180s server-side limit at
-    30-day chunk width (empirically observed 2026-07-18, docs/gridstatus-api-constraints.md);
+    30-day chunk width (empirically observed 2026-07-18, docs/sources/gridstatus-api-constraints.md);
     LMP chunks must stay narrower than the load series' 30-day chunks."""
     window_end = WINDOW_START + timedelta(days=40)
     client = FakeClient({

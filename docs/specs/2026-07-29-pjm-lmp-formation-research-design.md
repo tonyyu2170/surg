@@ -7,7 +7,7 @@ attribution decision (workstream B) and the unfiltered-panel analysis
 design (workstream A).
 **Predecessors:** advisor meeting (sub-q1 closure item #5, outcome
 relayed by user 2026-07-29); the 2026-07-29 filter-drop decision
-(`docs/decisions.md`, currently uncommitted); `docs/pjm-api-constraints.md`.
+(`docs/decisions.md`, currently uncommitted); `docs/sources/pjm-api-constraints.md`.
 
 ## 1. Scope & framing
 
@@ -90,7 +90,7 @@ must change.
 
 ## 2. Deliverable
 
-One file: **`docs/pjm-lmp-formation.md`**.
+One file: **`docs/reference/pjm-manuals/pjm-lmp-formation.md`**.
 
 It joins `pjm-api-constraints.md` ("what the API forces on us") and
 `decisions.md` ("what we chose") as a third standing reference: **"what
@@ -213,7 +213,7 @@ that relies on uniformity must cite Q5's resolution, not this spec.
 
 ## 5. Sources
 
-Vendored to a new `docs/pjm-sources/` directory. Reachability and sizes
+Vendored to a new `docs/reference/pjm-manuals/` directory. Reachability and sizes
 verified 2026-07-29 (`www.pjm.com` resolves normally; the DNS failure
 recorded in memory is specific to `api.pjm.com`).
 
@@ -222,13 +222,13 @@ recorded in memory is specific to `api.pjm.com`).
 | Manual 11 — Energy & Ancillary Services Market Operations | 6 MB | Q1–5, 7, 8, 12 |
 | Manual 12 — Balancing Operations | 1 MB | Q6, 9, 10, 11 |
 | Manual 3 — Transmission Operations | 1 MB | Q2 (constraint definition) |
-| *(already in repo)* `docs/reserve-shortage-pricing-paper.pdf` — PJM, 2023-03-07 | — | Q4, 12 |
+| *(already in repo)* `docs/reference/papers/reserve-shortage-pricing-paper.pdf` — PJM, 2023-03-07 | — | Q4, 12 |
 
 Q10 has two halves and only the first belongs to this workstream: what
 quantity PJM's dispatch prices against (Manual 12, state estimation /
 load accounting) versus what the gridstatus `pjm_load.dom` feed
 actually reports. The second half is already settled in
-`docs/gridstatus-api-constraints.md` and the 2026-07-17 `dom`-as-DOM
+`docs/sources/gridstatus-api-constraints.md` and the 2026-07-17 `dom`-as-DOM
 disclosure decision; this doc cross-references that rather than
 re-litigating it.
 
@@ -243,7 +243,7 @@ them into `pjm-sources/` is unrelated cleanup; flagged, not done.
 ## 6. Method and verification standard
 
 **Read order — cheapest load-bearing source first.** Before downloading
-any manual, read pp. 4–6 of `docs/reserve-shortage-pricing-paper.pdf`
+any manual, read pp. 4–6 of `docs/reference/papers/reserve-shortage-pricing-paper.pdf`
 (8 pages, already in repo). Page 1 already names the **Locational
 Pricing Calculator (LPC)** as a stage distinct from the **RTSCED**
 dispatch engine, and states an interval as a range ("LPC pricing
@@ -299,6 +299,6 @@ Three rules make the output trustworthy:
   (`outputs/fivemin_extended/`, reported 3/5 complete as of ~18:30 EDT
   2026-07-29; PID 71958, detached and not tied to any session) is left
   untouched. This workstream is docs-only so there is no collision.
-- Committing `docs/decisions.md` and `docs/gridstatus-api-constraints.md`,
+- Committing `docs/decisions.md` and `docs/sources/gridstatus-api-constraints.md`,
   which the prior session left uncommitted (user instruction 2026-07-29:
   leave them).

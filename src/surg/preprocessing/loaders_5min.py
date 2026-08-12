@@ -1,7 +1,7 @@
 """Load cached gridstatus chunks into canonical DataFrames.
 
 Column renames map gridstatus names onto the repo's PJM-panel
-conventions (docs/gridstatus-api-constraints.md, dataset table):
+conventions (docs/sources/gridstatus-api-constraints.md, dataset table):
     lmp        -> total_lmp_rt
     energy     -> system_energy_price_rt
     congestion -> congestion_price_rt

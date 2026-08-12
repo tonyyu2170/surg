@@ -1,7 +1,7 @@
 # PJM LMP Formation — Primary-Source Reference
 
 **Created:** 2026-07-29. **Workstream C** of the 2026-07-29 advisor meeting
-(sub-q1 closure item #5). Design: `docs/superpowers/specs/2026-07-29-pjm-lmp-formation-research-design.md`.
+(sub-q1 closure item #5). Design: `docs/specs/2026-07-29-pjm-lmp-formation-research-design.md`.
 
 ## Purpose
 
@@ -19,10 +19,10 @@ an outside source.
 
 | Tag | Document | Revision / date | Local path |
 |---|---|---|---|
-| **M11** | PJM Manual 11: Energy & Ancillary Services Market Operations | Rev. 137, eff. 2026-07-28 | `docs/pjm-sources/m11.pdf` |
-| **M12** | PJM Manual 12: Balancing Operations | Rev. 57, eff. 2026-04-22 | `docs/pjm-sources/m12.pdf` |
-| **M03** | PJM Manual 3: Transmission Operations | Rev. 71, eff. 2026-05-20 | `docs/pjm-sources/m03.pdf` |
-| **RSP** | PJM, *Formation of Locational Marginal Pricing and its System Energy Component During Reserve Shortage Events* | 2023-03-07 | `docs/reserve-shortage-pricing-paper.pdf` |
+| **M11** | PJM Manual 11: Energy & Ancillary Services Market Operations | Rev. 137, eff. 2026-07-28 | `docs/reference/pjm-manuals/m11.pdf` |
+| **M12** | PJM Manual 12: Balancing Operations | Rev. 57, eff. 2026-04-22 | `docs/reference/pjm-manuals/m12.pdf` |
+| **M03** | PJM Manual 3: Transmission Operations | Rev. 71, eff. 2026-05-20 | `docs/reference/pjm-manuals/m03.pdf` |
+| **RSP** | PJM, *Formation of Locational Marginal Pricing and its System Energy Component During Reserve Shortage Events* | 2023-03-07 | `docs/reference/papers/reserve-shortage-pricing-paper.pdf` |
 
 All retrieved 2026-07-29 from `www.pjm.com`. (`api.pjm.com` is the host
 that NXDOMAINs on NU DNS; the document server resolves normally.)
@@ -333,7 +333,7 @@ The alignment is now verified rather than assumed:
   `interval_end − interval_start` is **exactly 5 minutes** on every row
   (checked across a full pull chunk; single unique value).
 - The gridstatus-vs-PJM equivalence check recorded in
-  `docs/gridstatus-api-constraints.md` found "**perfect temporal + pnode
+  `docs/sources/gridstatus-api-constraints.md` found "**perfect temporal + pnode
   alignment** (0 ours-only, 0 gs-only)" over a 3-day DST-spanning overlap
   against our PJM Data Miner panel, whose time key is
   `datetime_beginning_utc`. Perfect alignment on that key establishes
@@ -383,7 +383,7 @@ granularity mismatch between exposure and response that no amount of
 statistical power fixes; it is independent of, and additional to, the
 missing ramp-rate price channel in § 9. The second half of this question —
 what the gridstatus `pjm_load.dom` column reports — is settled in
-`docs/gridstatus-api-constraints.md` (line 131) and the 2026-07-17
+`docs/sources/gridstatus-api-constraints.md` (line 131) and the 2026-07-17
 `dom`-as-DOM disclosure decision, and is not re-litigated here.
 
 ## §6 Reserve structure

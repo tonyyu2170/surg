@@ -10,7 +10,7 @@ metered facilities say the opposite (load factor 94% hyperscale / 88%
 colocation against each facility's own realized peak). This is the first
 independent test of that claim on a real multi-site panel.
 
-Three constraints from docs/ukpn-api-constraints.md shape every metric:
+Three constraints from docs/sources/ukpn-api-constraints.md shape every metric:
 
   * `hh_utilisation_ratio` is observed kVA / *contracted* maximum import
     capacity. Contracted capacity is a commercial quantity, so levels are

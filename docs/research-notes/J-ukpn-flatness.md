@@ -8,7 +8,7 @@ papers; nobody has checked it against data."*
 Script: `scripts/ukpn_flatness.py`. Outputs: `outputs/ukpn_flatness/`
 (`results.json`, `site_annual_headline.csv`, `site_year_trend.csv`,
 `site_metrics.csv`, `site_screen.csv`, `diurnal_profiles.csv`,
-`ukpn_flatness.png`). Corpus and its defects: `docs/ukpn-api-constraints.md`.
+`ukpn_flatness.png`). Corpus and its defects: `docs/sources/ukpn-api-constraints.md`.
 
 ---
 

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.12 venv (`.venv`), pandas, statsmodels, matplotlib (Agg), httpx, pytest. Sources: mis.nyiso.com monthly zips; CAISO OASIS SingleZip (https, keyless); reports-public.ieso.ca annual CSVs.
 
-**Scope note (Plan B exclusion):** MISO, ISONE, SPP, and the 8-market capstone are Plan B, written after this trio lands — SPP's fetch cannot be written placeholder-free until its portal naming enumeration runs, and ISONE's SMD URLs need their own enumeration. Checkpoint resolutions recorded in `docs/cross-iso-data-availability-summary.md` govern both plans.
+**Scope note (Plan B exclusion):** MISO, ISONE, SPP, and the 8-market capstone are Plan B, written after this trio lands — SPP's fetch cannot be written placeholder-free until its portal naming enumeration runs, and ISONE's SMD URLs need their own enumeration. Checkpoint resolutions recorded in `docs/sources/availability/cross-iso-data-availability-summary.md` govern both plans.
 
 **Execution conventions:** run in a sibling worktree per the standard branch lifecycle (worktree → FF merge → cleanup). Python is always `.venv/bin/python`; pytest is `.venv/bin/python -m pytest`. Commit steps below assume the user's per-session commit authorization has been granted at execution start; if not, batch and ask.
 

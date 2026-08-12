@@ -5,7 +5,7 @@ Usage:
     .venv/bin/python scripts/entsoe_probe.py              # probes A + B, rate probe dry-run
     .venv/bin/python scripts/entsoe_probe.py --hard       # ...and actually trip the rate limit
 
-Everything in docs/entsoe-api-constraints.md is vendor documentation, not
+Everything in docs/sources/entsoe-api-constraints.md is vendor documentation, not
 measurement. This script measures the three things that file flags as
 needing a live check:
 

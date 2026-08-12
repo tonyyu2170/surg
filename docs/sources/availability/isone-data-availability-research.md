@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-09
 **Motivation:** Sixth of six cross-ISO memos per
-`docs/superpowers/specs/2026-08-09-cross-iso-data-research-design.md`. ISO-NE is the
+`docs/specs/2026-08-09-cross-iso-data-research-design.md`. ISO-NE is the
 designated low-data-center **control market** — the design's contrast case.
 **Status:** Research memo. Feeds the Phase-1 checkpoint; no scope decision made here.
 **Verification:** Claims verified by probing real endpoints on 2026-08-09 unless
@@ -22,7 +22,7 @@ gate: the free-registration web-services API (401 verified) or annually-posted S
 whose URLs move year to year (⚠️ unresolved). The facility-level negative holds,
 trivially — there is very little facility to find.
 
-**Corrected 2026-08-10** (`docs/cross-iso-phase2-recon-verification.md` §1–§2): two
+**Corrected 2026-08-10** (`docs/sources/availability/cross-iso-phase2-recon-verification.md` §1–§2): two
 claims above are wrong. The "verified back to at least 2015" price claim checked HTTP
 status, not payload — 2015-08-06 returns an HTTP 200 with a 31-byte "No data exists for
 this period." body; real usable price depth is **2016-01 → present**. And the "hourly
@@ -61,7 +61,7 @@ the same no-gate terms as price; see §3, §4, §5, §9.
   payloads — that date returns an HTTP 200 with a 31-byte empty-sentinel body ("No data
   exists for this period."). Real usable depth is **2016-01 → present** (dense monthly
   sampling every year 2016–2025); see
-  `docs/cross-iso-phase2-recon-verification.md` §1.
+  `docs/sources/availability/cross-iso-phase2-recon-verification.md` §1.
 - The **IRTT public interconnection queue** (irtt.iso-ne.com) is a clean, queryable
   tracking tool.
 - Stable footprint (8 load zones: ME, NH, VT, CT, RI, SEMA, WCMA, NEMA) since the 2003
@@ -82,7 +82,7 @@ the same no-gate terms as price; see §3, §4, §5, §9.
 - **Corrected 2026-08-10**: the depth edge is now probed, and the "2015 verified;
   SMD-era nominally 2003" framing above was wrong — 2015-08-06 and every probed date
   ≤ Nov 2015 return an empty sentinel, not data. Real depth is **2016-01 → present**
-  (December 2015 is patchy); see `docs/cross-iso-phase2-recon-verification.md` §1.
+  (December 2015 is patchy); see `docs/sources/availability/cross-iso-phase2-recon-verification.md` §1.
 
 ## 4. Zonal load archive
 
@@ -93,7 +93,7 @@ the same no-gate terms as price; see §3, §4, §5, §9.
   EIA-930 totals (ungated, 2015 →, no zonal split). **Corrected 2026-08-10**: "URLs to
   enumerate" is resolved — all 11 SMD workbook URLs (2016–2026) are verified open
   static-asset constants, no CAPTCHA/registration/login/enumeration needed
-  (`docs/cross-iso-phase2-recon-verification.md` §2); see §9.
+  (`docs/sources/availability/cross-iso-phase2-recon-verification.md` §2); see §9.
 - **Depth**: SMD era begins March 2003 — 23 years of 8-zone hourly load. **Corrected
   2026-08-10**: the "once the file URLs are enumerated" caveat no longer applies for
   2016–2026 (11 workbooks, all verified). Recon confirmed those 11 URLs only; the
@@ -108,7 +108,7 @@ the same no-gate terms as price; see §3, §4, §5, §9.
   LOAD ZONE rows give the 8 zonal price series; `.H.INTERNAL_HUB` is the hub.
   **Corrected 2026-08-10**: "verified at 2015/2023/2026" checked HTTP status only — the
   2015 file is an empty sentinel. Real depth is **2016-01 → present**
-  (`docs/cross-iso-phase2-recon-verification.md` §1). Stage 1 does not use this daily-CSV
+  (`docs/sources/availability/cross-iso-phase2-recon-verification.md` §1). Stage 1 does not use this daily-CSV
   route at all — see the §9 workbook route.
 - **RT**: hourly final and 5-minute prelim under sibling `histRpts` paths (pattern from
   the gridstatus scraper, partially verified via the DA family; ⚠️ verify RT-final path
@@ -161,7 +161,7 @@ the same no-gate terms as price; see §3, §4, §5, §9.
 
 ## 9. Concrete Stage-1 pull spec
 
-**Corrected 2026-08-10** (`docs/cross-iso-phase2-recon-verification.md` §2): the daily
+**Corrected 2026-08-10** (`docs/sources/availability/cross-iso-phase2-recon-verification.md` §2): the daily
 `WW_DALMP_ISO` CSV route below is superseded for Stage 1. One annual SMD workbook per
 year carries load *and* decomposed DA/RT LMP *and* weather, per zone, in a single file —
 11 workbooks (~85 MB) replace the ~1.4K daily CSVs this table originally budgeted for

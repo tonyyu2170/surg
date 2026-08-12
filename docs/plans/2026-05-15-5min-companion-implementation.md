@@ -356,7 +356,7 @@ verifies pre-conditions before doing any other work.
   ```
   Expected: an IPv4 address (not `NXDOMAIN`). If `NXDOMAIN` → halt
   with instruction to user: "Add the `/etc/hosts` entry per
-  `docs/pjm-api-constraints.md`'s NU DNS workaround section, then
+  `docs/sources/pjm-api-constraints.md`'s NU DNS workaround section, then
   re-run."
 
 - [ ] **Step 4:** Create sibling worktree:
@@ -1831,7 +1831,7 @@ Re-read this line in the morning if surprised by where the run is.**
 5. NU DNS workaround active: `python -c "import socket; socket.gethostbyname('api.pjm.com')"` succeeds (gates: Part A only — Part B uses on-disk data)
 
 If any pre-flight fails, halt with the specific failed check + the
-fix instruction (DNS: see `docs/pjm-api-constraints.md` § NU DNS).
+fix instruction (DNS: see `docs/sources/pjm-api-constraints.md` § NU DNS).
 
 ## Execute
 

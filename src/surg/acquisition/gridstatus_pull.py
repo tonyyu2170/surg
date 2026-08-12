@@ -1,7 +1,7 @@
 """Orchestrator: pull the 5-min two-sided panel inputs from gridstatus.io.
 
-Design: docs/superpowers/specs/2026-07-17-5min-two-sided-companion-design.md
-Datasets and constraints: docs/gridstatus-api-constraints.md
+Design: docs/specs/2026-07-17-5min-two-sided-companion-design.md
+Datasets and constraints: docs/sources/gridstatus-api-constraints.md
 Pull plan: docs/gridstatus-5min-pull-plan.md
 
 Chunks are half-open UTC windows cached via storage.write_chunk (30-day for
@@ -34,7 +34,7 @@ from surg.preprocessing.schema_5min import FIVEMIN_PNODE_IDS
 # The location_id-filtered LMP query hits a ~180s server-side query budget at
 # 30-day chunk width (empirically observed 2026-07-18: a 30-day chunk returns
 # 422 at exactly ~180s regardless of client timeout, while a 7-day chunk for
-# the same pnode/filter succeeds in ~114s — docs/gridstatus-api-constraints.md).
+# the same pnode/filter succeeds in ~114s — docs/sources/gridstatus-api-constraints.md).
 # The unfiltered load series has no such ceiling and keeps the 30-day default.
 LMP_CHUNK_DAYS = 7
 
@@ -57,7 +57,7 @@ def check_quota(
 
     The Free tier caps both `api_rows_returned_limit` (rows/mo) and
     `api_requests_limit` (requests/mo) independently; either one can bind
-    (docs/gridstatus-api-constraints.md calls the request budget "the
+    (docs/sources/gridstatus-api-constraints.md calls the request budget "the
     binding free-tier constraint" as a general rule, even though for this
     3-pnode/1-year pull the row cap binds first by a comfortable margin).
     """

@@ -15,7 +15,7 @@
 - `PJM_API_KEY` set in `.env` (verified by existing `surg-pull` runs).
 
 **Prerequisite reading:**
-- `docs/pjm-api-constraints.md` § "Archived (Historic) data" — particularly the `type=pnode_subtype` clarification (2026-05-12) and the empirical Historic-tier volumes table.
+- `docs/sources/pjm-api-constraints.md` § "Archived (Historic) data" — particularly the `type=pnode_subtype` clarification (2026-05-12) and the empirical Historic-tier volumes table.
 - `docs/decisions.md` § "2026-05-12 — Window extension to 3.6y post-cap".
 
 **Test discipline:** TDD throughout. Mock httpx transport for unit/integration tests (no live API in test suite). End-to-end live verification only in the bulk-pull tasks.
@@ -715,7 +715,7 @@ In `main`, before the existing geo-kwarg validation:
             return 2
         if args.feed == "rt_fivemin_hrl_lmps":
             print("rt_fivemin_hrl_lmps Historic tier rejects the type filter "
-                  "(see docs/pjm-api-constraints.md); archive-tier pull is "
+                  "(see docs/sources/pjm-api-constraints.md); archive-tier pull is "
                   "not workable for this feed.", file=sys.stderr)
             return 2
         # Standard geo kwargs should be unset.
@@ -1021,11 +1021,11 @@ rm -f data/raw/reserve_market_results/2026/mad_smoke__*.parquet
 ## Task 11: Update data-catalog.md disk windows
 
 After Tasks 7-10, the on-disk windows have shifted. Update
-`docs/data-catalog.md` to reflect the new state.
+`docs/sources/data-catalog.md` to reflect the new state.
 
 - [ ] **Step 1: Update the "Disk window" column in the snapshot table**
 
-In `docs/data-catalog.md`, update:
+In `docs/sources/data-catalog.md`, update:
 
 | Feed | Old "Disk window" | New "Disk window" |
 |---|---|---|
@@ -1036,7 +1036,7 @@ In `docs/data-catalog.md`, update:
 - [ ] **Step 2: Commit**
 
 ```bash
-git add docs/data-catalog.md
+git add docs/sources/data-catalog.md
 git commit -m "docs(catalog): update disk windows after Plan 1.5 backfill"
 ```
 
@@ -1079,7 +1079,7 @@ git push origin main
 - [ ] `--archive-tier` and `--archive-subtype` CLI flags work and are tested.
 - [ ] Bulk pulls done: `rt_hrl_lmps` covers 2022-10-02 → 2026-05-10 for the 9 EHV+ZONE target pnodes; 2024-05-12 → 2026-05-10 for the 2 LOAD pnodes. `sync_reserve_events` and `reserve_market_results` cover 2022-10-02 → 2026-05-10 (MAD).
 - [ ] Smoke parquet duplicates removed from `data/raw/{sync_reserve_events,reserve_market_results}/2026/`.
-- [ ] `docs/data-catalog.md` reflects the new disk windows.
+- [ ] `docs/sources/data-catalog.md` reflects the new disk windows.
 
 ## Out of scope (deferred)
 

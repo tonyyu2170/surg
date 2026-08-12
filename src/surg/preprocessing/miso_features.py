@@ -2,7 +2,7 @@
 """Parse MISO daily load and DA ex-post LMP reports into a Stage-1 panel.
 
 Verified layouts (2023-01-03 and 2025-08-06) are recorded in
-docs/cross-iso-phase2-recon-verification.md section 4 and in this plan's Task 6.
+docs/sources/availability/cross-iso-phase2-recon-verification.md section 4 and in this plan's Task 6.
 
 Time: MISO publishes fixed EST hour-ending with no DST rows, so drivers pass
 dst_pairs_per_year=0 and no fall-back pair is ever flagged.

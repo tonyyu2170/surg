@@ -10,7 +10,7 @@ and §4, and closes the open check in `EU-2-grid-data-availability.md` §9.0.
 ## 0. What this is
 
 The ENTSO-E API went live for this project on 2026-08-12
-(`docs/entsoe-api-constraints.md`). This document specifies what to do with it.
+(`docs/sources/entsoe-api-constraints.md`). This document specifies what to do with it.
 
 The headline question:
 
@@ -166,7 +166,7 @@ limit, the entire corpus is a rounding error.
 | VRE | SE3 | `10Y1001A1001A46L` | ⚠ unverified | ⚠ |
 | VRE | SE4 | `10Y1001A1001A47J` | ⚠ unverified | ⚠ |
 
-The ⚠ rows carry EIC codes taken from `docs/entsoe-api-constraints.md` and not
+The ⚠ rows carry EIC codes taken from `docs/sources/entsoe-api-constraints.md` and not
 probed. **This is not a risk to manage — it is a result to record.** The
 fetcher must treat reason 999 as data, not as failure, and write it to the
 manifest. A wrong EIC and a genuinely unpublished series look identical from

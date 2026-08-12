@@ -19,7 +19,7 @@ Scripts: `scripts/entsoe_fetch.py`, `scripts/cso_fetch.py`,
 `shape_quarterly_with_dose_*.csv`, `fig_diurnal_profiles.png`,
 `fig_shape_trends.png`). Design and probe evidence:
 `docs/plans/2026-08-12-entsoe-ireland-design.md`. API mechanics:
-`docs/entsoe-api-constraints.md`.
+`docs/sources/entsoe-api-constraints.md`.
 
 ---
 

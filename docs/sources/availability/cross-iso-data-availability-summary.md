@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-09
 **Purpose:** Phase-1 closing deliverable per
-`docs/superpowers/specs/2026-08-09-cross-iso-data-research-design.md`. One table across
+`docs/specs/2026-08-09-cross-iso-data-research-design.md`. One table across
 all eight markets, then the decisions the checkpoint needs. Full detail per market lives
 in the six memos (`docs/<iso>-data-availability-research.md`) plus the ERCOT memo and the
 PJM/DOM project history.

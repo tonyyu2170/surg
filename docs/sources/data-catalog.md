@@ -7,7 +7,7 @@ planned for backfill. Sister docs:
 - **Methodology rationale** (why each feed is in scope, what the analysis
   does with it): `docs/plans/2026-05-11-phase-transition-methodology.md`
 - **API constraints** (what PJM forces on us — archive cutoffs, filter
-  restrictions, retention caps): `docs/pjm-api-constraints.md`
+  restrictions, retention caps): `docs/sources/pjm-api-constraints.md`
 - **Decisions log** (when/why scope changed): `docs/decisions.md`
 
 Update this file whenever a feed's window changes, a new feed is added,
@@ -352,7 +352,7 @@ methodology work.
 Note: zonal aggregate pnodes (e.g., DOM zonal `pnode_id=34964545`) are
 **not** tagged with their own zone in the registry (`zone=null`); they
 must be queried via `pnode?pnode_subtype=ZONE` instead. See
-`docs/pjm-api-constraints.md`.
+`docs/sources/pjm-api-constraints.md`.
 
 ### `data/raw/spike__*.parquet`, `compare__*.parquet`
 
@@ -383,7 +383,7 @@ Not part of the production data pipeline; can be deleted if
    `docs/plans/2026-05-11-phase-transition-methodology.md` § 2
 
 **Expanding a feed's window:**
-1. Check archive tier and constraints in `docs/pjm-api-constraints.md`
+1. Check archive tier and constraints in `docs/sources/pjm-api-constraints.md`
 2. Update the "Planned window" cell in the snapshot table here
 3. Run the appropriate `surg-pull` command (Standard tier) or
    `surg-pull-archive` (Plan 1.5, when added)
@@ -455,8 +455,8 @@ panel to `data/interim/<market>_diagnostic_panel*.parquet`.
 
 Sourcing constraints per market live in
 `docs/<market>-data-availability-research.md`, with the cross-market
-summary in `docs/cross-iso-data-availability-summary.md` and endpoint
-verification in `docs/cross-iso-phase2-recon-verification.md`.
+summary in `docs/sources/availability/cross-iso-data-availability-summary.md` and endpoint
+verification in `docs/sources/availability/cross-iso-phase2-recon-verification.md`.
 
 ---
 
@@ -482,7 +482,7 @@ Fields on the profiles feed: `cleansed_voltage_level`,
 `anonymised_data_centre_name`, `dc_type`, `local_timestamp`,
 `utc_timestamp`, `hh_utilisation_ratio`.
 
-**Four traps, all documented in `docs/ukpn-api-constraints.md`:**
+**Four traps, all documented in `docs/sources/ukpn-api-constraints.md`:**
 
 1. **`hh_utilisation_ratio` is not bounded [0,1]** — range [0, 3.992].
 2. **`local_timestamp` is UTC despite its name** — verified across

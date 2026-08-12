@@ -2,13 +2,13 @@
 
 **Date:** 2026-08-09
 **Motivation:** Second of six cross-ISO memos per
-`docs/superpowers/specs/2026-08-09-cross-iso-data-research-design.md`.
+`docs/specs/2026-08-09-cross-iso-data-research-design.md`.
 **Status:** Research memo. Feeds the Phase-1 checkpoint; no scope decision made here.
 **Verification:** Schema and retention claims verified by downloading and reading real files
 on 2026-08-09 unless flagged ⚠️. One structural unknown (pre-2025 file naming) survived a
 time-boxed probe campaign and is flagged prominently — it is SPP's main open item.
 **Corrected 2026-08-10**: that unknown is resolved — see §1 and
-`docs/cross-iso-phase2-recon-verification.md` §3.
+`docs/sources/availability/cross-iso-phase2-recon-verification.md` §3.
 
 ---
 
@@ -22,7 +22,7 @@ free and ungated (no key, no quota, no registration), with full LMP decompositio
 programmatically, so **Stage-1 price feasibility is conditional** on a small enumeration
 task. The facility-level negative holds here as everywhere.
 
-**Corrected 2026-08-10** (`docs/cross-iso-phase2-recon-verification.md` §3): the naming
+**Corrected 2026-08-10** (`docs/sources/availability/cross-iso-phase2-recon-verification.md` §3): the naming
 problem above is resolved, not conditional. Consolidated pre-2025 archives are per-year
 zips at a fixed path (`?path=/{YYYY}/{YYYY}.zip`, verified 200 with ZIP signature) — no
 enumeration task was needed. **SPP Stage-1 price feasibility = GO.** See §3, §5, §9.
@@ -69,7 +69,7 @@ a stronger, formalized version of the ERCOT 4CP endogeneity.
 
 **Worse:**
 
-- **Corrected 2026-08-10** (`docs/cross-iso-phase2-recon-verification.md` §3): the
+- **Corrected 2026-08-10** (`docs/sources/availability/cross-iso-phase2-recon-verification.md` §3): the
   "opaque pre-2025 naming" problem below is resolved — no browser-UI enumeration needed.
   The listing API never revealed it, but the consolidated pre-2025 archives are per-year
   zips at a fixed, guessable path: `https://portal.spp.org/file-browser-api/download/
@@ -99,7 +99,7 @@ Control Zone Name, Forecast Area Type, Load MW` (verified).**
   this 20-zone long-format roster is the 2026-03-25 → present era only. 2011–2015 is wide
   format with 16 zones (no WAUE); 2016–2025 is wide with 17 zones (WAUE present, the
   Oct-2015 IS join); 2026-03-25 → is long with 20 zones
-  (`docs/cross-iso-phase2-recon-verification.md` §3 era table).
+  (`docs/sources/availability/cross-iso-phase2-recon-verification.md` §3 era table).
 - **Timezone — Corrected 2026-08-10, RESOLVED.** `Market Hour` is GMT, hour-ending,
   verified on both 2025-11-02 (fall back, 25 rows, `11/02 06:00` → `11/03 06:00`) and
   2026-03-08 (spring forward, 23 rows, `03/08 07:00` → `03/09 05:00`). Row counts follow
@@ -204,7 +204,7 @@ Control Zone Name, Forecast Area Type, Load MW` (verified).**
 
 ## 9. Concrete Stage-1 pull spec
 
-**Corrected 2026-08-10** (`docs/cross-iso-phase2-recon-verification.md` §3): **Stage-1
+**Corrected 2026-08-10** (`docs/sources/availability/cross-iso-phase2-recon-verification.md` §3): **Stage-1
 verdict flips CONDITIONAL → GO.** The consolidated-naming blocker is resolved — no
 browser-UI enumeration needed; annual zips at `?path=/{YYYY}/{YYYY}.zip` cover the
 pre-2025 years on both load and price.

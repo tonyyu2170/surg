@@ -6,7 +6,7 @@ Usage: .venv/bin/python scripts/isone_fetch.py
 One workbook per year carries load, decomposed DA/RT LMP and weather for all
 eight load zones, so Stage 1 needs 11 files (~85 MB) rather than the ~1,400
 daily WW_DALMP_ISO CSVs the Phase-1 memo budgeted. See
-docs/cross-iso-phase2-recon-verification.md section 2.
+docs/sources/availability/cross-iso-phase2-recon-verification.md section 2.
 
 The numeric document ids for 2024-2026 are verified constants: ISO-NE moved off
 dated folders after 2023 and the ids are not reliably derivable.

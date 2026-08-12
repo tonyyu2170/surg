@@ -117,7 +117,7 @@ Expected: collection error (module doesn't exist) or ImportError.
 
 See `docs/decisions.md` 2026-05-10 §5 for the rationale behind
 this set. Identifying by pnode_id is required (the LMP feed
-truncates pnode_name; see `docs/pjm-api-constraints.md`).
+truncates pnode_name; see `docs/sources/pjm-api-constraints.md`).
 """
 from __future__ import annotations
 
@@ -288,7 +288,7 @@ Expected: collection / import error.
 ```python
 """Pure-function helpers for splitting work into API-compatible chunks.
 
-Two constraints from PJM Data Miner 2 (see `docs/pjm-api-constraints.md`):
+Two constraints from PJM Data Miner 2 (see `docs/sources/pjm-api-constraints.md`):
   - A single date-filtered query may not span more than 366 days.
   - For archived feeds, a query must stay within a single calendar year.
 

@@ -3,8 +3,8 @@
 **Date:** 2026-08-09
 **Status:** Design approved in conversation; this file pending user review
 **Markets:** MISO, SPP, CAISO, IESO, NYISO, ISONE
-**Related:** `docs/ercot-data-availability-research.md` (the pattern being replicated),
-`docs/superpowers/specs/2026-08-07-ercot-load-volatility-diagnostic-design.md` (the diagnostic
+**Related:** `docs/sources/availability/ercot-data-availability-research.md` (the pattern being replicated),
+`docs/specs/2026-08-07-ercot-load-volatility-diagnostic-design.md` (the diagnostic
 being replicated), decisions.md 2026-08-07 ERCOT Stage 1 entry (the result being extended)
 
 ---
@@ -159,7 +159,7 @@ Federally corroborates the project's core data-availability finding and seeds ev
 
 ### Phase-1 closing deliverable
 
-`docs/cross-iso-data-availability-summary.md` — one comparative table across all six plus
+`docs/sources/availability/cross-iso-data-availability-summary.md` — one comparative table across all six plus
 PJM and ERCOT: zone count, load resolution × history, price history, access gates,
 DC-load visibility, dominant confound, diagnostic feasibility verdict. This is the
 checkpoint's reading packet.

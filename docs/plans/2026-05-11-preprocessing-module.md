@@ -995,7 +995,7 @@ def pivot_lmp_long_to_pnode_columns(long_df: pd.DataFrame) -> pd.DataFrame:
     Output: one row per `datetime_beginning_ept`, with two columns per
     pnode: `congestion_price_rt_<pnode_id>` and `total_lmp_rt_<pnode_id>`.
     pnode_id is used in the column name (not pnode_name) because the LMP
-    feed truncates pnode_name (see docs/pjm-api-constraints.md).
+    feed truncates pnode_name (see docs/sources/pjm-api-constraints.md).
     """
     if long_df.empty:
         return pd.DataFrame({"datetime_beginning_ept": pd.Series(dtype="datetime64[ns]")})

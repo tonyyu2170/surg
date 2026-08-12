@@ -64,7 +64,7 @@ def pivot_lmp_long_to_pnode_columns(
     wide DataFrame.
 
     pnode_id is used in the column name (not pnode_name) because the LMP
-    feed truncates pnode_name (see docs/pjm-api-constraints.md).
+    feed truncates pnode_name (see docs/sources/pjm-api-constraints.md).
 
     index_col: timestamp column to pivot on (5-min panel passes "interval_start_utc").
     """

@@ -20,7 +20,7 @@ already installed in the main venv as of Plan A Task 13).
 
 ## Source of truth
 
-**`docs/cross-iso-phase2-recon-verification.md` (commit `ef583a0`) is authoritative for
+**`docs/sources/availability/cross-iso-phase2-recon-verification.md` (commit `ef583a0`) is authoritative for
 every URL, schema, roster, and time convention in this plan.** Every structure below was
 verified by downloading and reading real files on 2026-08-10. Where the Phase-1 memos
 disagree, they are wrong — three of four checked memo claims have been falsified.
@@ -176,7 +176,7 @@ Usage: .venv/bin/python scripts/isone_fetch.py
 One workbook per year carries load, decomposed DA/RT LMP and weather for all
 eight load zones, so Stage 1 needs 11 files (~85 MB) rather than the ~1,400
 daily WW_DALMP_ISO CSVs the Phase-1 memo budgeted. See
-docs/cross-iso-phase2-recon-verification.md section 2.
+docs/sources/availability/cross-iso-phase2-recon-verification.md section 2.
 
 The numeric document ids for 2024-2026 are verified constants: ISO-NE moved off
 dated folders after 2023 and the ids are not reliably derivable.
@@ -355,7 +355,7 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'scripts.spp_fetch'`
 
 Usage: .venv/bin/python scripts/spp_fetch.py
 
-Two eras per series (docs/cross-iso-phase2-recon-verification.md section 3):
+Two eras per series (docs/sources/availability/cross-iso-phase2-recon-verification.md section 3):
   * 2016-2024: one annual zip per year at ?path=/{YYYY}/{YYYY}.zip
   * 2025 ->  : daily CSVs; no annual zip exists (404 verified)
 
@@ -738,7 +738,7 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'surg.preprocessing.iso
 
 One workbook per year carries load, decomposed DA/RT LMP and weather for all
 eight load zones. Verified structure (2016, 2023, 2026 all identical) is
-recorded in docs/cross-iso-phase2-recon-verification.md section 2.
+recorded in docs/sources/availability/cross-iso-phase2-recon-verification.md section 2.
 
 Time convention: the workbook is a fixed 24-hour-per-day grid - both DST
 transition days carry exactly 24 rows, and a full non-leap year is 8760 rows.
@@ -938,7 +938,7 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'surg.preprocessing.spp
 """Parse SPP hourly load and nodal DA LMP into a Stage-1 panel.
 
 Every structure here was verified against real files on 2026-08-10; see
-docs/cross-iso-phase2-recon-verification.md section 3 for the era table and the
+docs/sources/availability/cross-iso-phase2-recon-verification.md section 3 for the era table and the
 evidence behind each guard.
 
 Four traps this module exists to defuse:
@@ -1187,7 +1187,7 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'surg.preprocessing.mis
 """Parse MISO daily load and DA ex-post LMP reports into a Stage-1 panel.
 
 Verified layouts (2023-01-03 and 2025-08-06) are recorded in
-docs/cross-iso-phase2-recon-verification.md section 4 and in this plan's Task 6.
+docs/sources/availability/cross-iso-phase2-recon-verification.md section 4 and in this plan's Task 6.
 
 Time: MISO publishes fixed EST hour-ending with no DST rows, so drivers pass
 dst_pairs_per_year=0 and no fall-back pair is ever flagged.
@@ -1776,9 +1776,9 @@ git commit -m "docs(decisions): eight-market cross-ISO Stage-1 capstone"
 ## Task 11: Correct the Phase-1 memos
 
 **Files:**
-- Modify: `docs/isone-data-availability-research.md`
-- Modify: `docs/spp-data-availability-research.md`
-- Modify: `docs/cross-iso-data-availability-summary.md`
+- Modify: `docs/sources/availability/isone-data-availability-research.md`
+- Modify: `docs/sources/availability/spp-data-availability-research.md`
+- Modify: `docs/sources/availability/cross-iso-data-availability-summary.md`
 
 The memos still assert things this plan disproved. Leaving them uncorrected is how the
 Plan A defects happened.
@@ -1787,7 +1787,7 @@ Plan A defects happened.
 
 In §3, §5 and §9, replace the "verified 200 at 2015-08-06" and "2003 nominal" claims with
 the verified depth (2016-01 →) and a pointer to
-`docs/cross-iso-phase2-recon-verification.md` §1. Replace the §9 pull spec's ~1.4K daily
+`docs/sources/availability/cross-iso-phase2-recon-verification.md` §1. Replace the §9 pull spec's ~1.4K daily
 CSVs with the 11-workbook route. Note the CAPTCHA on the `zone-info` download UI and that
 the workbooks are separately published open static assets.
 
@@ -1800,14 +1800,14 @@ CF+NC rule, and the resolved GMT hour-ending timezone finding.
 
 - [ ] **Step 3: Update the summary table**
 
-In `docs/cross-iso-data-availability-summary.md`, update the SPP and ISO-NE columns:
+In `docs/sources/availability/cross-iso-data-availability-summary.md`, update the SPP and ISO-NE columns:
 Stage-1 verdicts both GO; ISO-NE price history 2016 → (not "≥2015 verified open, 2003
 nominal"); SPP load history 2011 → verified (not "⚠️ naming").
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add docs/isone-data-availability-research.md docs/spp-data-availability-research.md docs/cross-iso-data-availability-summary.md
+git add docs/sources/availability/isone-data-availability-research.md docs/sources/availability/spp-data-availability-research.md docs/sources/availability/cross-iso-data-availability-summary.md
 git commit -m "docs(cross-iso): correct ISONE and SPP memos against Phase-2 findings"
 ```
 

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the twelve report figures (F1–F11 plus F4b) specified in `docs/superpowers/specs/2026-07-30-subq1-figure-set-design.md`, as a set of independently runnable modules whose plotted numbers are computed from the current panels rather than transcribed from the spec.
+**Goal:** Build the twelve report figures (F1–F11 plus F4b) specified in `docs/specs/2026-07-30-subq1-figure-set-design.md`, as a set of independently runnable modules whose plotted numbers are computed from the current panels rather than transcribed from the spec.
 
 **Architecture:** A shared style module, one expensive compute step that caches statistics to JSON, and three plotting modules that read only from panels and cached JSON. Every figure splits into a pure `prepare_*()` function (returns the numbers, unit-testable) and a `plot_*()` function (draws them). Tests target the prepare functions; plotting is smoke-tested for file creation only.
 
@@ -3287,7 +3287,7 @@ PY
 
 Follow the file's existing entry conventions (check the last entry for heading style and date format). The entry must record:
 
-1. That the figure set was built to `docs/superpowers/specs/2026-07-30-subq1-figure-set-design.md`, with every caption number recomputed from the current panels rather than transcribed.
+1. That the figure set was built to `docs/specs/2026-07-30-subq1-figure-set-design.md`, with every caption number recomputed from the current panels rather than transcribed.
 2. A table of spec value vs recomputed value for: F1 load growth, F3 congestion p90 by year, F4b counts at four thresholds, F11 load-growth shares, F5's 2024 τ=0.90 anchor.
 3. **The F7 correction**: the spec's Ashburn-vs-SKFFSCRK contrast mixed windows (Ashburn covers only 2024-08-06 → 2026-05-10). On the common window the gap is ~3× (4.78% vs 1.60%), not the ~4.9× the spec implies. The locational finding stands; its magnitude was overstated.
 4. **The F8 fix**: the restored `run_5min_nofilter.py` omitted `resolution="5-min"`, which would have stamped 5-min outputs as hourly — the same bug class as `c4a64e7`.

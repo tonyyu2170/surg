@@ -13,7 +13,7 @@ FIVEMIN_SCHEMA_VERSION = 2
 SKFFSCRK_PNODE_ID: int = 1356178201
 
 # Nodes pulled at 5-min resolution. SKFFSCRK was added 2026-07-30 as a
-# comparison node; see docs/superpowers/specs/2026-07-30-surg-recovery-design.md.
+# comparison node; see docs/specs/2026-07-30-surg-recovery-design.md.
 FIVEMIN_PNODE_IDS: tuple[int, ...] = (35010365, 35010371, 1356178195, SKFFSCRK_PNODE_ID)
 
 # Nodes averaged into the Loudoun cluster columns. Deliberately NOT the same

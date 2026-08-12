@@ -300,7 +300,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if args.feed == "rt_fivemin_hrl_lmps":
             print("rt_fivemin_hrl_lmps Historic tier rejects the type filter "
-                  "(see docs/pjm-api-constraints.md); archive-tier pull is "
+                  "(see docs/sources/pjm-api-constraints.md); archive-tier pull is "
                   "not workable for this feed.", file=sys.stderr)
             return 2
         # Standard geo kwargs should be unset.

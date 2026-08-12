@@ -1,6 +1,6 @@
 """Pure-function helpers for splitting work into API-compatible chunks.
 
-Two constraints from PJM Data Miner 2 (see `docs/pjm-api-constraints.md`):
+Two constraints from PJM Data Miner 2 (see `docs/sources/pjm-api-constraints.md`):
   - A single date-filtered query may not span more than 366 days.
   - For archived feeds, a query must stay within a single calendar year.
 

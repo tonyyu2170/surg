@@ -1,7 +1,7 @@
 """Sync httpx wrapper for the gridstatus.io hosted API.
 
 Mirrors `client.PJMClient` in shape. Facts encoded here come from
-`docs/gridstatus-api-constraints.md`:
+`docs/sources/gridstatus-api-constraints.md`:
   - auth header `x-api-key`; base https://api.gridstatus.io/v1
   - NEVER follow redirects (the /datasets/ trailing-slash 307 downgrades
     to cleartext HTTP and would replay the api key)

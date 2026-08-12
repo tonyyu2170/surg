@@ -55,7 +55,7 @@ def build_analysis_panel_5min(
     # adjacency, not elapsed wall-clock time — a missing interval would
     # silently produce a spurious extreme Z at the row after the gap.
     # Real-world gaps are confirmed genuine upstream feed gaps, not
-    # recoverable via re-pull (docs/gridstatus-api-constraints.md), so
+    # recoverable via re-pull (docs/sources/gridstatus-api-constraints.md), so
     # gap-adjacent rows are NaN-masked rather than failing the build.
     gap_mask = _gap_adjacent_mask(panel["interval_start_utc"])
 

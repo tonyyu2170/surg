@@ -6,7 +6,7 @@ the paused 2026-05-15 soft-restart brainstorm and the scope fork it
 left open.
 **Predecessors:** item #8 pre-reg (`docs/decisions.md` § 2026-05-15 —
 Sub-q1 item #8), the 2026-05-15 gridstatus blocker pass
-(`docs/gridstatus-api-constraints.md`), and the 2026-06-25 pull plan
+(`docs/sources/gridstatus-api-constraints.md`), and the 2026-06-25 pull plan
 (`docs/gridstatus-5min-pull-plan.md`).
 
 ## 1. Scope & framing
@@ -126,7 +126,7 @@ PJM-hourly hidden-fraction comparison) is not part of this work.
 
 - `src/surg/acquisition/gridstatus_client.py` + pull entry point —
   mirrors the PJM client (retry/backoff per
-  `docs/gridstatus-api-constraints.md`, cache-per-page, quota
+  `docs/sources/gridstatus-api-constraints.md`, cache-per-page, quota
   preflight, `follow_redirects=False`).
 - Preprocessing extension building a validated 5-min analysis panel
   (schema-versioned parquet, same conventions as the hourly panel

@@ -66,7 +66,7 @@ Writes year-partitioned parquets to `data/raw/ukpn/`, skipping slices
 already on disk. This is a **load-shape** dataset — no MW, no location,
 no price — and it carries real data-quality traps (13% of rows are exact
 zeros; the `local_timestamp` column is actually UTC). Read
-[`docs/ukpn-api-constraints.md`](docs/ukpn-api-constraints.md) before
+[`docs/sources/ukpn-api-constraints.md`](docs/sources/ukpn-api-constraints.md) before
 using it.
 
 **Figures** — regenerate the report figure set (module, not path):
@@ -86,7 +86,8 @@ using it.
 
 ```
 data/         # raw/interim/processed parquets (gitignored)
-docs/         # proposal, decision log, per-ISO data memos, plans
+docs/         # decision log, research notes, source constraints, plans
+              # (see docs/README.md for the map)
 notebooks/    # exploratory analysis
 outputs/      # generated figures and tables (gitignored)
 scripts/      # per-ISO fetch + diagnostic drivers, figure pipeline
@@ -108,6 +109,7 @@ profiles come from the
 (CC BY 4.0). No raw data is tracked in git; every panel is reproducible
 from the acquisition commands above.
 
-Per-source constraints and gotchas live in `docs/*-api-constraints.md`
-(PJM, gridstatus, UKPN) and `docs/*-data-availability-research.md` (the
-cross-ISO markets).
+Per-source constraints and gotchas live in `docs/sources/*-api-constraints.md`
+(PJM, gridstatus, UKPN, ENTSO-E) and
+`docs/sources/availability/*-data-availability-research.md` (the cross-ISO
+markets). Findings are indexed in `docs/research-notes/INDEX.md`.

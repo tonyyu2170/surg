@@ -81,7 +81,7 @@ May preprocessing layer is superseded and will be dropped (decided
   Retrievable by logging into the accounts.
 - **The 6 unpushed 2026-07-30 commits** on `main`. Reconstructible from
   edit chains plus the pasted agendas.
-- **`docs/pjm-sources/`** — 11 MB of PJM manuals (M11 rev137, M12 rev57,
+- **`docs/reference/pjm-manuals/`** — 11 MB of PJM manuals (M11 rev137, M12 rev57,
   M03 rev71). Re-downloadable.
 
 ## Approach: tiered restore
@@ -148,7 +148,7 @@ chains. Restore the 3 corresponding test files.
 
 Oracle for the CLI contract: `~/surg-run-logs/surg-gridstatus-backfill-launch.sh`
 uses `--start --end --pnodes --skip-load --data-root`. Constraints are
-already documented in `docs/gridstatus-api-constraints.md`, which is in
+already documented in `docs/sources/gridstatus-api-constraints.md`, which is in
 `origin/main`.
 
 **Do not "fix" the key lookup.** The module must keep reading the single
@@ -283,8 +283,8 @@ worktrees must be applied against the matching base. If a hunk fails to
 apply, reconstruct that entry from the memory directory and the pasted
 agendas rather than forcing the patch, and mark it as reconstructed.
 
-Also restore `docs/pjm-lmp-formation.md` (37 KB + 10 edits), the July
-plans and specs, and re-download `docs/pjm-sources/`.
+Also restore `docs/reference/pjm-manuals/pjm-lmp-formation.md` (37 KB + 10 edits), the July
+plans and specs, and re-download `docs/reference/pjm-manuals/`.
 
 Note: the pasted figure-set spec is the **post-review** version (13
 figures, including the review-decisions section) and supersedes the

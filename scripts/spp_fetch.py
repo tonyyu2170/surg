@@ -3,7 +3,7 @@
 
 Usage: .venv/bin/python scripts/spp_fetch.py
 
-Two eras per series (docs/cross-iso-phase2-recon-verification.md section 3):
+Two eras per series (docs/sources/availability/cross-iso-phase2-recon-verification.md section 3):
   * 2016-2024: one annual zip per year at ?path=/{YYYY}/{YYYY}.zip
   * 2025 ->  : daily CSVs; no annual zip exists (404 verified)
 

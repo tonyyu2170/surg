@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-09
 **Motivation:** First of six cross-ISO memos per
-`docs/superpowers/specs/2026-08-09-cross-iso-data-research-design.md` — extend the DOM + ERCOT
+`docs/specs/2026-08-09-cross-iso-data-research-design.md` — extend the DOM + ERCOT
 level-vs-volatility result and hunt for data-center visibility, market by market.
 **Status:** Research memo. Feeds the Phase-1 checkpoint; no scope decision made here.
 **Verification:** Every schema and history-depth claim below was verified by downloading and

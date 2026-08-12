@@ -3,7 +3,7 @@
 
 Usage: .venv/bin/python scripts/ukpn_fetch.py
 
-Constraints and gotchas are documented in docs/ukpn-api-constraints.md. The
+Constraints and gotchas are documented in docs/sources/ukpn-api-constraints.md. The
 two that shape this script:
 
   * /records caps at offset+limit <= 10,000, so the 5.44M-row demand-profiles

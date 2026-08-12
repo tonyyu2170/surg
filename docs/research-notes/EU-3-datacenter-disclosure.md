@@ -257,7 +257,7 @@ Ranked by realism for this project.
 
 ### UK Power Networks — "Data Centre Demand Profiles"
 
-> **⚠️ SUPERSEDED IN PART — see `docs/ukpn-api-constraints.md` (2026-08-11).**
+> **⚠️ SUPERSEDED IN PART — see `docs/sources/ukpn-api-constraints.md` (2026-08-11).**
 > An account was created and the API probed directly. **The access
 > question below is CLOSED: the data does download.** But four claims in
 > this section are **wrong**, having been written from metadata alone:

@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-09
 **Motivation:** Fourth of six cross-ISO memos per
-`docs/superpowers/specs/2026-08-09-cross-iso-data-research-design.md`.
+`docs/specs/2026-08-09-cross-iso-data-research-design.md`.
 **Status:** Research memo. Feeds the Phase-1 checkpoint; no scope decision made here.
 **Verification:** Every schema and depth claim verified by downloading and reading real
 files from `reports-public.ieso.ca` on 2026-08-09 unless flagged ⚠️.

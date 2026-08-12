@@ -1,7 +1,7 @@
 # ERRATA — ERCOT Load Volatility Diagnostic Implementation Plan
 
 **Date:** 2026-08-07
-**Applies to:** `docs/superpowers/plans/2026-08-07-ercot-load-volatility-diagnostic.md`
+**Applies to:** `docs/plans/2026-08-07-ercot-load-volatility-diagnostic.md`
 **Status:** Tasks 1–3 complete. Tasks 4–9 must be executed against the corrections below, not the plan as written.
 
 The plan was written from an unverified reading of ERCOT's archive pages. Direct

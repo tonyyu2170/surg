@@ -1,7 +1,7 @@
 # scripts/entsoe_fetch.py
 """Pull ENTSO-E 6.1.A load and 12.1.D day-ahead price into data/raw/entsoe/.
 
-Constraints that shape this script live in docs/entsoe-api-constraints.md and
+Constraints that shape this script live in docs/sources/entsoe-api-constraints.md and
 docs/plans/2026-08-12-entsoe-ireland-design.md. The four that matter:
 
   * "No data" is HTTP 200 + reason 999. Every body must be parsed; the status

@@ -6056,3 +6056,54 @@ drivers re-run end to end. `data/` intact: 376 ENTSO-E parquets, CSO, UKPN, 27
 `outputs/` directories, nothing deleted. `docs/decisions.md` verified
 append-only throughout (0 deletions). Nothing committed; nothing pushed; the
 three earlier commits remain unpushed.
+
+---
+
+## 2026-08-12 — `docs/` reorganised; path map for citations frozen in this log
+
+`docs/` had accumulated two parallel plan hierarchies (`docs/plans/` and
+`docs/superpowers/plans/`), twenty loose files at the root mixing API
+constraints, per-ISO availability memos, vendored PDFs and research
+deliverables, and two ad-hoc PDF subdirectories. It is now grouped by what a
+document *is*.
+
+**This log is append-only, so the path citations in entries above were not
+edited and now point at files that have moved.** This entry is the map that
+makes them resolvable. Every earlier citation should be read through it.
+
+| Cited as (entries above) | Now at |
+|---|---|
+| `docs/superpowers/plans/<f>` | `docs/plans/<f>` |
+| `docs/superpowers/specs/<f>` | `docs/specs/<f>` |
+| `docs/<pjm\|gridstatus\|ukpn\|entsoe>-api-constraints.md` | `docs/sources/<same>` |
+| `docs/entsoe-endpoint-reference.md` | `docs/sources/entsoe-endpoint-reference.md` |
+| `docs/data-catalog.md` | `docs/sources/data-catalog.md` |
+| `docs/<iso>-data-availability-research.md` | `docs/sources/availability/<same>` |
+| `docs/cross-iso-data-availability-summary.md` | `docs/sources/availability/<same>` |
+| `docs/cross-iso-phase2-recon-verification.md` | `docs/sources/availability/<same>` |
+| `docs/external-context-research-2026-08.md` | `docs/research-notes/<same>` |
+| `docs/pjm-lmp-formation.md` | `docs/reference/pjm-manuals/pjm-lmp-formation.md` |
+| `docs/pjm-sources/<f>.pdf` | `docs/reference/pjm-manuals/<f>.pdf` |
+| `docs/data-miner-2-api-guide.pdf` | `docs/reference/pjm-manuals/<same>` |
+| `docs/pecan_street/<f>` | `docs/reference/pecan-street/<f>` |
+| `docs/reserve-shortage-pricing-paper.pdf` | `docs/reference/papers/<same>` |
+
+**Deliberately not moved.** `docs/plans/` keeps its path and stays flat —
+nineteen citations in this log point into it, `CLAUDE.md` names it, and the
+date-prefixed filenames already sort chronologically. `docs/research-notes/`
+keeps the `A`–`L` and `EU-0`–`EU-5` filenames; renaming them to something more
+systematic would have broken seven citations here to buy nothing a new
+`INDEX.md` does not. `docs/decisions.md` and the grant proposal stay at the
+root.
+
+**Two dangling references predate this move and are unrelated to it:**
+`docs/gridstatus-5min-pull-plan.md` (cited from the 5-min companion design and
+`gridstatus_pull.py`) and `docs/plans/2026-05-14-jlarc-projection-implementation.md`
+(cited from the JLARC projection design). Both targets have never existed in
+the tree. Left as found.
+
+All moves were `git mv` with filenames preserved, so history follows the files
+and the `*-api-constraints.md` / `*-data-availability-research.md` globs still
+work within their new directories. Every cross-reference in every editable file
+(52 of them) was repaired and verified: a re-grep for the old paths returns
+`docs/decisions.md` and nothing else.

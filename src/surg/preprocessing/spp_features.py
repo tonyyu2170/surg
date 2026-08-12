@@ -2,7 +2,7 @@
 """Parse SPP hourly load and nodal DA LMP into a Stage-1 panel.
 
 Every structure here was verified against real files on 2026-08-10; see
-docs/cross-iso-phase2-recon-verification.md section 3 for the era table and the
+docs/sources/availability/cross-iso-phase2-recon-verification.md section 3 for the era table and the
 evidence behind each guard.
 
 Four traps this module exists to defuse:

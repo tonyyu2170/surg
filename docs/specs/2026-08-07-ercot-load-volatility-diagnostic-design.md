@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-07
 **Status:** Approved by user, ready for writing-plans
-**Related:** `docs/ercot-data-availability-research.md` (data availability research)
+**Related:** `docs/sources/availability/ercot-data-availability-research.md` (data availability research)
 
 ---
 

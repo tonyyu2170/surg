@@ -1,6 +1,6 @@
 # PJM Data Miner 2 API — Discovered Constraints
 
-Source: `docs/data-miner-2-api-guide.pdf` (PJM, Feb 2026 revision) and the
+Source: `docs/reference/pjm-manuals/data-miner-2-api-guide.pdf` (PJM, Feb 2026 revision) and the
 API portal at `https://apiportal.pjm.com`. This file captures facts the
 API forces on us, separate from `decisions.md` which records what we
 chose to do about them.

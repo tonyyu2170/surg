@@ -10,7 +10,7 @@
 
 **Covers spec phases:** 4 (graft), 2 (acquisition layer), 5 (July preprocessing), 6 (research record). Spec phases 1, 3, 7, 8 are Plan B — they need API keys, quota, and compute.
 
-**Source of truth:** `docs/superpowers/specs/2026-07-30-surg-recovery-design.md`
+**Source of truth:** `docs/specs/2026-07-30-surg-recovery-design.md`
 **Recovery archive:** `~/surg-recovery-2026-07-30/` (referred to below as `$ARCHIVE`)
 
 ---
@@ -28,7 +28,7 @@
 | `src/surg/preprocessing/build_5min.py` | Builds the 5-min analysis panel | Restore (Task 10) |
 | `src/surg/analysis/run_5min.py` | 5-min analysis entrypoint | Restore (Task 11) |
 | `docs/decisions.md` | Research record — pre-registrations and results | Extend (Task 13) |
-| `docs/pjm-lmp-formation.md` | PJM LMP formation reference (workstream C) | Restore (Task 13) |
+| `docs/reference/pjm-manuals/pjm-lmp-formation.md` | PJM LMP formation reference (workstream C) | Restore (Task 13) |
 
 Note the deliberate absence of `scripts/plot_subq1_results.py`. Per the spec it is superseded by the figure-set design and is rebuilt in a later plan, not restored here.
 
@@ -322,7 +322,7 @@ of the same layer.
 spike_exceedance_comparison implemented Part B, which the July design
 dropped.
 
-See docs/superpowers/specs/2026-07-30-surg-recovery-design.md, Phase 4."
+See docs/specs/2026-07-30-surg-recovery-design.md, Phase 4."
 ```
 
 ---
@@ -345,7 +345,7 @@ python3 replay.py \
   "$SURG/src/surg/acquisition/gridstatus_client.py"
 ```
 
-Expected: `applied=1 skipped=0`, exit 0. If any edit is skipped, reconcile it by hand against `docs/gridstatus-api-constraints.md` before continuing.
+Expected: `applied=1 skipped=0`, exit 0. If any edit is skipped, reconcile it by hand against `docs/sources/gridstatus-api-constraints.md` before continuing.
 
 - [ ] **Step 2: Replay the test**
 
@@ -379,7 +379,7 @@ git commit -m "feat(acquisition): restore gridstatus_client from recovery archiv
 
 Reconstructed from the recorded Write payload plus 1 replayed edit.
 Retains follow_redirects=False and the no-trailing-slash /datasets rule
-documented in docs/gridstatus-api-constraints.md."
+documented in docs/sources/gridstatus-api-constraints.md."
 ```
 
 ---
@@ -752,7 +752,7 @@ The highest-fidelity requirement in the plan. `docs/decisions.md` has 20 recorde
 
 **Files:**
 - Modify: `docs/decisions.md`
-- Create: `docs/pjm-lmp-formation.md`, plus the July plans and specs
+- Create: `docs/reference/pjm-manuals/pjm-lmp-formation.md`, plus the July plans and specs
 
 - [ ] **Step 1: Snapshot decisions.md before replay**
 
@@ -790,14 +790,14 @@ Expected: only additions. Any deletion is a replay bug — restore from the snap
 - [ ] **Step 5: Restore `pjm-lmp-formation.md`**
 
 ```bash
-python3 replay.py "edit-chains/docs__pjm-lmp-formation.md.json" "$SURG/docs/pjm-lmp-formation.md"
+python3 replay.py "edit-chains/docs__pjm-lmp-formation.md.json" "$SURG/docs/reference/pjm-manuals/pjm-lmp-formation.md"
 ```
 
 Expected: `applied=10`. Verify it contains the §6/§9 finding that load-volatility → reserve depletion is UNSUPPORTED, and the M11 §2.2 congestion mechanism:
 
 ```bash
-grep -n "UNSUPPORTED" docs/pjm-lmp-formation.md | head
-grep -n "4.3\|2.2" docs/pjm-lmp-formation.md | head
+grep -n "UNSUPPORTED" docs/reference/pjm-manuals/pjm-lmp-formation.md | head
+grep -n "4.3\|2.2" docs/reference/pjm-manuals/pjm-lmp-formation.md | head
 ```
 
 - [ ] **Step 6: Restore the July plans and specs**
@@ -807,8 +807,8 @@ cd ~/surg-recovery-2026-07-30
 cp extracted/docs/plans/2026-07-17-5min-two-sided-companion-implementation.md "$SURG/docs/plans/"
 cp extracted/docs/plans/2026-07-20-jlarc-external-context-update.md "$SURG/docs/plans/"
 cp extracted/docs/plans/2026-07-21-subq3-event-catalog-scan.md "$SURG/docs/plans/"
-cp extracted/docs/superpowers/specs/2026-07-17-5min-two-sided-companion-design.md "$SURG/docs/superpowers/specs/"
-cp extracted/docs/superpowers/specs/2026-07-29-pjm-lmp-formation-research-design.md "$SURG/docs/superpowers/specs/"
+cp extracted/docs/specs/2026-07-17-5min-two-sided-companion-design.md "$SURG/docs/specs/"
+cp extracted/docs/specs/2026-07-29-pjm-lmp-formation-research-design.md "$SURG/docs/specs/"
 ```
 
 Then replay their edit chains in `--from-base` mode:
@@ -819,16 +819,16 @@ python3 replay.py "edit-chains/docs__plans__2026-07-20-jlarc-external-context-up
 python3 replay.py "edit-chains/docs__plans__2026-07-21-subq3-event-catalog-scan.md.json" \
   "$SURG/docs/plans/2026-07-21-subq3-event-catalog-scan.md" --from-base
 python3 replay.py "edit-chains/docs__superpowers__specs__2026-07-29-pjm-lmp-formation-research-design.md.json" \
-  "$SURG/docs/superpowers/specs/2026-07-29-pjm-lmp-formation-research-design.md" --from-base
+  "$SURG/docs/specs/2026-07-29-pjm-lmp-formation-research-design.md" --from-base
 python3 replay.py "edit-chains/docs__superpowers__specs__2026-07-17-5min-two-sided-companion-design.md.json" \
-  "$SURG/docs/superpowers/specs/2026-07-17-5min-two-sided-companion-design.md" --from-base
+  "$SURG/docs/specs/2026-07-17-5min-two-sided-companion-design.md" --from-base
 ```
 
 - [ ] **Step 7: Restore the figure-set design spec**
 
 Use the **post-review** version — the one pasted into the recovery session, containing 13 figures (F1–F11 plus F4b, F4c) and the "Review decisions (2026-07-30)" section. The extracted 9,787-byte copy predates that review and must not be used.
 
-Save to `docs/superpowers/specs/2026-07-30-subq1-figure-set-design.md`.
+Save to `docs/specs/2026-07-30-subq1-figure-set-design.md`.
 
 - [ ] **Step 8: Log the spike-filtering ruling**
 
@@ -855,7 +855,7 @@ Logs the reversion-spike ruling: not filtered."
 ## Task 14: Re-download the PJM manuals
 
 **Files:**
-- Create: `docs/pjm-sources/` — M11 rev137, M12 rev57, M03 rev71 (~11 MB)
+- Create: `docs/reference/pjm-manuals/` — M11 rev137, M12 rev57, M03 rev71 (~11 MB)
 
 - [ ] **Step 1: Download the three manuals**
 
@@ -870,7 +870,7 @@ Confirm M11 §2.2 (congestion / transmission line loadings), §4.3 (reserve requ
 - [ ] **Step 3: Commit**
 
 ```bash
-git add docs/pjm-sources/
+git add docs/reference/pjm-manuals/
 git commit -m "docs(sources): re-vendor PJM manuals M11 r137, M12 r57, M03 r71
 
 Tracked in git because pjm-lmp-formation.md cites section numbers that

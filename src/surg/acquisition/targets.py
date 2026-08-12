@@ -2,7 +2,7 @@
 
 See `docs/decisions.md` entry "2026-05-10 — Lock the 11-pnode target set"
 for the rationale behind this set. Identifying by pnode_id is required
-(the LMP feed truncates pnode_name; see `docs/pjm-api-constraints.md`).
+(the LMP feed truncates pnode_name; see `docs/sources/pjm-api-constraints.md`).
 """
 from __future__ import annotations
 

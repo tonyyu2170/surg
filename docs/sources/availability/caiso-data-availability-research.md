@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-09
 **Motivation:** Third of six cross-ISO memos per
-`docs/superpowers/specs/2026-08-09-cross-iso-data-research-design.md`.
+`docs/specs/2026-08-09-cross-iso-data-research-design.md`.
 **Status:** Research memo. Feeds the Phase-1 checkpoint; no scope decision made here.
 **Verification:** Every schema and depth claim verified by downloading and reading real
 OASIS files on 2026-08-09 unless flagged ⚠️.

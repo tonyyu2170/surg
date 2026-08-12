@@ -6,7 +6,14 @@
 
 ### UK Data centers
 
-* 
+* UK Power Networks publishes **30 minute interval demand profiles** for **96 anonymous data centers**. Instead of giving traditional **MW**, it instead gives a **utilisation ratio**: observed apparent power ÷ that site's contracted maximum import capacity.   
+* This is the first **facility-level** data the project has: 96 individual buildings, metered. The trade is **no MW, no location, no price.** It's a dimensionless ratio from a *distribution* network, not an ISO, so it can't be joined to any nodal geography and cannot speak to price formation at all  
+* **Load is flat**. Not super volatile, with expected troughs in morning and hills during the day  
+* However,  
+  * **These are probably not Hyperscale AI training facilities.** Anonymised UK distribution-connected sites, most likely conventional colocation and enterprise. The synchronized-training workload the whole volatility premise is about may not appear anywhere in this sample.  
+  * For the utilisation ratio, **the denominator is *contracted* capacity, not nameplate**, so a flat ratio partly reflects how much headroom a site bought, not how it runs.  
+  * **Half-hourly resolution cannot see the 0.1–30 Hz band** where industry actually locates the problem.  
+* Seems like whatever we try we can never find an ideal data set. Every set has something we want and misses everything else
 
 ### European energy markets
 
@@ -15,6 +22,47 @@
 ### Pecan street texas dataset
 
 * 
+
+### Links you gave me last week
+
+* [A Proposed Framework to Assess Headroom for Integrating Data Centers into Regional Power Systems: An Industry Playbook for Unlocking System Potential with Flexibility](https://www.epri.com/research/products/000000003002034162) (compared to xfra.ai)  
+  * Both EPRI and XFRA aim to solve the primary bottleneck of the AI boom: the **5-to-10-year wait times required to connect massive new loads to the grid**, avoiding the need for multi-billion-dollar transmission and generation upgrades.  
+  * EPRI's framework provides a **standardized, four-step methodology** for grid operators to safely connect massive, centralized data centers to the existing transmission grid by **calculating the system's unused "headroom"** across different scenarios.  
+    * Step 1: Wide range operating conditions  
+      * Uses probabilistic modeling to analyze the grid hourly, accounting for macro variables like weather, economic conditions, availability of renewables  
+      * Identifies the theoretical max excess power before any physical constraints of power lines are considered  
+    * Step 2: Nodal transmission limits  
+      * Overlays physical map of nodes and transmission lines to the hourly data from step 1  
+      * Prove that delivering excess power to a data center won’t cause congestion or make lines explode  
+    * Step 3: sub hourly limits  
+      * Looks at sub hourly intervals to look at sudden spikes in demand or drops in supply  
+      * Prove that flexible data centers can actively ramp power up or down within those small windows to respond to changes  
+    * Step 4: zoom in more to local equipment  
+      * Looks at local voltage stability, frequency regulation, health of local transformers  
+      * Proves that when a data center cuts its power, sudden voltage spike won’t fry local infrastructure  
+  * EPRI relies on data centers proving they can **quickly ramp down usage** during regional grid congestion, while XFRA relies on SPAN smart panels to **instantly throttle the AI node's power** if a homeowner turns on major appliances (like an oven or dryer).  
+  * EPRI's framework aims to **protect everyday utility ratepayers from the costs of infrastructure upgrades** caused by hyperscalers  
+* [Large Loads Task Force Meeting and Workshop](https://www.nerc.com/globalassets/who-we-are/standing-committees/rstc/llwg/lltf_april_meeting__technical_workshop_presentations_.pdf)  
+  * Tesla and Google provided hard data proving that AI training workloads are not static. Tesla showed **AI loads oscillating at 0.1–1 Hz and 5–30 Hz**, with amplitude swings reaching up to 90% of peak capacity (framed by Elon Musk as "**10–20 MW** shifts several times per second," with Google corroborating swings in the tens of megawatts).  
+  * Utility presentations detailed exactly why data centers exacerbate grid faults. Their **power electronics employ aggressive undervoltage protection**; if local voltage dips below \~65% during a transient event, the facility **instantly disconnects** to protect its servers. They then take roughly 8 seconds to automatically reconnect. Entergy demonstrated that when this massive load slams back onto the grid simultaneously, the sudden localized demand spike can cause nearby conventional generators to lose transient stability and slip out of synchronism.  
+    * This is kinda **outdated** by now  
+    * Mandated **Voltage Ride-Through (VRT)** and **Fast Frequency Reserve (FFR)** capabilities try to mitigate disconnection issues  
+    * Even in case of disconnection, facilities can **soft start** to not put a done of stress at once  
+  * This 145-page deck serves as historical context. Its proposed frameworks have since been codified into binding industry documents. For current regulatory analysis, cite LLTF White Paper 2 (March 2026\) and the NERC Reliability Guideline (May 2026).  
+* [Machine Learning Guided Cooling System Optimization for Data Center](https://arxiv.org/pdf/2601.02275)  
+  * A test on a top-tier supercomputer, the Frontier exascale system.   
+  * Because the system's average IT load is 12 MW, s**mall percentage inefficiencies in cooling pumps and fans still translate to hundreds of kilowatts** of continuous, wasted power.  
+  * Developed and trained a ML model to predict how much cooling power should be used at a given time to see when the facility’s cooling system is overworking  
+  * In the context of our project, not super useful. They measured **10 minute resolution data** which isn’t as granular as article 5 suggests we need  
+* [Hourly Electricity Load Forecasting Using Machine Learning Algorithms](https://www.ferc.gov/sites/default/files/2024-07/PJM%20FERC%20Technical%20Conference%202024%20-%20Hourly%20Electricity%20Load%20Forecasting%20Using%20Machine%20Learning%20Algorithms.pdf)  
+  * PJM tested 4 modern ML models against their production forecast. XGBoost won across the system, but **it ws better than the production forecast for every large zone except Dominion**. That's PJM naming your zone as the one place their methods break.  
+  * The closing slide says it outright: "**Dominion data center load is challenging and will be more so in next few years.**"  
+  * Crucially, the problem they describe is **unpredictability, not jumpiness.** The load is **hard to forecast, not wildly swinging**. That's a different defect than the proposal assumed, and it points the same direction your results do.  
+* [Annual and Peak Electricity Use: History and Future Projections](https://powering-intelligence.epri.com/annual-peak-use.html)  
+  * Someone finally metered actual data centers. The answer: they **run at \~90% of their own peak essentially all year** — 94% for a large single-tenant site, 88% for multi-tenant. That is about as flat as any load on the grid gets.  
+  * Data centers do not hit their advertised capacity. Real peaks land at 62–80% of nameplate. When a developer announces "500 MW," the grid sees appreciably less — EPRI flags this as a planning trap.  
+  * Buried in a footnote is the whole story: **load is steady "across minutes and hours," but swings hard at second and sub-second timescales.** And the consequence they name is grid reliability.  
+    * After this note they kindly included a link “as an example” for an article that costs $25,000 to access ([https://www.epri.com/research/products/3002033303](https://www.epri.com/research/products/3002033303))
 
 ### New England/Canada Connection
 
@@ -41,17 +89,15 @@
 
 ## Things I Need Advice On
 
+* 
+
 ## Future Direction
+
+* 
 
 ## Notes from meeting
 
-Links i need to look into
-
-* [A Proposed Framework to Assess Headroom for Integrating Data Centers into Regional Power Systems: An Industry Playbook for Unlocking System Potential with Flexibility](https://www.epri.com/research/products/000000003002034162)  
-* [https://www.nerc.com/globalassets/who-we-are/standing-committees/rstc/llwg/lltf\_april\_meeting\_\_technical\_workshop\_presentations\_.pdf](https://www.nerc.com/globalassets/who-we-are/standing-committees/rstc/llwg/lltf_april_meeting__technical_workshop_presentations_.pdf)  
-* [Machine Learning Guided Cooling System Optimization for Data Center](https://arxiv.org/pdf/2601.02275)  
-* [https://www.ferc.gov/sites/default/files/2024-07/PJM%20FERC%20Technical%20Conference%202024%20-%20Hourly%20Electricity%20Load%20Forecasting%20Using%20Machine%20Learning%20Algorithms.pdf](https://www.ferc.gov/sites/default/files/2024-07/PJM%20FERC%20Technical%20Conference%202024%20-%20Hourly%20Electricity%20Load%20Forecasting%20Using%20Machine%20Learning%20Algorithms.pdf)  
-* [https://powering-intelligence.epri.com/annual-peak-use.html](https://powering-intelligence.epri.com/annual-peak-use.html)
+* 
 
 ## TODO
 
@@ -63,8 +109,8 @@ Today
 
 This week
 
-4. Canada new england connection: test on price  
-5. Look at advisor suggested links  
-6. Look at Pecan street data set. Maybe if we subtract total load from residential we can somewhat isolate data center load?  
-7. If UKPN downloads: characterize the \~100 site profiles. Is data-center load actually spiky? Your proposal assumes it and cites two papers; nobody has checked it against data.  
+4. **DONE.** Canada new england connection  
+5. **DONE.** Look at advisor suggested links  
+6. **DONE.** Look at UKPN data set for UK data center load. Is data-center load actually spiky?  
+7. Look at Pecan street data set. Maybe if we subtract total load from residential we can somewhat isolate data center load?  
 8. Look at european grid data, conduct analysis there similar to pjm/ercot/whatever else based on what data is available

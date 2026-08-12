@@ -5569,3 +5569,195 @@ Two access requests pending; when either lands, dig in:
   deliverable and framing fresh (the dormant arc is an input, not a
   default).
 - Either pending access request lands with usable data.
+
+## 2026-08-12 — ENTSO-E: Irish data-centre dose vs load shape
+
+Supersedes nothing. Resolves the ENTSO-E half of the "In flight" item in
+the 2026-08-11 macro pivot entry above (Pecan Street still pending).
+Full write-up: `docs/research-notes/K-ireland-dc-shape.md`.
+
+### Four probe findings that overturned prior desk research
+
+Scope probes (~60 requests) before any implementation falsified four
+EU-0/EU-2 desk claims. All four changed the design:
+
+1. **Italy is a real 7-zone panel.** All 7 Italian bidding zones serve
+   both 6.1.A load and 12.1.D price, 2015→2026. The control worked: the
+   IT national CTA gives load but reason-999s on price, so this is not
+   an EIC-role artifact.
+2. **Resolution is native and heterogeneous — the "hourly panel" premise
+   was wrong.** NL load is PT15M back to 2015; IE is PT30M back to 2015.
+   Resolution must be read PER DOCUMENT, never assumed per zone.
+3. **⭐ Irish load lives on the CTA EIC, not SEM, and that voids EU-0
+   §3's footprint objection.** `IE CTA 10YIE-1001A00010` serves
+   2015→2026 unbroken at PT30M and is Republic-only, matching the CSO
+   covariate. `IE-SEM BZN` is all-island and runs ~1,015 MW higher
+   (= Northern Ireland). EU-0 §3 called the all-island-vs-Republic
+   mismatch one of three disqualifying limits on Ireland; that was an
+   artifact of picking the SEM code. **Price is the opposite asymmetry:**
+   the CTA EIC reason-999s on 12.1.D, so load comes from CTA and price
+   from SEM. Carry that asymmetry in any future schema.
+4. **A03 sparsity is live and material**, not theoretical. Naive
+   one-row-per-`Point` parsing makes flat stretches vanish and reads
+   spikier than reality, which would corrupt `mean |Δload|/min`.
+
+### Design: Ireland treated, Netherlands control, both from ENTSO-E
+
+**Why Ireland:** its data-centre exposure is *measured* (CSO PxStat
+MEC02, 44 quarters), the first time in this project — every US result
+used a geographic proxy. Measured: **DC share 0.0443 (2015Q1) → 0.2365
+(2025Q4), ×5.33**; DC consumption ×6.84 while **non-DC consumption was
+flat at ×1.02**. Essentially all Irish load growth is data centres.
+
+**Why the Netherlands:** matched on total VRE share. Drawn from ENTSO-E
+like Ireland *deliberately* — mixing EirGrid
+for the treated unit with ENTSO-E for the control would contaminate a
+treated-vs-control difference with a source difference (the Hirth et al.
+2018 >10% deviation failure mode). EirGrid and Terna were asked about
+and rejected for that reason; EirGrid survives as *validation* only.
+
+### ⚠️ A FIFTH desk claim falsified — the control is low-dose, not flat
+
+The design stated the Dutch DC share was **"flat at ~4.6%"**. **False.**
+CBS (Statistics Netherlands) publishes the series and 4.6% is the **2024
+endpoint**: 1.48% (2017) → 2.42 → 3.29 → 4.19 → 4.58% (2024, prov.).
+**The Dutch share TRIPLED.** Checked only after the analysis had already
+been run, which is the process lesson — the design's per-market claims
+should be probed before, not after.
+
+This removes the pure-placebo reading and replaces it with a
+**dose-response test, which is the stronger argument**. Matched window
+2017→2024:
+
+| | Ireland | Netherlands |
+|---|---|---|
+| DC share | 6.85% → 21.86% | 1.48% → 4.58% |
+| dose increment | **+15.01 pp** | **+3.10 pp** |
+| dose ratio | ×3.19 | ×3.09 |
+
+Per percentage point of dose, on the dimensionless statistics, the
+**Netherlands moved 2.5–3.9× MORE** (`vol_norm` −0.000028 vs −0.000011;
+`pt_ratio` −0.0409 vs −0.0145; `night_floor` +0.0190 vs +0.0049). Raw
+`mean_abs_grad` is excluded from that comparison — MW/min across systems
+of different size is not comparable.
+
+**Both readings are negative.** As a ratio, both shares tripled with the
+same response. In percentage points, Ireland took 4.8× the dose and moved
+less per unit. **No dose-ordering either way.** This does NOT license
+"data centres reduce volatility"; the likeliest reading is that both
+systems are being flattened by something else that moved further in NL.
+
+CBS definition (connections where the data centre IS the main activity)
+is not identical to CSO's Irish heuristic, so cross-country *levels* are
+only roughly comparable; within-country trends are the usable part.
+
+### Headline: a matched null
+
+Irish load shape changed substantially 2015→2025 — and the control
+changed identically, at the same hours.
+
+| 2015→2025, hourly | Ireland | Netherlands |
+|---|---|---|
+| mean load | ×1.298 | ×1.196 |
+| raw mean \|Δload\| | ×0.933 | **×0.854** |
+| `vol_norm` | ×0.719 | ×0.714 |
+| `pt_ratio` | 1.694 → 1.399 | 1.669 → 1.363 |
+| `night_floor` | 0.722 → 0.823 | 0.715 → **0.840** |
+
+**The `vol_norm` decline is mostly a denominator effect and it recurs in
+the control.** Raw volatility fell 6.7% in Ireland while mean load grew
+30%; the Netherlands' raw volatility fell *more* (14.6%). On the raw
+numerator the dose correlation is **r = −0.261 (IE) vs −0.268 (NL)** —
+no differential at all. The mechanism (day flattens by filling in the
+night, largest change at hour 3) is present in both, larger in the
+control.
+
+**This is the ISONE denominator artifact a second time, in the opposite
+direction** (ISONE shrinking load, Ireland growing). Standing conclusion:
+`mean_abs_grad` should be reported beside `vol_norm` everywhere in this
+project, not just here.
+
+**Explicitly non-causal.** One treated unit, one control, n=44 quarters,
+heuristic covariate, no identification strategy. COVID and the 2022
+energy crisis sit inside the window; EV and heat-pump growth confound
+`night_floor` in the same direction as data centres. The null is a
+*matched* null — shape changed a lot — not an absence of change.
+
+### Seven deviations from the approved implementation plan
+
+Recorded so a future reader diffing plan against code does not conclude
+someone went off-script. All are the same character — fail loud or
+measure, rather than silently absorb:
+
+1. `expand_curve` allocates with `np.full(n, np.nan)` not `np.empty`, so
+   any future hole is visible rather than garbage.
+2. `expand_curve` **raises on duplicate positions**. Stable sort made the
+   earlier duplicate's fill an empty slice, silently dropping its value
+   and pushing `sparsity` above 1.0.
+3. `parse_response` **raises on a `<Point>` with no parseable value**
+   instead of skipping it. Under A03 a dropped point forward-fills and
+   the resulting sparsity is indistinguishable from legitimate
+   compression. Also makes empty/self-closing elements raise `ValueError`
+   rather than `TypeError`.
+4. `to_hourly` reports **`n_obs`**, the native slots behind each hourly
+   mean. Measured the risk at 1 incomplete hour in 201,717 — real but
+   negligible, and now a number rather than an assumption.
+5. `shape_statistics` **masks non-contiguous diffs** and uses
+   **complete days only**, and reports `mean_abs_grad` beside
+   `vol_norm`. Deviation 5 is the one that changed the conclusion.
+6. `build_zone_series` **drops exact-duplicate point rows**. 12.1.D
+   returns whole days in the AREA's timezone, so a day straddling a
+   calendar-year boundary comes back from both adjacent year requests and
+   `load_raw` concatenates two identical copies. Measured on Italian
+   price: 622 of 118,263 rows in 311 groups, **all agreeing on value**.
+   Dedup keys on the value as well as the position, so an exact re-fetch
+   is dropped while a genuine *conflicting* duplicate still reaches
+   deviation 2's guard and raises. **Found because deviation 2's guard
+   fired on real data** — without it this would have silently produced
+   wrong prices. Irish numbers are unchanged by it (load is UTC-aligned;
+   only price overlaps).
+7. `entsoe_italy_stage1.build_panel` **joins zones on `timestamp_utc`,
+   never on `timestamp_local`.** The plan specified the local column, but
+   local prevailing time repeats at the October fall-back, so it is not a
+   unique key: merging six zones on it cross-joined those hours (2^6 rows
+   each) and inflated the panel from 101,802 to 146,836 rows.
+   `assert_panel_quality` caught it (45,056 rows flagged against a budget
+   of 24) — another true positive for that assertion.
+
+### Measured coverage, not asserted
+
+IE_CTA: **3,774 of 203,604 native slots absent (1.85%) in 661 runs**,
+largest 2026-02-05→02-24 (19 days) and 2025-11-10→11-19 (coinciding with
+the documented 6.1.A→R3 migration). NL: **0 missing**. The Irish feed
+*omits* the DST fall-back hour rather than duplicating it, so
+`dst_transition_hour` is 0 for Ireland by construction.
+`assert_panel_quality` **fails** on the Irish hourly panel — a true
+positive, deliberately not loosened; nothing in the Ireland analysis
+depends on it.
+
+### Scope decisions
+
+- **Italy WAS run** (168 zone-years pulled). **ROBUSTNESS CHECK, NOT A
+  FINDING.** Level beats |gradient| **36 of 36 cells** in both the max and
+  overlap windows — consistent with all 11 prior panels, and it does not
+  disturb the Stage-2 gate ruling. Coverage is perfect: 101,802 hourly
+  rows per zone, **0 missing**, unlike Ireland's 1.85%.
+  **IT_CALABRIA excluded** — split out of IT_SOUTH and only a bidding zone
+  from 2021-01-01 (reason 999 for 2015-2019, one stray row in 2020).
+  Including it would have forced the inner join down to 2021+, discarding
+  six years from the other six zones and putting a composition break
+  mid-panel. Normalized volatility 2015→2025 falls in 5 of 6 zones
+  (−7.8% to −14.2%) and **RISES in IT_SARDINIA (+4.7%)** — with ISONE's
+  +9.9%, more evidence that "normalized volatility falls in every panel"
+  is dead. Terna still not cross-checked (Hirth et al. 2018).
+- **The unprobed VRE zones (ES/FR/FI/DK1-2/SE1-4) were not pulled** —
+  nothing in the executed tasks consumes them. The fetcher is idempotent,
+  so pulling them later costs nothing already spent.
+- **Rate limit still deliberately unverified.** Confirming it means
+  tripping abuse protection on a token ENTSO-E reserves the right to
+  revoke.
+
+### Committed
+
+Code and docs only; `data/` and `outputs/` stay untracked, matching the
+NYISO/IESO/CAISO precedent.

@@ -5493,3 +5493,79 @@ Interpretation with a human is a later step, per standing convention.
 
 Committed: this entry (`docs/decisions.md` only; `outputs/` stays untracked,
 matching the NYISO/IESO/CAISO precedent).
+
+## 2026-08-11 — Macro pivot: sub-q2 and sub-q3 shut down; paper framing deferred; exploratory mode
+
+Stated directly by the user in session, 2026-08-11. This entry supersedes
+the "Gating order (locked tonight)" subsection of **2026-05-14 —
+Post-sub-q1 research agenda + sub-q1 framing clarification (item #6
+added)**, and stands down the paper-arc step contemplated in **2026-05-15
+(late) — Deliverable structure for sub-q reports** and in the provisional
+framing briefs (`docs/plans/2026-05-15-advisor-meeting-framings/`).
+
+### What changed
+
+1. **Sub-q2 (JLARC projection) and sub-q3 (event correlation) are shut
+   down.** Both presumed sub-q1 would produce a real positive answer — a
+   volatility mechanism to project forward (sub-q2), crazy-LMP events to
+   correlate with incidents (sub-q3). Sub-q1 instead resolved to a robust
+   null (premise undercut on the extended DOM panel; eight-market Stage-1
+   capstone with the near-zero-data-centre control matching treated
+   markets; item #6 finding zero qualifying events inside the proposal's
+   own filter). With nothing to build on, both downstream questions are
+   closed. The 2026-07-21 sub-q3 event-catalog scan stands as a discovery
+   record; its application closes with the thread.
+
+2. **Paper framing is deferred.** The provisional #3→#2→#1→#4 arc is
+   dormant — the lack of data does not currently give a good, compelling
+   direction to write toward. The deliverable-format expectation from
+   2026-05-15 (standalone report + graphs + hybrid technical/accessible
+   prose in one document) carries forward to whatever deliverable
+   eventually emerges.
+
+3. **Operating mode is exploratory.** The project is looking for data,
+   policy, or anything else that could yield insight, and digging into
+   whatever it finds. Work is organized week-to-week around the standing
+   advisor meetings: suggestions land in the "Notes from meeting" section
+   of each week's agenda doc, get worked during the week, and the notes
+   accumulate in the next week's agenda doc
+   (`docs/plans/2026-08-19-advisor-meeting-agenda.md` is current).
+   Advisor meetings are weekly working check-ins; no single meeting is a
+   gate that other work waits on.
+
+### Working lean (a hypothesis to test, not a finding)
+
+As of today the user leans toward: **modern solutions are effectively
+mitigating AI data-centre stresses on the transmission grid** — VRT/FFR
+mandates and soft-start (NERC LLTF), headroom/flexibility frameworks
+(EPRI), behind-the-meter designs, and dispersal trends (Nvidia/SPAN
+XFRA). This echoes the advisor's 2026-08-10 note ("data centers are
+effectively mitigating the fluctuation, but baseline energy usage is
+still extremely high?") and sits consistently with the timescale framing
+in `docs/research-notes/I-advisor-links-2026-08.md` and the UKPN
+flatness result in `docs/research-notes/J-ukpn-flatness.md`.
+
+### The binding constraint
+
+The recurring obstacle, named in the 2026-08-10 agenda and confirmed by
+CRS R48646, is that facility-level data-centre load data is essentially
+unavailable — even to the US government (EIA's 2021 pilot survey drew 9
+responses from 50 facilities; its 2024 cryptomining survey was halted by
+lawsuit and the collected data destroyed). The main villain of this
+project is the lack of data.
+
+### In flight
+
+Two access requests pending; when either lands, dig in:
+
+- **Pecan Street** — University Access signup + licensing question on
+  whether the 2 kHz waveform release is included (agenda TODO #7).
+- **ENTSO-E** — API token for European grid data (agenda TODO #8;
+  Ireland-first hypothesis per the 2026-08-10 meeting notes).
+
+### Revisit when
+
+- A dataset or policy thread yields a compelling direction — then choose
+  deliverable and framing fresh (the dormant arc is an input, not a
+  default).
+- Either pending access request lands with usable data.

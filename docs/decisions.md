@@ -5761,3 +5761,298 @@ depends on it.
 
 Code and docs only; `data/` and `outputs/` stay untracked, matching the
 NYISO/IESO/CAISO precedent.
+
+---
+
+## 2026-08-12 — H_solar tested: the midday flattening is partly a metering
+## artifact, and the Dutch control series breaks mid-panel
+
+Supersedes nothing outright, but **materially qualifies the entry of earlier
+today** ("2026-08-12 — Irish DC dose vs load shape, with NL control"). That
+entry stands as written; this one records what the VRE cut found about the
+evidence it rests on. Note: `docs/research-notes/L-solar-metering-artifact.md`.
+
+### Scope executed
+
+Probed all 10 VRE-zone EICs before pulling (the process lesson from this
+morning). Pulled 6.1.A load for DE_LU, ES, FR, FI, DK1, DK2, SE1-4 (12 years)
+and 14.1.A installed solar capacity for the 7 zones that publish it. New module
+`src/surg/analysis/entsoe_seasonal.py` (12 tests), driver
+`scripts/entsoe_solar.py`, `capacity` item added to `scripts/entsoe_fetch.py`.
+
+### Decision 1 — the solar dose is A68 installed capacity, never A75 generation
+
+Measured, one June day: Dutch A75 metered solar peaks at **204 MW** against
+**27,980 MW** of A68 installed capacity, because Dutch PV is overwhelmingly
+distributed and invisible to the TSO. German A75 peaks at 24,393 MW against
+77,016 MW installed and plainly does include distributed PV. Confirmed not to
+be a psrType filter artifact via an unfiltered 16.1.B&C query.
+
+**ENTSO-E metered solar generation is therefore NOT comparable across
+countries.** Using it as the dose would have scored the Netherlands as a
+near-zero-solar market and inverted the analysis. A68 matches the national
+fleet figure and is the only ENTSO-E series here that includes behind-the-meter.
+
+### Decision 2 — identification is seasonal, not cross-sectional
+
+Solar share and calendar year are near-collinear, so a cross-section on solar
+share cannot separate solar from any other decade-long drift. Irradiance varies
+within the year; data-centre share does not move between June and December.
+The test statistic is the summer-minus-winter midday contrast and its trend.
+Confound recorded: space cooling is also seasonal and midday, biasing the test
+conservative in Spain and near-harmless in the maritime zones.
+
+### Finding 1 — the NL series steps at 2023-04, midday-concentrated
+
+April-vs-March DiD against the same transition in all other years:
+NL April/March mean-load ratio **1.0526 vs a 0.9295 median** (×1.1325 excess,
+**+1,548 MW**); April−March **midday** deviation **+1,385 MW vs a −86 MW
+median**. Two controls: the step is midday-concentrated, so a flat industrial
+recovery from the 2022 gas crisis cannot produce it; and **all 11 other zones
+show no such step** (2023 excess 0.94-1.02).
+
+**Consequence: the NL control endpoints in this morning's entry
+(`vol_norm ×0.714`, `night_floor 0.715→0.840`, `pt_ratio 1.669→1.363`) are
+computed ACROSS a definitional break.** Pre-break Dutch summer midday deviation
+runs +1,521 → −1,343 MW (2015→2022), then jumps back to +655 MW in 2023. The
+matched-null comparison should be re-run on a break-free 2015→2022 window for
+both countries before it is quoted further.
+
+Cause NOT confirmed with the TSO. Shape is consistent with distributed
+generation being grossed back into reported load; deliberately not asserted as
+a named TenneT methodology change (five desk claims were falsified this
+morning for exactly that kind of assertion).
+
+**A superseded number from within this session:** an earlier estimate put the
+step at +1,497 MW and "68.7% of NL 2015→2025 load growth". It used a
+2022-05→2023-03 base — the gas-crisis trough, every 2022 month running
+0.911–0.980 against a 1.0042 panel median — and so conflated the reporting step
+with industrial recovery. The April/March DiD supersedes it.
+
+### Finding 2 — Ireland's flattening is summer-specific
+
+Irish mean load grew ×1.298, so flat-load dilution predicts normalized depths
+shrink ×0.770. Winter midday depth: predicted −0.0733, observed **−0.0740**
+(pure dilution). Summer: predicted −0.1190, observed **−0.0526** — an excess of
+**+0.066**. Absolute summer midday deviation falls +435 → +193 MW. Irish series
+has **no** definitional break (2023 April/March excess 0.9874).
+
+**Data centres cannot produce a seasonal signature.** A component of the
+flattening the K-note measured has a fingerprint data centres cannot leave.
+This does NOT show data centres change nothing — that is not tested here.
+
+### Finding 3 — dose-response across the panel, with an honest exception
+
+Spearman ρ(Δdose, Δsignature) = **+0.714**, n=7 zones. Finland is a near-perfect
+placebo (dose 0.0003→0.157, signature −0.0293→−0.0291, Δ=+0.0002). **Both
+Danish zones move AGAINST the dose** and are reported, not dropped — Denmark is
+wind-dominated with heavy electric heating. Reported as a rank correlation over
+a table; n=7 does not support standard errors.
+
+### Standing rules added
+
+1. **Report an absolute MW statistic beside every ratio.** Third denominator
+   artifact in this project (ISONE shrinking load, Ireland growing load, NL
+   redefinition). `midday_dev_mw` is provably immune to flat load additions,
+   enforced by test.
+2. **Check for a mid-panel definitional break before comparing endpoints.**
+   The April/March DiD is the cheap detector.
+3. **2026 excluded from all ENTSO-E analysis.** The NL 2026 tail carries days
+   averaging a fraction of the system floor (July min 1,272 MW, August 187 MW)
+   that hold 24 slots each and pass the completeness gate. `implausible_days()`
+   reports them rather than silently dropping them.
+4. **DE_LU enters at 2019** — the zone split from DE_AT_LU on 2018-10-01 and the
+   footprints differ (Austria). The Calabria precedent, second occurrence.
+
+### Not committed
+
+Nothing pushed. Working tree carries this entry, the L-note, the new module and
+tests, and the fetcher/registry changes. Tony has not authorised a commit.
+
+### Correction to the entry immediately above (same session, before commit)
+
+Two claims in the entry above are corrected here rather than edited, because
+this file is append-only.
+
+1. **"all 11 other zones show no step" is too strong.** The Netherlands is the
+   only zone where BOTH screens fire. On the midday-deviation screen there is a
+   second outlier: **DE_LU 2023 = −848 MW against a +300 MW median** —
+   comparable in magnitude to the Dutch +1,385 MW and **opposite in sign**,
+   with no accompanying level step (April/March ratio 0.9731). Cause
+   unexamined. The Dutch break finding is unaffected; the control claim is now
+   "only NL fires on both screens", which is what the data supports.
+
+2. **Finding 2 should lead with absolute MW, not the dilution ratio.** The
+   ratio version imports an assumption (that added Irish load is flat) from
+   another market. The direct statement needs no assumption, because
+   `midday_dev_mw` is provably flat-load-invariant: **Irish winter midday
+   deviation is +313 → +320 MW, unchanged across eleven years, while summer
+   falls +435 → +193 MW (−56%).** No quantity of flat data-centre load can move
+   either number. Winter's tight match to the dilution prediction (0.0007) is
+   then a consequence of an unchanged numerator over a grown denominator, not a
+   coincidence of offsetting trends.
+
+Also worth recording: **Spain moves the H_solar way against its own confound.**
+Cooling should push Spanish summer midday up and mask the signature; instead
+Spanish summer midday deviation falls +3,196 → +1,228 MW (−62%) against a
+winter fall of −38%.
+
+`docs/research-notes/L-solar-metering-artifact.md` carries the corrected
+versions and is the authoritative write-up.
+
+---
+
+## 2026-08-12 — K-note re-run on the break-free window: the matched null on
+## `vol_norm` does not survive; the denominator finding does
+
+Executes the "open" item from the entry above. `scripts/entsoe_ireland.py` now
+reports BOTH windows; the published one still reproduces exactly (Ireland
+`vol_norm ×0.719`, NL `×0.714`), so nothing is replaced. Write-up:
+`docs/research-notes/L-solar-metering-artifact.md` § 8. A warning banner was
+added to the top of the K-note; its body is left unedited.
+
+### The break-free comparison, 2015 → 2022
+
+| | Ireland | Netherlands |
+|---|---|---|
+| mean load | ×1.189 | ×1.027 |
+| raw mean \|Δload\| | ×0.968 | ×0.997 |
+| `vol_norm` | **×0.814** | **×0.971** |
+| `pt_ratio` | −9.2% | −10.5% |
+| `night_floor` | +5.4% | +12.7% |
+| `load_factor` | +0.3% | +11.7% |
+
+### Dies
+
+**The headline matched null on `vol_norm`.** ×0.719 vs ×0.714 becomes ×0.814
+vs ×0.971. The match existed because the 2023-04 break inflated Dutch load
+growth from ×1.027 to ×1.196 — the Dutch denominator was doing the work.
+**That number must not be quoted again.**
+
+### Survives, and is cleaner
+
+- **The denominator finding.** Irish raw volatility fell 3.2% while Irish load
+  grew 18.9%: 0.968/1.189 = 0.814, so the whole `vol_norm` decline is
+  arithmetic. This was the K-note's real point.
+- **The raw-numerator null.** Break-free quarterly correlation against the
+  Irish dose (n=32): `mean_abs_grad` **r = −0.078 (IE) vs −0.133 (NL)** — both
+  ≈0, control MORE negative. Cleaner than the published −0.261 / −0.268.
+- **No dose-ordering on `night_floor`/`load_factor`.** Ireland took +10.83 pp
+  of dose vs the Netherlands' +2.50 pp (4.3×), yet the control moved 2.3×
+  further on `night_floor` and 39× further on `load_factor`.
+
+### Reverses
+
+**`pt_ratio` orders the other way per unit dose**: Ireland −0.011450/pp vs the
+Netherlands −0.006203/pp (Ireland 1.85× MORE), where the published window had
+the control ahead. On `vol_norm` per pp the two now carry opposite signs.
+
+### Ruling
+
+The K-note conclusion is **weakened but not overturned, and no longer uniform.**
+"The control moved as much or more on every statistic" was true only across the
+break. The defensible statement is now: **no consistent dose-ordering in either
+direction, and no detectable movement in raw volatility in either country.**
+That still does not license attributing Irish load-shape change to data
+centres, and no longer licenses the "identical control" framing either.
+
+### Not committed
+
+Nothing pushed or committed. Tony has not authorised either.
+
+---
+
+## 2026-08-12 — double-check pass: two defects fixed, one claim weakened
+
+Independent re-derivation of every headline number from raw parquet with plain
+pandas, not importing the analysis module. Recorded in
+`docs/research-notes/L-solar-metering-artifact.md` § 9.
+
+### Confirmed exactly
+
+Ireland +435→+193 MW summer / +313→+320 MW winter; NL pre-break +1,521→−1,343
+MW; NL the only zone of twelve with a 2023 April/March ratio above 1; the § 5
+cross-section and ρ = +0.714 (reproduced with `scipy.stats.spearmanr`); the
+break-free K-note re-run including r = −0.078 / −0.133.
+
+### Defect 1 — capacity years shifted by one (FIXED)
+
+`load_capacity` took the year from `doc_start`, which for an A68 annual document
+is local midnight of 1 January expressed in UTC and therefore falls on 31
+December of the PREVIOUS year (Finland 2019 -> 2018-12-31T22:00Z). Every
+zone-year was joined to the FOLLOWING year's capacity. Now keyed on the filename
+with `doc_end` as an independent witness and a fail-loud mismatch check. Dose
+figures in the note are the corrected ones; **ρ = +0.714 is unchanged.**
+
+Caught because the manifest showed Finnish capacity as no_data for 2015-2018
+while the cross-section reported Finland starting in 2018 — a contradiction
+between two artifacts that only a cross-check surfaces.
+
+### Defect 2 — break detector used a different sample (FIXED)
+
+`april_march_step` did not filter to complete days, so a +1,548 MW step computed
+on complete days was quoted beside ratios computed on all hours. Now complete
+days throughout: the Dutch figures are **1.0493 / 0.9247 / +1,395 MW / −123 MW**
+(excess ×1.1347), superseding the 1.0526 / 0.9295 / +1,385 / −86 in the two
+entries above. Conclusion unaffected.
+
+### Weakened — A68 coverage varies 3% to 100% across countries
+
+Against published national installed PV, ~2024: Netherlands ~100%, Denmark
+~96%, Germany ~78%, France ~74%, Spain ~60%, **Finland ~3%** (27 MW against a
+~1,000 MW national fleet, jumping to 1,512 MW in 2026 — itself a reporting
+change). So A68 captures distributed PV in some countries and not others, and
+its LEVELS are not cross-country comparable.
+
+**Consequence: Finding 3 is downgraded from "dose-response" to "suggestive".**
+ρ = +0.714 stands as computed but rests on a dose of uneven completeness, not
+corrected for. Finland's flat signature is a real load-based fact and it remains
+the lowest-dose zone under any source, so its placebo role survives — but the
+0.005 dose figure does not mean Finland has no solar.
+
+Findings 1 (the Dutch break) and 2 (Ireland's summer-specific flattening) are
+**untouched** by all of this: both are computed from load alone and use no dose.
+
+### Standing rule added
+
+**A cross-market "dose" from a platform feed must be validated against national
+statistics per country before it is used, not once.** Fourth instance in this
+project of a measurement turning out to be about the instrument rather than the
+system, after ISONE's denominator, Ireland's denominator and the Dutch
+redefinition.
+
+### Not committed
+
+Nothing committed or pushed. Tony has not authorised either.
+
+### Addendum to the double-check entry above — two further corrections
+
+**1. `implausible_days` could not detect the corruption it was written for.**
+It tested only each day's MEAN against the median day. The Dutch 2026 tail is
+INTRA-day: a few collapsed slots inside days whose means (6,150-7,789 MW) clear
+any sane floor, against a 10,320 MW median day minimum. It flagged **zero** days
+on all twelve zones. A second test on the day MINIMUM now flags 12 Dutch days
+(all 2026), plus isolated single days in ES (2), DK1 (1) and Sweden (13 across
+SE1/SE2/SE4) — immaterial against ~120 days per season-year but now visible.
+No result ever depended on the guard: 2026 is excluded by year cap. The L-note
+had claimed the guard reported these days when it did not; § 6 is corrected.
+
+**2. "ρ = +0.714 unchanged by the capacity-year correction" was being used as
+reassurance, and it is not.** With n=7 a Spearman is a rank correlation over
+seven pairs; the year correction moved dose VALUES without moving any rank, so
+ρ was structurally incapable of registering it. Worse, adjacent ranks are now
+separated by less than the known coverage error — Germany and Spain by 0.010 in
+Δdose, France and Denmark-East by 0.031, against coverage of 78% and 60%. The
+ordering is provisional and both § 5 and § 9 now say so.
+
+Findings 1 (the Dutch break) and 2 (Ireland's summer-specific flattening) remain
+untouched — load only, no dose, no dependence on the guard.
+
+### Verification state at end of session
+
+Full suite **560 passed** (548 baseline + 12 new), including `tests/regression/`
+which pins production numbers. `ruff` clean on all six touched files. Both
+drivers re-run end to end. `data/` intact: 376 ENTSO-E parquets, CSO, UKPN, 27
+`outputs/` directories, nothing deleted. `docs/decisions.md` verified
+append-only throughout (0 deletions). Nothing committed; nothing pushed; the
+three earlier commits remain unpushed.

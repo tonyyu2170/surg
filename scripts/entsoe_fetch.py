@@ -45,7 +45,22 @@ TIMEOUT_S = 300.0  # vendor request timeout is 5 minutes
 ITEM_PARAMS = {
     "load": {"documentType": "A65", "processType": "A16"},
     "price": {"documentType": "A44"},
+    # 14.1.A Installed Generation Capacity per Type, psrType B16 = Solar.
+    # This is the H_solar DOSE. It is deliberately NOT 16.1.B&C actual solar
+    # generation (A75): measured 2026-08-12, the Dutch A75 feed peaks at 204 MW
+    # on a June day against 27,980 MW of A68 installed capacity, because most
+    # Dutch PV is distributed and invisible to the TSO -- while the German A75
+    # peaks at 24,393 MW against 77,016 MW installed and clearly does include
+    # distributed PV. A75 solar is therefore NOT comparable across countries,
+    # and using it as the dose would score the Netherlands, one of the densest
+    # PV fleets on earth, as a near-zero-solar market. A68 matches the national
+    # figure and is the only ENTSO-E series here that includes behind-the-meter.
+    "capacity": {"documentType": "A68", "processType": "A33", "psrType": "B16"},
 }
+
+# A68 is one ANNUAL document. A multi-year window is rejected with HTTP 400 and
+# fetch_year's halving splitter is meaningless on it, so it gets its own window.
+ANNUAL_ITEMS = frozenset({"capacity"})
 
 
 def api_key() -> str:
@@ -58,6 +73,9 @@ def api_key() -> str:
 def domain_params(item: str, eic: str) -> dict[str, str]:
     if item == "load":
         return {"outBiddingZone_Domain": eic}
+    if item == "capacity":
+        # A68 takes in_Domain alone; sending out_Domain too is a different query.
+        return {"in_Domain": eic}
     return {"in_Domain": eic, "out_Domain": eic}
 
 
@@ -98,6 +116,13 @@ def fetch_year(
     client: httpx.Client, item: str, eic: str, year: int
 ) -> tuple[str, list[dict], str]:
     """Fetch one calendar year, halving the window if the API rejects on size."""
+    if item in ANNUAL_ITEMS:
+        # One annual document: no size cap to hit, and nothing to split.
+        outcome, periods, detail = fetch_window(
+            client, item, eic, f"{year}01010000", f"{year}12310000"
+        )
+        return outcome, periods, detail
+
     windows = [(f"{year}01010000", f"{year + 1}01010000")]
     collected: list[dict] = []
     note = ""

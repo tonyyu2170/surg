@@ -80,6 +80,30 @@ NL_DC_SHARE_PCT = {
 }
 DOSE_WINDOW = (2017, 2024)  # the years CBS covers on both sides
 
+# THE DUTCH SERIES BREAKS AT 2023-04, so every window ending after 2022 compares
+# a pre-break Irish endpoint against a post-break Dutch one.
+#
+# Measured in scripts/entsoe_solar.py: the Dutch April/March mean-load ratio is
+# 1.0493 against a 0.9247 median in every other year (+1,548 MW), and the
+# April-minus-March MIDDAY deviation jumps +1,395 MW against a -123 MW median.
+# The step being midday-concentrated is what rules out a flat industrial
+# recovery from the 2022 gas crisis, since a flat addition cannot move a
+# deviation from a day's own mean. Ireland shows no such step (2023 excess
+# 0.9853). See docs/research-notes/L-solar-metering-artifact.md.
+#
+# Both windows are reported rather than one replacing the other: the published
+# window reproduces the K-note exactly, and the break-free window is what any
+# treated-vs-control claim must now rest on.
+SHAPE_WINDOWS = {
+    "published_2015_2025": ("2015", "2025"),
+    "break_free_2015_2022": ("2015", "2022"),
+}
+DOSE_WINDOWS = {
+    "published_2017_2024": (2017, 2024),
+    "break_free_2017_2022": (2017, 2022),
+}
+LAST_CLEAN_QUARTER = "2022Q4"
+
 
 def shape_statistics(panel: pd.DataFrame, *, freq_minutes: int) -> pd.Series:
     """Level-normalized shape statistics for one block of a load panel.
@@ -182,28 +206,46 @@ def main() -> None:
     # --- Numerator vs denominator ----------------------------------------
     # vol_norm falls whenever mean_load grows. Print the decomposition so the
     # write-up cannot quote a ratio without the two terms behind it.
-    print("\n=== vol_norm decomposition, 2015 -> 2025 ===")
-    decomposition = {}
-    for key, label in ZONES.items():
-        annual = pd.read_csv(OUT / f"shape_annual_hourly_{key}.csv", index_col=0)
-        # A CSV round-trip turns the annual period label "2015" back into an
-        # int64 index; force it to string so the lookups below match.
-        annual.index = annual.index.astype(str)
-        if "2015" not in annual.index or "2025" not in annual.index:
-            continue
-        first, last = annual.loc["2015"], annual.loc["2025"]
-        ratios = {
-            "mean_load_ratio": last.mean_load_mw / first.mean_load_mw,
-            "raw_grad_ratio": last.mean_abs_grad / first.mean_abs_grad,
-            "vol_norm_ratio": last.vol_norm / first.vol_norm,
-        }
-        decomposition[key] = ratios
-        print(
-            f"  {label:<12} mean_load x{ratios['mean_load_ratio']:.3f}  "
-            f"raw |dLoad| x{ratios['raw_grad_ratio']:.3f}  "
-            f"vol_norm x{ratios['vol_norm_ratio']:.3f}"
+    decomposition_by_window = {}
+    for window_name, (start, end) in SHAPE_WINDOWS.items():
+        banner = (
+            "  [DUTCH ENDPOINT IS POST-BREAK -- not a valid control comparison]"
+            if end > "2022"
+            else "  [break-free for BOTH zones]"
         )
-    results["decomposition_2015_2025"] = decomposition
+        print(f"\n=== vol_norm decomposition, {start} -> {end} ==={banner}")
+        decomposition = {}
+        for key, label in ZONES.items():
+            annual = pd.read_csv(OUT / f"shape_annual_hourly_{key}.csv", index_col=0)
+            # A CSV round-trip turns the annual period label "2015" back into an
+            # int64 index; force it to string so the lookups below match.
+            annual.index = annual.index.astype(str)
+            if start not in annual.index or end not in annual.index:
+                continue
+            first, last = annual.loc[start], annual.loc[end]
+            ratios = {
+                "mean_load_ratio": last.mean_load_mw / first.mean_load_mw,
+                "raw_grad_ratio": last.mean_abs_grad / first.mean_abs_grad,
+                "vol_norm_ratio": last.vol_norm / first.vol_norm,
+                "pt_ratio_first": first.pt_ratio, "pt_ratio_last": last.pt_ratio,
+                "night_floor_first": first.night_floor,
+                "night_floor_last": last.night_floor,
+                "load_factor_first": first.load_factor,
+                "load_factor_last": last.load_factor,
+            }
+            decomposition[key] = ratios
+            print(
+                f"  {label:<12} mean_load x{ratios['mean_load_ratio']:.3f}  "
+                f"raw |dLoad| x{ratios['raw_grad_ratio']:.3f}  "
+                f"vol_norm x{ratios['vol_norm_ratio']:.3f}   "
+                f"pt_ratio {first.pt_ratio:.3f}->{last.pt_ratio:.3f}  "
+                f"night_floor {first.night_floor:.3f}->{last.night_floor:.3f}  "
+                f"load_factor {first.load_factor:.3f}->{last.load_factor:.3f}"
+            )
+        decomposition_by_window[window_name] = decomposition
+    results["decomposition_by_window"] = decomposition_by_window
+    # Preserved under its original key so the K-note's numbers stay addressable.
+    results["decomposition_2015_2025"] = decomposition_by_window["published_2015_2025"]
 
     # --- Dose join --------------------------------------------------------
     cso = pd.read_parquet("data/raw/cso/mec02.parquet")
@@ -219,14 +261,25 @@ def main() -> None:
                 f"shape index sample: {list(quarterly.index[:3])}; "
                 f"dose index sample: {list(dose.index[:3])}"
             )
+        # The quarterly correlation pools quarters on both sides of the Dutch
+        # 2023-04 break, so it is computed twice: on everything (as published)
+        # and on the break-free window only.
+        clean = joined[joined.index <= LAST_CLEAN_QUARTER]
         stats = {}
         for column in STATISTICS:
             sub = joined[[column, "dc_share"]].dropna()
+            sub_clean = clean[[column, "dc_share"]].dropna()
             stats[column] = {
                 "n": len(sub),
                 "pearson_r": float(sub[column].corr(sub["dc_share"])),
                 "first": float(sub[column].iloc[0]) if len(sub) else None,
                 "last": float(sub[column].iloc[-1]) if len(sub) else None,
+                "n_break_free": len(sub_clean),
+                "pearson_r_break_free": float(
+                    sub_clean[column].corr(sub_clean["dc_share"])
+                )
+                if len(sub_clean) > 2
+                else None,
             }
         correlations[key] = stats
         joined.to_csv(OUT / f"shape_quarterly_with_dose_{key}.csv")
@@ -235,9 +288,11 @@ def main() -> None:
     for key, stats in correlations.items():
         print(f"\n{ZONES[key]}:")
         for column, values in stats.items():
+            clean_r = values["pearson_r_break_free"]
+            clean_txt = f"  |  break-free r={clean_r:+.3f} (n={values['n_break_free']})" if clean_r is not None else ""
             print(
                 f"  {column:<14} r={values['pearson_r']:+.3f}  n={values['n']}  "
-                f"{values['first']:.6f} -> {values['last']:.6f}"
+                f"{values['first']:.6f} -> {values['last']:.6f}{clean_txt}"
             )
     results["correlations"] = correlations
 
@@ -248,38 +303,45 @@ def main() -> None:
     # DIMENSIONLESS statistics are compared across countries here -- raw
     # mean_abs_grad is in MW/min and the Dutch system is ~3.4x larger, so its
     # per-pp figure is not comparable to Ireland's and is excluded.
-    first_year, last_year = DOSE_WINDOW
     cso_annual = cso.copy()
     cso_annual["year"] = cso_annual["period"].dt.year
     ie_share = cso_annual.groupby("year").apply(
         lambda d: 100 * d["dc_gwh"].sum() / d["total_gwh"].sum(), include_groups=False
     )
-    dose = {
-        "IE_CTA": ie_share[last_year] - ie_share[first_year],
-        "NL": NL_DC_SHARE_PCT[last_year] - NL_DC_SHARE_PCT[first_year],
-    }
-    ratio = {
-        "IE_CTA": ie_share[last_year] / ie_share[first_year],
-        "NL": NL_DC_SHARE_PCT[last_year] / NL_DC_SHARE_PCT[first_year],
-    }
 
-    print(f"\n=== dose-response, {first_year} -> {last_year} ===")
-    print(
-        f"  dose increment: Ireland {dose['IE_CTA']:+.2f} pp (x{ratio['IE_CTA']:.2f})  "
-        f"Netherlands {dose['NL']:+.2f} pp (x{ratio['NL']:.2f})"
-    )
-    dose_response = {"dose_pp": dose, "dose_ratio": ratio, "per_pp": {}}
-    for key, label in ZONES.items():
-        annual = pd.read_csv(OUT / f"shape_annual_hourly_{key}.csv", index_col=0)
-        annual.index = annual.index.astype(str)
-        f_row, l_row = annual.loc[str(first_year)], annual.loc[str(last_year)]
-        per_pp = {
-            column: float((l_row[column] - f_row[column]) / dose[key])
-            for column in ("vol_norm", "pt_ratio", "night_floor")
+    dose_by_window = {}
+    for window_name, (first_year, last_year) in DOSE_WINDOWS.items():
+        dose = {
+            "IE_CTA": ie_share[last_year] - ie_share[first_year],
+            "NL": NL_DC_SHARE_PCT[last_year] - NL_DC_SHARE_PCT[first_year],
         }
-        dose_response["per_pp"][key] = per_pp
-        print(f"  {label:<12} " + "  ".join(f"{c}={v:+.6f}/pp" for c, v in per_pp.items()))
-    results["dose_response"] = dose_response
+        ratio = {
+            "IE_CTA": ie_share[last_year] / ie_share[first_year],
+            "NL": NL_DC_SHARE_PCT[last_year] / NL_DC_SHARE_PCT[first_year],
+        }
+        banner = (
+            "  [DUTCH ENDPOINT IS POST-BREAK]" if last_year > 2022
+            else "  [break-free for BOTH zones]"
+        )
+        print(f"\n=== dose-response, {first_year} -> {last_year} ==={banner}")
+        print(
+            f"  dose increment: Ireland {dose['IE_CTA']:+.2f} pp (x{ratio['IE_CTA']:.2f})  "
+            f"Netherlands {dose['NL']:+.2f} pp (x{ratio['NL']:.2f})"
+        )
+        dose_response = {"dose_pp": dose, "dose_ratio": ratio, "per_pp": {}}
+        for key, label in ZONES.items():
+            annual = pd.read_csv(OUT / f"shape_annual_hourly_{key}.csv", index_col=0)
+            annual.index = annual.index.astype(str)
+            f_row, l_row = annual.loc[str(first_year)], annual.loc[str(last_year)]
+            per_pp = {
+                column: float((l_row[column] - f_row[column]) / dose[key])
+                for column in ("vol_norm", "pt_ratio", "night_floor")
+            }
+            dose_response["per_pp"][key] = per_pp
+            print(f"  {label:<12} " + "  ".join(f"{c}={v:+.6f}/pp" for c, v in per_pp.items()))
+        dose_by_window[window_name] = dose_response
+    results["dose_response_by_window"] = dose_by_window
+    results["dose_response"] = dose_by_window["published_2017_2024"]
 
     # --- Approach B: diurnal decomposition --------------------------------
     fig, axes = plt.subplots(1, 2, figsize=(13, 5), sharey=True)

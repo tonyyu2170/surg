@@ -1,5 +1,15 @@
 # Did Irish Load Shape Change as Data Centres Reached 23.7% of Consumption?
 
+> **⚠️ QUALIFIED 2026-08-12 by `L-solar-metering-artifact.md` § 8 — read that
+> before quoting anything below.** The Dutch series changes definition at
+> 2023-04, so every 2015→2025 comparison in this note pairs a pre-break Irish
+> endpoint with a post-break Dutch one. On a break-free 2015→2022 window the
+> headline matched null on `vol_norm` **does not survive** (×0.814 vs ×0.971,
+> not ×0.719 vs ×0.714). What does survive, and is cleaner: the decline is a
+> denominator effect, and the raw-numerator null (r = −0.078 IE vs −0.133 NL).
+> The numbers in this note are correct as computed and are left unedited; the
+> window they are computed over is the problem.
+
 Analysis date: 2026-08-12. Fills the empty "European energy markets" section of
 `docs/plans/2026-08-19-advisor-meeting-agenda.md`.
 

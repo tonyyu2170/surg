@@ -6,7 +6,7 @@
 
 ### UK Data centers
 
-* UK Power Networks publishes **30 minute interval demand profiles** for **96 anonymous data centers**. Instead of giving traditional **MW**, it instead gives a **utilisation ratio**: observed apparent power ÷ that site's contracted maximum import capacity.   
+* UK Power Networks publishes **30 minute interval demand profiles** for **96 anonymous data centers**. Instead of giving traditional **MW**, it instead gives a **utilisation ratio**: observed apparent power ÷ that site's contracted maximum import capacity.  
 * This is the first **facility-level** data the project has: 96 individual buildings, metered. The trade is **no MW, no location, no price.** It's a dimensionless ratio from a *distribution* network, not an ISO, so it can't be joined to any nodal geography and cannot speak to price formation at all  
 * **Load is flat**. Not super volatile, with expected troughs in morning and hills during the day  
 * However,  
@@ -27,9 +27,25 @@
   * Data centers are sub second, renewables can be acros hours/days/weeks  
   * If we want to see data center volatility we need to see more granular, and the most granular thing we have is pecan 1 minute data
 
-### Pecan street texas dataset
+### Pecan Street Texas dataset
 
-* 
+* The dataset is 73 real homes wired with research-grade meters. The free academic tier used here covers 2**5 homes in Austin, 25 in New York, and 23 in San Diego**. It's the most **granular** demand data this project has ever held; everything else we have tops out at 5-minute market feeds.  
+* The question comes from XFRA, a SPAN/NVIDIA venture putting AI compute in houses. The pitch is that homes have unused electrical capacity, so why not fill it with an always-on node of 16 NVIDIA GPUs plus cooling, drawing about 12.5 kW. Leads to 2 questions: **does the headroom exist, and does it survive the hottest summer afternoon?**  
+* **It depends lol.** Whether the node fits is decided almost entirely by the home's electrical service rating (the amperage of its panel). Assume every home has **200-amp** service (most homes have this) and all 73 homes can host the node even at their single worst minute of the year. Assume 150 amps: 84 to 91 percent. Assume 100 amps and it collapses to 4% in Austin, 16% in New York, 48% in California.  
+* H**omes barely touch their limits, even at their absolute peak.** The typical home's highest single minute of the entire year is about 7 to 12 kW depending on the city, under a third of the \~38 kW a 200-amp panel can safely sustain, and most minutes sit below 5 kW. Summer is when it tightens: about two-thirds of Austin homes and most California homes set their annual peak on a summer afternoon near 5 pm, yet spare capacity never comes close to zero.   
+* We had assumed it would throttle whenever the household got busy. The vendor's white paper says the opposite: household spikes are absorbed first by an included home battery, then by pausing the EV charger, while the compute node runs continuously. So XFRA adds a large flat load, not a jittery one, and the question becomes capacity planning (does it fit behind the breaker?) rather than power quality (will ust as well: if a node this size did pulse at fullamplitude, each swing would be about seven times a typical home's biggest everyday jolt, and larger than any single step most of these hrecorded in the entire dataset.  
+* **Household fast volatility is nearly zero,** and it cancels. The median second-to-second change in a home's power draw is about two watts versus twelve and a half thousand for the node. Also lots of homes cancel each others volatility out  
+* **The honest limitations.**  
+  * The bundles are 2018-19 vintage, before heat pumps, induction ranges, and Level 2 EV charging spread, so the headroom estimates run optimistic for a modern home.   
+  * The data is kind of biased and tilted toward solar and EV owners.   
+  * New York covers only six months, with no winter.   
+  * Once-per-second sampling physically cannot see oscillations faster than half a hertz, so we observe roughly the bottom 1% of the 0.1-30 Hz band where the AI-load problem  
+* **Estimating data-center load by subtracting residential load from system totals fails for four independent reasons**  
+  * A thousand-odd volunteer homes can't stand in for millions  
+  * The volunteers aren't representative  
+  * Whatever remains after subtraction is all commercial and industrial load rather than data centers  
+  * This data predates the AI build-out anyway.   
+  * Ireland, from the ENTSO-E work, remains the only place in the project where data-center load is actually metered rather than inferred.
 
 ### Links you gave me last week
 
@@ -58,7 +74,7 @@
     * Even in case of disconnection, facilities can **soft start** to not put a done of stress at once  
   * This 145-page deck serves as historical context. Its proposed frameworks have since been codified into binding industry documents. For current regulatory analysis, cite LLTF White Paper 2 (March 2026\) and the NERC Reliability Guideline (May 2026).  
 * [Machine Learning Guided Cooling System Optimization for Data Center](https://arxiv.org/pdf/2601.02275)  
-  * A test on a top-tier supercomputer, the Frontier exascale system.   
+  * A test on a top-tier supercomputer, the Frontier exascale system.  
   * Because the system's average IT load is 12 MW, s**mall percentage inefficiencies in cooling pumps and fans still translate to hundreds of kilowatts** of continuous, wasted power.  
   * Developed and trained a ML model to predict how much cooling power should be used at a given time to see when the facility’s cooling system is overworking  
   * In the context of our project, not super useful. They measured **10 minute resolution data** which isn’t as granular as article 5 suggests we need  
@@ -78,7 +94,7 @@
 * However, this is unlikely since **imports are supply, load is demand.** They're different quantities.  
 * When more Canadian power flows in, **load wouldn’t change.** Maybe price would?  
 * **Rhode Island has no connection to Canada at all** — and it's one of the three zones that got more volatile.  
-* Also massachusetts (48.2%) and vermont (33.7%) are also very heavy on solar not just cananda   
+* Also massachusetts (48.2%) and vermont (33.7%) are also very heavy on solar not just cananda  
 * The **largest Canadian line** —Phase I/II, 2,000 MW, nine times bigger than Vermont's — lands at **Sandy Pond in Massachusetts, where volatility fell in all three zones** (−3.2%, −4.8%, −12.7%).
 
 ### PJM, FERC, and the 50 MW Limit
@@ -106,19 +122,3 @@
 ## Notes from meeting
 
 * 
-
-## TODO
-
-Today
-
-1. **DONE.** Register UKPN Open Data, confirm the DC profile dataset downloads. Highest value per minute of anything on this list. If it downloads, it's the first facility-level data-center load data the project has found in thirteen weeks.  
-2. **DONE, waiting for response.** Email ENTSO-E ([transparency@entsoe.eu](mailto:transparency@entsoe.eu)) for an API token — \~3 working days.  
-3. **DONE, waiting for response.** Sign up for Pecan Street University Access (free, needs student ID photo) and email [licensing@pecanstreet.org](mailto:licensing@pecanstreet.org) about whether the 2kHz waveform data is in that tier.
-
-This week
-
-4. **DONE.** Canada new england connection  
-5. **DONE.** Look at advisor suggested links  
-6. **DONE.** Look at UKPN data set for UK data center load. Is data-center load actually spiky?  
-7. Look at Pecan street data set. Maybe if we subtract total load from residential we can somewhat isolate data center load?  
-8. **DONE.** Look at european grid data, conduct analysis there similar to pjm/ercot/whatever else based on what data is available

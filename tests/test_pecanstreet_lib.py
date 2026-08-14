@@ -4,6 +4,7 @@ from __future__ import annotations
 import gzip
 import math
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -114,3 +115,108 @@ def test_summer_exposure_eleven_august_days_is_small():
 
 def test_summer_exposure_empty_input_is_zero():
     assert pslib.summer_exposure(pd.DatetimeIndex([])) == 0.0
+
+
+def test_contiguous_runs_splits_on_gaps():
+    epoch = np.array([100, 101, 102, 110, 111], dtype=np.int64)
+    runs = pslib.contiguous_runs(epoch)
+    assert [(s.start, s.stop) for s in runs] == [(0, 3), (3, 5)]
+
+
+def test_delta_hist_exact_quantile_and_gap_exclusion():
+    h = pslib.DeltaHist(lag_s=1)
+    epoch = np.array([0, 1, 2, 10, 11], dtype=np.int64)
+    use = np.array([1.0, 2.0, 4.0, 100.0, 100.5])
+    h.update(epoch, use)
+    # Deltas: |2-1|=1, |4-2|=2 within run 1; |100.5-100|=0.5 within run 2.
+    # The 4->100 jump across the gap must NOT appear.
+    assert h.n == 3
+    assert h.max == pytest.approx(2.0)
+    # quantile() returns the conservative UPPER edge of the bin holding the
+    # true median 1.0: 10**(1/24) = 1.10069 (verified against the bin math —
+    # rel=0.1 against 1.0 would fail by a hair, so pin the edge itself).
+    assert h.quantile(0.5) == pytest.approx(1.1007, rel=0.01)
+
+
+def test_delta_hist_split_feed_equals_whole_feed():
+    """Chunk-boundary carry: feeding the series in two pieces == feeding it whole."""
+    rng = np.random.default_rng(0)
+    epoch = np.arange(1000, dtype=np.int64)
+    use = rng.normal(2.0, 0.5, size=1000)
+    whole = pslib.DeltaHist(lag_s=10)
+    whole.update(epoch, use)
+    split = pslib.DeltaHist(lag_s=10)
+    split.update(epoch[:400], use[:400])
+    split.update(epoch[400:], use[400:])
+    assert split.n == whole.n
+    assert split.counts.tolist() == whole.counts.tolist()
+
+
+def test_delta_hist_no_valid_deltas_reports_nan_max_not_zero():
+    """n == 0 (run shorter than lag) must be distinguishable from a genuinely flat home."""
+    h = pslib.DeltaHist(lag_s=10)
+    epoch = np.arange(5, dtype=np.int64)
+    use = np.full(5, 3.0)
+    h.update(epoch, use)
+    summary = h.summary()
+    assert summary["n"] == 0
+    assert math.isnan(summary["max_kw"])
+
+    flat = pslib.DeltaHist(lag_s=1)
+    flat_epoch = np.arange(20, dtype=np.int64)
+    flat_use = np.full(20, 3.0)
+    flat.update(flat_epoch, flat_use)
+    flat_summary = flat.summary()
+    assert flat_summary["n"] == 19
+    assert flat_summary["max_kw"] == 0.0
+
+
+def test_delta_hist_quantile_saturates_to_inf_above_top_bin_edge():
+    """Deltas above the 100 kW top bin edge are dropped from counts but not from n;
+    quantile() must signal saturation with inf instead of silently clamping."""
+    h = pslib.DeltaHist(lag_s=1)
+    n = 10000
+    epoch = np.arange(n + 20, dtype=np.int64)
+    use = np.zeros(n + 20)
+    # Small alternating deltas of 0.01 kW for the bulk of the series.
+    use[1::2] = 0.01
+    # Append 20 samples that each jump by 500 kW, well above the 100 kW top edge.
+    for i in range(20):
+        use[n + i] = 500.0 * (i + 1)
+    h.update(epoch, use)
+    summary = h.summary()
+    assert summary["max_kw"] == pytest.approx(500.0)
+    assert math.isinf(h.quantile(0.999))
+    assert math.isfinite(h.quantile(0.5))
+
+
+def test_top_events_keeps_largest():
+    t = pslib.TopEvents(k=2)
+    epoch = np.array([0, 1, 2, 3], dtype=np.int64)
+    use = np.array([1.0, 5.0, 1.0, 9.0])  # |d| = 4, 4, 8
+    t.update(dataid=42, epoch=epoch, use=use)
+    top = t.result()
+    assert len(top) == 2
+    assert top[0]["delta_kw"] == pytest.approx(8.0)
+    assert top[0]["dataid"] == 42
+
+
+def test_psd_accumulator_finds_injected_frequency():
+    fs, n = 1.0, 4096
+    tt = np.arange(n) / fs
+    x = np.sin(2 * np.pi * 0.1 * tt)  # 0.1 Hz tone
+    acc = pslib.PsdAccumulator(nperseg=1024)
+    acc.update(np.arange(n, dtype=np.int64), x)
+    freqs, psd = acc.result()
+    assert freqs[np.argmax(psd)] == pytest.approx(0.1, abs=0.005)
+
+
+def test_psd_accumulator_nan_is_a_gap():
+    """A NaN sample splits the segment (spec: gaps split spectral segments,
+    no interpolation) -- it must never be dropped and spliced over."""
+    use = np.random.default_rng(1).normal(size=2049)
+    use[1024] = np.nan
+    acc = pslib.PsdAccumulator(nperseg=1024)
+    acc.update(np.arange(2049, dtype=np.int64), use)
+    acc.result()
+    assert acc.n_segments == 2  # two clean 1024-sample segments, no splice

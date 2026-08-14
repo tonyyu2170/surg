@@ -147,3 +147,172 @@ def headroom_metrics(load: pd.Series) -> dict:
         out["hostable_p999_kw"][name] = _floor_at_zero(lim - out["p999_kw"])
         out["hostable_kw_noderate"][name] = _floor_at_zero(s_kw - out["max_kw"])
     return out
+
+
+# ---------------------------------------------------------------------------
+# Streaming pieces for the 1-sec pass. Each accumulator carries its own tail
+# across update() calls so chunked feeding gives identical results to whole
+# feeding (pinned by test_delta_hist_split_feed_equals_whole_feed).
+# ---------------------------------------------------------------------------
+from scipy.signal import welch  # mid-file import; E402 off, a noqa would trip RUF100
+
+DELTA_BIN_EDGES = np.concatenate(([0.0], np.logspace(-3, 2, 121)))  # |delta| kW
+
+
+def contiguous_runs(epoch: np.ndarray) -> list[slice]:
+    """Slices of runs where epoch increments by exactly 1 second."""
+    if len(epoch) == 0:
+        return []
+    breaks = np.where(np.diff(epoch) != 1)[0]
+    starts = np.concatenate(([0], breaks + 1))
+    ends = np.concatenate((breaks + 1, [len(epoch)]))
+    return [slice(int(a), int(b)) for a, b in zip(starts, ends)]
+
+
+class DeltaHist:
+    """Streaming histogram of |use[t+lag] - use[t]| taken only inside contiguous runs."""
+
+    def __init__(self, lag_s: int):
+        self.lag = lag_s
+        self.counts = np.zeros(len(DELTA_BIN_EDGES) - 1, dtype=np.int64)
+        self.n = 0
+        self.sum = 0.0
+        self.sumsq = 0.0
+        self.max = 0.0
+        self._tail_epoch = np.empty(0, dtype=np.int64)
+        self._tail_use = np.empty(0, dtype=float)
+
+    def update(self, epoch: np.ndarray, use: np.ndarray) -> None:
+        epoch = np.concatenate((self._tail_epoch, epoch))
+        use = np.concatenate((self._tail_use, use))
+        for s in contiguous_runs(epoch):
+            seg = use[s]
+            if len(seg) <= self.lag:
+                continue
+            d = np.abs(seg[self.lag:] - seg[:-self.lag])
+            d = d[~np.isnan(d)]
+            if len(d) == 0:
+                continue
+            self.counts += np.histogram(d, bins=DELTA_BIN_EDGES)[0]
+            self.n += len(d)
+            self.sum += float(d.sum())
+            self.sumsq += float((d**2).sum())
+            self.max = max(self.max, float(d.max()))
+        # Keep the last run's tail (lag samples) so a chunk boundary inside a
+        # run doesn't lose the straddling deltas.
+        keep = min(self.lag, len(epoch))
+        self._tail_epoch = epoch[-keep:]
+        self._tail_use = use[-keep:]
+
+    def quantile(self, q: float) -> float:
+        if self.n == 0:
+            return float("nan")
+        cum = np.cumsum(self.counts)
+        if q * self.n > cum[-1]:
+            # Requested quantile falls above the counted mass: some deltas
+            # exceeded the top bin edge and were dropped by np.histogram
+            # (self.n still counts them). Signal saturation instead of
+            # silently clamping to the top edge.
+            return float("inf")
+        idx = int(np.searchsorted(cum, q * self.n))
+        idx = min(idx, len(self.counts) - 1)
+        return float(DELTA_BIN_EDGES[idx + 1])  # upper edge: conservative
+
+    def summary(self) -> dict:
+        mean = self.sum / self.n if self.n else float("nan")
+        var = self.sumsq / self.n - mean**2 if self.n else float("nan")
+        return {
+            "n": self.n, "mean_kw": mean, "std_kw": float(np.sqrt(max(var, 0.0))),
+            "p50_kw": self.quantile(0.50), "p99_kw": self.quantile(0.99),
+            "p999_kw": self.quantile(0.999),
+            "max_kw": self.max if self.n else float("nan"),
+        }
+
+
+class TopEvents:
+    """Largest |1-sec deltas| with context, via a bounded list."""
+
+    def __init__(self, k: int):
+        self.k = k
+        self._events: list[dict] = []
+        self._tail_epoch = np.empty(0, dtype=np.int64)
+        self._tail_use = np.empty(0, dtype=float)
+
+    def update(self, dataid: int, epoch: np.ndarray, use: np.ndarray) -> None:
+        epoch = np.concatenate((self._tail_epoch, epoch))
+        use = np.concatenate((self._tail_use, use))
+        for s in contiguous_runs(epoch):
+            seg, ep = use[s], epoch[s]
+            if len(seg) < 2:
+                continue
+            d = np.abs(np.diff(seg))
+            with np.errstate(invalid="ignore"):
+                order = np.argsort(np.nan_to_num(d, nan=-1.0))[::-1][: self.k]
+            for i in order:
+                if np.isnan(d[i]):
+                    continue
+                self._events.append({
+                    "dataid": int(dataid), "epoch": int(ep[i + 1]),
+                    "delta_kw": float(d[i]),
+                    "before_kw": float(seg[i]), "after_kw": float(seg[i + 1]),
+                })
+        self._events = sorted(self._events, key=lambda e: -e["delta_kw"])[: self.k]
+        self._tail_epoch = epoch[-1:]
+        self._tail_use = use[-1:]
+
+    def result(self) -> list[dict]:
+        return self._events
+
+
+class PsdAccumulator:
+    """Welch PSD averaged over contiguous segments of >= nperseg seconds."""
+
+    def __init__(self, nperseg: int = 1024, max_segments: int = 400):
+        self.nperseg = nperseg
+        self.max_segments = max_segments
+        self._psd_sum: np.ndarray | None = None
+        self._freqs: np.ndarray | None = None
+        self.n_segments = 0
+        self._buf_epoch = np.empty(0, dtype=np.int64)
+        self._buf_use = np.empty(0, dtype=float)
+
+    def _flush(self, seg: np.ndarray) -> None:
+        if self.n_segments >= self.max_segments:
+            return
+        if len(seg) < self.nperseg:
+            return
+        freqs, psd = welch(seg, fs=1.0, nperseg=self.nperseg, detrend="linear")
+        if self._psd_sum is None:
+            self._freqs, self._psd_sum = freqs, psd
+        else:
+            self._psd_sum = self._psd_sum + psd
+        self.n_segments += 1
+
+    def update(self, epoch: np.ndarray, use: np.ndarray) -> None:
+        # A NaN sample is a gap (spec: gaps split spectral segments, never
+        # interpolate): drop the row BEFORE run-splitting so the epoch hole
+        # splits the segment instead of splicing across it.
+        keep = ~np.isnan(use)
+        epoch, use = epoch[keep], use[keep]
+        epoch = np.concatenate((self._buf_epoch, epoch))
+        use = np.concatenate((self._buf_use, use))
+        runs = contiguous_runs(epoch)
+        for s in runs[:-1]:
+            self._flush(use[s])
+        # Last run may continue into the next chunk: buffer it, capped at 4096.
+        last = runs[-1] if runs else slice(0, 0)
+        if last.stop - last.start > 4096:
+            self._flush(use[last])
+            self._buf_epoch = np.empty(0, dtype=np.int64)
+            self._buf_use = np.empty(0, dtype=float)
+        else:
+            self._buf_epoch = epoch[last]
+            self._buf_use = use[last]
+
+    def result(self) -> tuple[np.ndarray, np.ndarray]:
+        self._flush(self._buf_use)
+        self._buf_epoch = np.empty(0, dtype=np.int64)
+        self._buf_use = np.empty(0, dtype=float)
+        if self._psd_sum is None:
+            return np.empty(0), np.empty(0)
+        return self._freqs, self._psd_sum / self.n_segments

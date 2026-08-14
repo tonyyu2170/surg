@@ -220,3 +220,32 @@ def test_psd_accumulator_nan_is_a_gap():
     acc.update(np.arange(2049, dtype=np.int64), use)
     acc.result()
     assert acc.n_segments == 2  # two clean 1024-sample segments, no splice
+
+
+def test_mask_implausible_nans_out_beyond_threshold():
+    use = pd.Series([1.0, 150.0, -200.0, -3.0, np.nan])
+    original = use.copy()
+    masked = pslib.mask_implausible(use)
+    assert masked.iloc[0] == pytest.approx(1.0)
+    assert math.isnan(masked.iloc[1])
+    assert math.isnan(masked.iloc[2])
+    assert masked.iloc[3] == pytest.approx(-3.0)  # legitimate negative (solar export) survives
+    assert math.isnan(masked.iloc[4])  # pre-existing NaN stays NaN
+    pd.testing.assert_series_equal(use, original)  # input not mutated in place
+
+
+def test_treated_dataids_excludes_enrolment_and_control():
+    meta = pd.DataFrame({
+        "dataid": [1, 2, 3, 4, 5],
+        "program_energy_internet_demo": ["yes", np.nan, np.nan, np.nan, np.nan],
+        "program_ccet_group": [np.nan, "CCET - Control", "CCET - Pricing Trial", np.nan, np.nan],
+        "program_shines": [np.nan, np.nan, np.nan, "yes", np.nan],
+    })
+    assert pslib.treated_dataids(meta) == {3, 4}
+
+
+def test_program_cols_partitioned_by_enrolment_and_treatment():
+    enrolment = set(pslib.ENROLMENT_PROGRAM_COLS)
+    treatment = set(pslib.TREATMENT_PROGRAM_COLS)
+    assert enrolment | treatment == set(pslib.PROGRAM_COLS)
+    assert enrolment & treatment == set()

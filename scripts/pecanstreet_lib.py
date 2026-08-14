@@ -41,15 +41,41 @@ PEAK_HOURS = (15, 16, 17, 18)  # 15:00-18:59 local
 SUMMER_PEAK_MINUTES = 122 * 240  # Jun-Sep, 15:00-18:59 local: 122 days x 240 min
 NODE_AMPLITUDE = 0.9  # LLTF: swings up to 90% of capacity
 
+MAX_PLAUSIBLE_KW = 100.0  # a 400 A / 240 V service tops out at 96 kW
+
 PROGRAM_COLS = [
     "program_579", "program_baseline", "program_energy_internet_demo",
     "program_lg_appliance", "program_verizon", "program_ccet_group",
     "program_civita_group", "program_shines",
 ]
+# PROGRAM_COLS partitioned in two: enrolment markers (participation in Pecan
+# Street itself, not load-changing) vs real treatments (see treated_dataids).
+ENROLMENT_PROGRAM_COLS = ["program_baseline", "program_energy_internet_demo"]
+TREATMENT_PROGRAM_COLS = [
+    "program_579", "program_lg_appliance", "program_verizon",
+    "program_ccet_group", "program_civita_group", "program_shines",
+]
 
 
 def read_metadata() -> pd.DataFrame:
     return pd.read_csv(META, skiprows=[1], low_memory=False)
+
+
+def treated_dataids(meta: pd.DataFrame) -> set[int]:
+    """dataids in a load-changing treatment arm.
+
+    Enrolment markers do not count, and an explicit '- Control' arm is
+    untreated by definition, so both are excluded from the returned set.
+    """
+    treated: set[int] = set()
+    for col in TREATMENT_PROGRAM_COLS:
+        if col not in meta.columns:
+            continue
+        s = meta[col]
+        is_control = s.astype(str).str.contains("control", case=False, na=False)
+        arm = s.notna() & ~is_control
+        treated |= set(meta.loc[arm, "dataid"].astype(int))
+    return treated
 
 
 def read_power_file(path: Path, tz: str, time_col: str | None = None) -> pd.DataFrame:
@@ -83,6 +109,25 @@ def reconstruct_use(df: pd.DataFrame) -> pd.Series:
     excluded from headline stats (they are SHINES-intervention homes anyway).
     """
     return df["grid"].astype(float) + df["solar"].fillna(0.0) + df["solar2"].fillna(0.0)
+
+
+def mask_implausible(use: pd.Series) -> pd.Series:
+    """NaN out readings beyond any physically possible residential draw.
+
+    Across all 31,808,722 rows of the three 1-minute bundles, exactly 2 rows
+    exceed 48 kW: both belong to Austin dataid 7536 at 2018-02-02 12:26 and
+    12:27, where every channel simultaneously flipped sign -- including the
+    leg voltages, which read -1,145,948 V and then +1,146,134 V on a nominal
+    120 V leg. It is a telemetry fault, not a real draw. With those 2 rows
+    removed the corpus maximum is 23.97 kW, and there is an empty gap between
+    24 kW and 2,895 kW, so MAX_PLAUSIBLE_KW just needs to sit in that gap --
+    the exact value is immaterial. 100 kW comfortably clears it while still
+    sitting below any physically wired residential service (400 A / 240 V
+    tops out at 96 kW).
+    """
+    use = use.copy()
+    use[use.abs() > MAX_PLAUSIBLE_KW] = np.nan
+    return use
 
 
 def negative_share(use: pd.Series) -> float:

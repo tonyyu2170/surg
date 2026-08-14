@@ -8,6 +8,7 @@ Yu_Tony_SURG_Grant_Proposal.md
 
 sources/                     how to get the data, and what it will not give you
   <pjm|gridstatus|ukpn|entsoe>-api-constraints.md
+  pecanstreet-access-constraints.md
   entsoe-endpoint-reference.md
   data-catalog.md
   availability/              what each market publishes, and how far back
@@ -27,7 +28,7 @@ specs/                       design docs from the superpowers workflow
 
 reference/                   vendored source material, not written here
   pjm-manuals/               M03/M11/M12, Data Miner 2 guide, pjm-lmp-formation.md
-  pecan-street/              Dataport metadata dictionary + metadata.csv
+  pecan-street/              Dataport catalog, metadata dictionary, metadata.csv
   papers/
 ```
 

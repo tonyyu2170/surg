@@ -15,8 +15,9 @@ or a derived artifact's schema changes.
 
 **Layout of this file:** §§ 1–5 cover the **PJM core** (the primary case
 study, pulled via `surg-pull`). § 6 covers the **eight-market cross-ISO
-Stage-1** feeds. § 7 covers the **UKPN data-centre load profiles**. Total
-`data/` footprint is **~6.0 GB**, all gitignored.
+Stage-1** feeds. § 7 covers the **UKPN data-centre load profiles**. § 8
+covers the **Pecan Street residential bundles**. Total `data/` footprint
+is **~28 GB**, all gitignored.
 
 ---
 
@@ -502,3 +503,34 @@ levels are not comparable across sites — only shapes), no location, no
 price. Covers UKPN's three licence areas only (LPN/EPN/SPN), which
 **excludes the Slough and West London cluster** (SSEN territory) and all
 transmission-connected hyperscale sites.
+
+---
+
+## 8. Pecan Street — residential circuit-level bundles
+
+**On disk 2026-08-13:** `data/raw/pecanstreet/` (22 GiB, 37 files),
+pulled via `.venv/bin/python scripts/pecanstreet_fetch.py` from the
+Dataport JupyterHub staging area (`/shared/Dataport-Data/`), all files
+byte-verified against the server manifest. Access mechanics, tier
+limits, and traps: `docs/sources/pecanstreet-access-constraints.md`.
+Vendored vendor docs: `docs/reference/pecan-street/`.
+
+| Slice | Files | Grain | Vintage |
+|---|---|---|---|
+| Austin, 25 homes | `electricity_data/Austin/` — 15-min, 1-min, 1-sec (4 files, ~13 GB) csv.gz | 15-min, 1-min, 1-sec | 2019-era (Apr 2021 build) |
+| New York, 25 homes, 6 months | `electricity_data/New_York/` — 15-min, 1-min, 1-sec (4 files, ~6.3 GB) csv.gz | 15-min, 1-min, 1-sec | 2019-era |
+| California, 23 homes | `electricity_data/California/` — 15-min, 1-min (no 1-sec exists) | 15-min, 1-min | 2019-era |
+| Puerto Rico, per-metric (realpower / apparentpower / current / THD / angle) | `electricity_data/puerto_rico/pr_{15min,1min,1sec}/` | 15-min, 1-min, 1-sec | Sept 2023 |
+| PR-adjacent metadata snapshot | `electricity_data/puerto_rico/pr_homes/pr_15min/metadata.csv` — full-DB snapshot, 1,927 rows incl. **49 PR homes**; row 1 is an embedded dictionary row, drop on load | — | ~2023 |
+| Extras | `metadata.csv`, `metadata.sqlite3`, `audits_and_surveys.zip`, `ev_and_weather.zip`, `indoor_temp_data.zip`, `project_specific_datasets.zip` | — | mixed |
+
+Role: XFRA headroom question (Austin circuit-level), the project's only
+power-quality series (PR THD/current/apparent power), residential
+contrast to the UKPN facility-DC flatness note (J).
+
+**Known defects on arrival:** `pr_angle_09-2023_1sec.csv.gz` is 20 bytes
+(broken on the server — PR 1-sec has four usable metrics, not five).
+Time columns are **local time** despite what the column names imply
+elsewhere in this project. Not pulled: `.sqlite3`/`.tar.gz` duplicates
+of the csv.gz content, and the `pr_homes/` per-metric files + tarballs
+(~1.9 GB, confirmed byte-identical to what's on disk).

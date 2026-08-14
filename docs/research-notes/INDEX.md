@@ -31,6 +31,7 @@ compute from files in `data/`.
 | `J-ukpn-flatness.md` | analysis | Is data-centre load actually spiky? 96 metered UK sites, half-hourly. Median daily peak/trough 1.05. |
 | `K-ireland-dc-shape.md` | analysis | Did Irish load shape change as data centres reached 23.7% of consumption? ⚠️ Qualified by `L` — read `L` § 8 first. |
 | `L-solar-metering-artifact.md` | analysis | Is the midday flattening a solar metering artifact? 12 European zones. Also finds the Dutch control's 2023-04 definitional break. |
+| `M-pecanstreet-xfra-headroom.md` | analysis | Do homes have idle panel capacity for a 12.5 kW XFRA compute node? 73 homes, 1-min and 1-sec. The answer hinges entirely on service size — 100% at 200 A, 4% at 100 A — which the data never records. |
 | `external-context-research-2026-08.md` | desk | Umbrella doc for `A`–`H`: BTM, data-centre pipeline, transmission, emerging tech, policy. |
 
 ## European scoping batch (2026-08-11)

@@ -514,6 +514,20 @@ Dataport JupyterHub staging area (`/shared/Dataport-Data/`), all files
 byte-verified against the server manifest. Access mechanics, tier
 limits, and traps: `docs/sources/pecanstreet-access-constraints.md`.
 Vendored vendor docs: `docs/reference/pecan-street/`.
+**Analysed 2026-08-14** by `scripts/pecanstreet_headroom.py` (1-min, three
+cities) and `scripts/pecanstreet_1sec.py` (1-sec, Austin + New York) →
+`docs/research-notes/M-pecanstreet-xfra-headroom.md`. Two data defects that
+cut found are worth knowing before reusing the corpus: Austin `dataid` 7536
+emits a 5,308.7 kW telemetry fault at 2018-02-02 12:26–12:27 (leg voltages
+read ±1.15 MV in the same rows) — exactly 2 rows of 31.8M corpus-wide exceed
+48 kW, both from it, and `pslib.mask_implausible` filters them; and the **Austin 1-second bundle
+zero-fills dropouts** — 18 of 25 homes have their largest 1-second step
+touching exactly `0.000` kW, versus 0 of 25 in New York, so a resumption
+after a gap reads as a ~23 kW instantaneous step. Treat an exact `0.000` in
+the 1-second data as suspect; it passes the plausibility filter because
+23 kW is a possible household draw. Also: **no measured electrical service
+size exists anywhere in the free tier**, which is what makes the
+panel-headroom question unanswerable in absolute terms.
 
 | Slice | Files | Grain | Vintage |
 |---|---|---|---|

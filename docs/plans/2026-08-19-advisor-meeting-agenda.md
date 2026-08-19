@@ -68,8 +68,8 @@
   * EPRI's framework aims to **protect everyday utility ratepayers from the costs of infrastructure upgrades** caused by hyperscalers  
 * [Large Loads Task Force Meeting and Workshop](https://www.nerc.com/globalassets/who-we-are/standing-committees/rstc/llwg/lltf_april_meeting__technical_workshop_presentations_.pdf)  
   * Tesla and Google provided hard data proving that AI training workloads are not static. Tesla showed **AI loads oscillating at 0.1–1 Hz and 5–30 Hz**, with amplitude swings reaching up to 90% of peak capacity (framed by Elon Musk as "**10–20 MW** shifts several times per second," with Google corroborating swings in the tens of megawatts).  
-  * Utility presentations detailed exactly why data centers exacerbate grid faults. Their **power electronics employ aggressive undervoltage protection**; if local voltage dips below \~65% during a transient event, the facility **instantly disconnects** to protect its servers. They then take roughly 8 seconds to automatically reconnect. Entergy demonstrated that when this massive load slams back onto the grid simultaneously, the sudden localized demand spike can cause nearby conventional generators to lose transient stability and slip out of synchronism.  
-    * This is kinda **outdated** by now  
+  * Utility presentations detailed exactly why data centers exacerbate grid faults. Their **power electronics employ aggressive undervoltage protection**; if local voltage dips below \~65% during a transient event, the facility **instantly disconnects** to protect its servers. They then take roughly 8 seconds to automatically reconnect. Entergy demonstrated that when this massive load slams back onto the grid simultaneously, the sudden localized demand spike can cause nearby conventional generators to lose transient stability and slip out of synchronism.   
+    * This is kinda **outdated** by now   
     * Mandated **Voltage Ride-Through (VRT)** and **Fast Frequency Reserve (FFR)** capabilities try to mitigate disconnection issues  
     * Even in case of disconnection, facilities can **soft start** to not put a done of stress at once  
   * This 145-page deck serves as historical context. Its proposed frameworks have since been codified into binding industry documents. For current regulatory analysis, cite LLTF White Paper 2 (March 2026\) and the NERC Reliability Guideline (May 2026).  
@@ -111,14 +111,14 @@
 * Homeowners who host a node receive **significant infrastructure upgrades.** For the initial 100-home proof-of-concept, the home comes equipped with the **XFRA compute node, a SPAN smart panel, and a 15 kWh whole-home battery backup system** that provides reliable power to the home during grid outages  
 * Current stage: executing a **100-home "proof of concept" pilot program**. Instead of retrofitting older houses, they have partnered directly with the homebuilder PulteGroup to install these first units exclusively in new residential construction projects in the southwestern United States.
 
-## Things I Need Advice On
-
-* 
-
-## Future Direction
-
-* 
-
 ## Notes from meeting
 
-* 
+* Dig more into [Large Loads Task Force Meeting and Workshop](https://www.nerc.com/globalassets/who-we-are/standing-committees/rstc/llwg/lltf_april_meeting__technical_workshop_presentations_.pdf)  
+  * Where they got their data from, where does the subsecond number come from  
+  * Maybe can say compute fluctuates but overall load is smooth when adding in storage other data center usages  
+  * Would a battery be fast enough to respond to this sub second fluctuation  
+  * Does compute aggreagate out with enough clusters being used (law of large numbers) or does something else like hvac could also aggregate out, maybe battery, maybe behind the meter, etc.  
+  * For current regulatory analysis, look more into LLTF White Paper 2 (March 2026\) and the NERC Reliability Guideline (May 2026).  
+* Current conclusion  
+  * At least on large timescale (hourly) not a lot of fluctuation with load (this looks like most likely report outcome as of now)  
+  * but why?

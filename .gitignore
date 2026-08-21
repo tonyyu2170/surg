@@ -51,6 +51,9 @@ htmlcov/
 .env
 .env.local
 
+# Firecrawl search cache
+.firecrawl/
+
 # Data — too large to track; reproduce via acquisition scripts
 data/raw/*
 data/interim/*

@@ -232,6 +232,17 @@ synchronised reference of 25. New York: ratio 5.45. The measured curve sits
 just above the independent reference across the whole range and nowhere near
 the synchronised one.
 
+**⚠️ 3.3a Do NOT generalise this cancellation to compute load.** The √N result
+holds because the synchronisation index measured near 1 — these homes are
+empirically independent. Independence is the load-bearing assumption, not the
+count. A synchronised AI training job is phase-locked by the all-reduce
+barrier and therefore adds **coherently**: the swing stays a constant fraction
+of load no matter how many GPUs participate. Microsoft/OpenAI/NVIDIA rejected
+the multiplexing argument on exactly these grounds and report that aggregate
+swing amplitude *increases* with GPU count. Same arithmetic, opposite answer,
+because the correlation structure is opposite. See
+`N-subsecond-provenance-and-filters.md` § 3.
+
 **3.4 At data-centre frequencies there is almost nothing there.** Per-home
 power spectral density (`onesec_psd_austin.png`) is dominated by
 sub-0.01 Hz content, with a clear spectral peak near 9 mHz (~110-second
@@ -242,7 +253,20 @@ content.
 **The Nyquist caveat, stated plainly.** 1-second sampling gives a Nyquist
 limit of 0.5 Hz. The NERC LLTF band of concern is 0.1–30 Hz. So this analysis
 sees the bottom **~1.3%** of that band and can say nothing whatsoever about
-0.5–30 Hz. Dataport's 2 kHz waveform tier would cover it; licensing for that
+0.5–30 Hz.
+
+> **Correction (2026-08-20).** The 0.1–30 Hz figure is Tesla's LLTF slide, not a
+> measured band. Production traces (Microsoft/OpenAI/NVIDIA, arXiv 2508.14318)
+> put the actual FFT energy at **0.2–3 Hz**, and NERC's May 2026 guideline
+> narrows the *reliability-relevant* range to **0.1–2 Hz**. Against the measured
+> band this analysis covers **~11% linearly / ~34% in log-frequency**, and
+> 1-second averaging retains 94% of amplitude at 0.2 Hz — so the coverage above
+> is understated pessimism on both the band and the attenuation.
+>
+> **This does not soften § 3.4.** The two statements are about different things:
+> the *sampling* now reaches into the relevant band, and the *homes* have almost
+> nothing in it (PSD down 4–5 orders of magnitude). Better instrument reach,
+> same null. See `N-subsecond-provenance-and-filters.md` § 2. Dataport's 2 kHz waveform tier would cover it; licensing for that
 tier remains unanswered (see § 6). Any claim here about "data-centre
 frequencies" means the 0.1–0.5 Hz sliver only.
 

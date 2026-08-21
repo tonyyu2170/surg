@@ -32,6 +32,7 @@ compute from files in `data/`.
 | `K-ireland-dc-shape.md` | analysis | Did Irish load shape change as data centres reached 23.7% of consumption? ⚠️ Qualified by `L` — read `L` § 8 first. |
 | `L-solar-metering-artifact.md` | analysis | Is the midday flattening a solar metering artifact? 12 European zones. Also finds the Dutch control's 2023-04 definitional break. |
 | `M-pecanstreet-xfra-headroom.md` | analysis | Do homes have idle panel capacity for a 12.5 kW XFRA compute node? 73 homes, 1-min and 1-sec. The answer hinges entirely on service size — 100% at 200 A, 4% at 100 A — which the data never records. |
+| `N-subsecond-provenance-and-filters.md` | analysis | Where the sub-second AI-load claim comes from, and why hourly load is flat. Measured band is **0.2–3 Hz**, not 0.1–30 Hz; hourly flatness is arithmetically forced; synchronized training adds **coherently** so √N cancellation does NOT apply (it does for `M`'s homes). NERC admits no allowable oscillation limit exists, but **ERCOT proposed one 2026-02-19** (10 MW / 5 s). All **four** measured grid events are power-electronics control interactions, not workload sync. §7.7: own periodogram of 4 real `rs-7943457` GPU sessions — none reproduce the 0.2–3 Hz band, workload type beats GPU generation, cycling vanishes at batch size 2. |
 | `external-context-research-2026-08.md` | desk | Umbrella doc for `A`–`H`: BTM, data-centre pipeline, transmission, emerging tech, policy. |
 
 ## European scoping batch (2026-08-11)

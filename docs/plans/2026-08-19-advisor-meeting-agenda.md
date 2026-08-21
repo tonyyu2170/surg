@@ -2,6 +2,8 @@
 
 ## Current Status
 
+Did a bunch of research into developing technologies, looked into UK, Ireland, Pecan street datasets, and researched some of the links you sent me
+
 ## Findings This Week
 
 ### UK Data centers

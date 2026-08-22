@@ -73,3 +73,6 @@ outputs/
 # Exploratory / alternative-window analysis outputs (regeneratable from
 # the panel + analysis module with different filter parameters)
 outputs_*/
+
+# Run logs from long pulls/analyses (backfill launcher writes here)
+logs/

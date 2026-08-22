@@ -44,7 +44,7 @@ The `.venv` died with the directory. Nothing can be verified until it exists.
 - [ ] **Step 1: Create the virtualenv and install the package**
 
 ```bash
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+cd ~/docs/NU/Freshman_Year/Summer_2026/surg
 uv venv --python 3.12
 uv pip install -e '.[dev]'
 ```
@@ -136,7 +136,7 @@ def test_base_mode_starts_from_existing_file(tmp_path):
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cd ~/surg-recovery-2026-07-30 && /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg/.venv/bin/pytest test_replay.py -q`
+Run: `cd ~/surg-recovery-2026-07-30 && ~/docs/NU/Freshman_Year/Summer_2026/surg/.venv/bin/pytest test_replay.py -q`
 Expected: FAIL — `replay.py` does not exist.
 
 - [ ] **Step 3: Write the implementation**
@@ -212,7 +212,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `cd ~/surg-recovery-2026-07-30 && /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg/.venv/bin/pytest test_replay.py -q`
+Run: `cd ~/surg-recovery-2026-07-30 && ~/docs/NU/Freshman_Year/Summer_2026/surg/.venv/bin/pytest test_replay.py -q`
 Expected: 4 passed.
 
 No commit — this file is outside the repo by design.
@@ -232,7 +232,7 @@ The only expected conflict surface is `docs/decisions.md`, which `da75a00` also 
 - [ ] **Step 1: Create a working branch from the recovered ref**
 
 ```bash
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+cd ~/docs/NU/Freshman_Year/Summer_2026/surg
 git switch -c graft/item-8 recovered/feature/sub-q1-item-8-5min-companion
 ```
 
@@ -339,7 +339,7 @@ See docs/specs/2026-07-30-surg-recovery-design.md, Phase 4."
 
 ```bash
 cd ~/surg-recovery-2026-07-30
-SURG=/Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+SURG=~/docs/NU/Freshman_Year/Summer_2026/surg
 python3 replay.py \
   "edit-chains/_worktree-surg-gridstatus-5min__src__surg__acquisition__gridstatus_client.py.json" \
   "$SURG/src/surg/acquisition/gridstatus_client.py"
@@ -395,7 +395,7 @@ This module has edits recorded in **two** places: the worktree chain (2 edits) a
 
 ```bash
 cd ~/surg-recovery-2026-07-30
-SURG=/Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+SURG=~/docs/NU/Freshman_Year/Summer_2026/surg
 python3 replay.py \
   "edit-chains/_worktree-surg-gridstatus-5min__src__surg__acquisition__gridstatus_pull.py.json" \
   "$SURG/src/surg/acquisition/gridstatus_pull.py"
@@ -473,7 +473,7 @@ the launch script."
 
 ```bash
 cd ~/surg-recovery-2026-07-30
-SURG=/Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+SURG=~/docs/NU/Freshman_Year/Summer_2026/surg
 python3 replay.py \
   "edit-chains/_worktree-surg-gridstatus-5min__src__surg__acquisition__gridstatus_validate.py.json" \
   "$SURG/src/surg/acquisition/gridstatus_validate.py"
@@ -541,7 +541,7 @@ Task 4 deleted the May file of the same name. This restores the July one, which 
 
 ```bash
 cd ~/surg-recovery-2026-07-30
-SURG=/Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+SURG=~/docs/NU/Freshman_Year/Summer_2026/surg
 python3 replay.py \
   "edit-chains/_worktree-surg-gridstatus-5min__src__surg__preprocessing__loaders_5min.py.json" \
   "$SURG/src/surg/preprocessing/loaders_5min.py"
@@ -588,7 +588,7 @@ Edits recorded in two places: worktree (5 edits) and main path (4 edits).
 
 ```bash
 cd ~/surg-recovery-2026-07-30
-SURG=/Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+SURG=~/docs/NU/Freshman_Year/Summer_2026/surg
 python3 replay.py \
   "edit-chains/_worktree-surg-gridstatus-5min__src__surg__preprocessing__build_5min.py.json" \
   "$SURG/src/surg/preprocessing/build_5min.py"
@@ -637,7 +637,7 @@ Reconstructed from the worktree Write baseline plus 5 worktree edits and
 
 ```bash
 cd ~/surg-recovery-2026-07-30
-SURG=/Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+SURG=~/docs/NU/Freshman_Year/Summer_2026/surg
 python3 replay.py \
   "edit-chains/_worktree-surg-gridstatus-5min__src__surg__analysis__run_5min.py.json" \
   "$SURG/src/surg/analysis/run_5min.py"
@@ -765,7 +765,7 @@ wc -l docs/decisions.md
 
 ```bash
 cd ~/surg-recovery-2026-07-30
-SURG=/Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+SURG=~/docs/NU/Freshman_Year/Summer_2026/surg
 python3 replay.py "edit-chains/docs__decisions.md.json" "$SURG/docs/decisions.md" --from-base
 ```
 

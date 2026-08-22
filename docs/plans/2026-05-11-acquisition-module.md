@@ -107,7 +107,7 @@ def test_pnode_is_hashable_and_frozen():
 
 - [ ] **Step 1.2: Run tests to verify they fail**
 
-Run: `cd "/Users/turdy/docs/NU/Freshman_Year/Summer 2026/SURG/surg" && .venv/bin/pytest tests/acquisition/test_targets.py -v`
+Run: `cd "~/docs/NU/Freshman_Year/Summer 2026/SURG/surg" && .venv/bin/pytest tests/acquisition/test_targets.py -v`
 Expected: collection error (module doesn't exist) or ImportError.
 
 - [ ] **Step 1.3: Implement `src/surg/acquisition/targets.py`**

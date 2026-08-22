@@ -20,7 +20,7 @@
 
 Run from main worktree root:
 ```bash
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/SURG/surg
+cd ~/docs/NU/Freshman_Year/Summer_2026/SURG/surg
 git status
 ```
 Expected: `On branch main` + `nothing to commit, working tree clean` (modulo any unpushed commits from earlier work).

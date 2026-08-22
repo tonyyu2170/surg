@@ -17,7 +17,7 @@ PY="$REPO_ROOT/.venv/bin/python"
 START="${START:-2023-02-07T00:00:00Z}"
 END="${END:-2026-06-30T00:00:00Z}"
 DATA_ROOT="${DATA_ROOT:-data/raw/gridstatus}"
-LOG_DIR="${LOG_DIR:-$HOME/surg-run-logs}"
+LOG_DIR="${LOG_DIR:-$REPO_ROOT/logs}"
 mkdir -p "$LOG_DIR"
 
 echo "=== backfill launched $(date) ==="

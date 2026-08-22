@@ -15,7 +15,7 @@ question and the only power-quality series we hold (see "Research fit").
 
 ## Account / tiers
 
-- Account: `tonyyu2029@u.northwestern.edu`, approved 2026-08-13
+- Account: the NU university email, approved 2026-08-13
   ("Dataport Account Approved", dataport@pecanstreet.org). Tier:
   **University Free** (badge on the logged-in dashboard).
 - The approval email is generic; tier limits are discoverable only by
@@ -53,8 +53,9 @@ question and the only power-quality series we hold (see "Research fit").
    byte sizes) and `GET /user/<name>/files/<path>` (raw download,
    supports HTTP `Range` resume). This is the scriptable bulk route and
    what `scripts/pecanstreet_fetch.py` uses. Token lives in `.env` as
-   `JUPYTER_API_KEY`. ⚠️ The username in the URL is the email with
-   punctuation stripped: `tonyyu2029unorthwesternedu`.
+   `JUPYTER_API_KEY`. ⚠️ The username in the URL is the login email with
+   punctuation stripped (`jdoe1234uschooledu`); it lives in `.env` as
+   `JUPYTER_USER`.
 4. **Public docs** (no login): Data Dictionary, Dataport FAQ, and
    Schema Definitions are public Google Docs linked off the dashboard;
    the "Metadata Report" is `dataport.pecanstreet.org/static/metadata.csv`

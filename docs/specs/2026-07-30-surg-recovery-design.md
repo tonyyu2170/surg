@@ -6,7 +6,7 @@ Scope: restore the project to its 2026-07-30 pre-loss state
 
 ## What happened
 
-The working directory `/Users/turdy/docs/NU/Freshman_Year/Summer_2026/SURG/surg`
+The working directory `~/docs/NU/Freshman_Year/Summer_2026/SURG/surg`
 was deleted with `rm -rf`. A fresh clone now sits at
 `.../Summer_2026/surg` (macOS is case-insensitive, so this path collides
 with the old `SURG/` parent).

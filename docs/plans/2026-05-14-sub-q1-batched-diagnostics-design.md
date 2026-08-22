@@ -677,7 +677,7 @@ activation per the 2026-05-14 locked decisions.
 Matches recent practice (Spec B and conditional-Z battery):
 
 - Sibling worktree at
-  `/Users/turdy/docs/NU/Freshman_Year/Summer_2026/SURG/surg-sub-q1-diag/`
+  `~/docs/NU/Freshman_Year/Summer_2026/SURG/surg-sub-q1-diag/`
   (or similar) created via `using-git-worktrees`.
 - Feature branch named `feature/sub-q1-batched-diagnostics`.
 - Each commit is its own ask per CLAUDE.md.

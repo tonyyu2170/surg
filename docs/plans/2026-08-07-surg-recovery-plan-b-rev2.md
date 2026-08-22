@@ -46,7 +46,7 @@ Rev1's Task 7 was scheduled "before 8pm EDT 2026-07-31" and Task 8 was gated on 
 Gate before starting anything:
 
 ```bash
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+cd ~/docs/NU/Freshman_Year/Summer_2026/surg
 .venv/bin/python -c "import surg; print('ok')"
 ```
 
@@ -135,7 +135,7 @@ Both descriptions are true: SKFFSCRK sits in a markedly more rural area yet pric
 Every later count in this plan is a **delta** from this line, not an absolute. Record the output exactly.
 
 ```bash
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+cd ~/docs/NU/Freshman_Year/Summer_2026/surg
 .venv/bin/python -m pytest -q 2>&1 | tail -2
 ```
 
@@ -146,7 +146,7 @@ Expected as of 2026-08-07: `313 passed, 6 skipped`. If your baseline differs, us
 ```bash
 .venv/bin/python -c "
 import json
-d=json.load(open('/Users/turdy/surg-recovery-2026-07-30/edit-chains/_worktree-surg-gridstatus-5min__src__surg__analysis__gpd.py.json'))
+d=json.load(open('~/surg-recovery-2026-07-30/edit-chains/_worktree-surg-gridstatus-5min__src__surg__analysis__gpd.py.json'))
 ops=d['ops']
 assert len(ops)==11, f'expected 11 ops, got {len(ops)}'
 assert 'INTENTIONAL BUG' in ops[8]['new_string'], 'op8 is not the labeled mutation'
@@ -163,12 +163,12 @@ Expected: `CONFIRMED: ops 8,9,10 are mutation scaffolding; replay ops 0-7 only`
 `replay.py` cannot do this itself: its interface is positional (`replay.py <chain> <dest> [--from-base]`), with no op-range selector and no dedup flag. This chain has no `Write` baseline (all 11 ops are `Edit`), so a bare invocation exits 2.
 
 ```bash
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+cd ~/docs/NU/Freshman_Year/Summer_2026/surg
 .venv/bin/python - <<'PY'
 import json
 from pathlib import Path
 
-CHAIN = Path("/Users/turdy/surg-recovery-2026-07-30/edit-chains/"
+CHAIN = Path("~/surg-recovery-2026-07-30/edit-chains/"
              "_worktree-surg-gridstatus-5min__src__surg__analysis__gpd.py.json")
 DEST = Path("src/surg/analysis/gpd.py")
 
@@ -224,8 +224,8 @@ Expected: each `def` count is exactly `1`; `GOOD: no intentional-bug line presen
 - [x] **Step 4: Replay the companion test chain**
 
 ```bash
-.venv/bin/python /Users/turdy/surg-recovery-2026-07-30/replay.py \
-  /Users/turdy/surg-recovery-2026-07-30/edit-chains/_worktree-surg-gridstatus-5min__tests__analysis__test_gpd.py.json \
+.venv/bin/python ~/surg-recovery-2026-07-30/replay.py \
+  ~/surg-recovery-2026-07-30/edit-chains/_worktree-surg-gridstatus-5min__tests__analysis__test_gpd.py.json \
   tests/analysis/test_gpd.py --from-base
 grep -c "def test_gpd_conditional_on_z_cluster_bootstrap_duplicates_rows" tests/analysis/test_gpd.py
 ```
@@ -320,8 +320,8 @@ Replaying the source chains would narrow `filter_col: str | None → str` and **
 They define the behavior the merged function must satisfy, so they come first and must fail before the merge.
 
 ```bash
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
-R=/Users/turdy/surg-recovery-2026-07-30
+cd ~/docs/NU/Freshman_Year/Summer_2026/surg
+R=~/surg-recovery-2026-07-30
 .venv/bin/python $R/replay.py \
   $R/edit-chains/_worktree-surg-gridstatus-5min__tests__analysis__test_tail_risk_curves.py.json \
   tests/analysis/test_tail_risk_curves.py --from-base
@@ -336,7 +336,7 @@ The second chain contains **two identical `(old_string, new_string)` ops** (op0 
 import json
 from pathlib import Path
 
-CHAIN = Path("/Users/turdy/surg-recovery-2026-07-30/edit-chains/"
+CHAIN = Path("~/surg-recovery-2026-07-30/edit-chains/"
              "tests__analysis__test_tail_risk_curves.py.json")
 DEST = Path("tests/analysis/test_tail_risk_curves.py")
 
@@ -638,7 +638,7 @@ This must run **after** Task 2, because arming it unmasks D4 — the `resolution
 - [x] **Step 1: Confirm the defect**
 
 ```bash
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+cd ~/docs/NU/Freshman_Year/Summer_2026/surg
 echo "globbed by the test (expect 0):"
 ls tests/regression/hourly_reference/tail_risk_curves/*.json 2>/dev/null | wc -l
 echo "actually present (expect 5):"
@@ -1136,7 +1136,7 @@ if __name__ == "__main__":
 - [x] **Step 2: Run it**
 
 ```bash
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+cd ~/docs/NU/Freshman_Year/Summer_2026/surg
 .venv/bin/python scripts/poll_gridstatus_usage.py
 ```
 
@@ -1228,7 +1228,7 @@ Expected: `SYNTAX OK`. **`bash -n` checks syntax only — which is exactly how E
 Between here and Task 10's irreversible ~890-request launch, this is the only time the script is actually executed. Cost: ~5 requests, one per account. The env-var overrides added in Step 3 make this a real run of the real script — no edited copy.
 
 ```bash
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+cd ~/docs/NU/Freshman_Year/Summer_2026/surg
 time env START=2026-06-01T00:00:00Z END=2026-06-02T00:00:00Z \
          DATA_ROOT=/tmp/surg-launch-smoke \
          LOG_DIR=/tmp/surg-launch-smoke-logs \
@@ -1480,7 +1480,7 @@ Only account 6 is touched by data requests; the polls are read-only metadata cal
 - [ ] **Step 1: Read live quota**
 
 ```bash
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+cd ~/docs/NU/Freshman_Year/Summer_2026/surg
 .venv/bin/python scripts/poll_gridstatus_usage.py
 ```
 
@@ -1580,7 +1580,7 @@ Budget: 177 LMP requests per pnode (1,239 days ÷ 7 = 177.0 exactly) and **42** 
 - [ ] **Step 2: Launch**
 
 ```bash
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+cd ~/docs/NU/Freshman_Year/Summer_2026/surg
 nohup caffeinate -i bash scripts/gridstatus_backfill_launch.sh \
   > ~/surg-run-logs/surg-gridstatus-backfill.log 2>&1 &
 echo "launcher pid=$!"
@@ -1633,7 +1633,7 @@ Every path and flag below is the real one. Rev1's were wrong throughout (ERRATA 
 `build_5min.py:113-116` requires `--start` and `--end`, and `--output` is a **file** path. Rev1 wrote `--out data/processed`, a directory, with neither window flag.
 
 ```bash
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+cd ~/docs/NU/Freshman_Year/Summer_2026/surg
 .venv/bin/python -m surg.preprocessing.build_5min --help
 .venv/bin/python -m surg.preprocessing.build_5min \
   --data-root data/raw/gridstatus \
@@ -1711,7 +1711,7 @@ Skip if the builder needed no changes. The panel itself is gitignored and is not
 The flag is `--out-root`, not `--out` (`run_5min.py:116`), and the panel default is `data/interim/analysis_panel_5min.parquet`.
 
 ```bash
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+cd ~/docs/NU/Freshman_Year/Summer_2026/surg
 nohup caffeinate -i .venv/bin/python -m surg.analysis.run_5min \
   --panel data/interim/analysis_panel_5min.parquet \
   --out-root outputs/fivemin_extended \

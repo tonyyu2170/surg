@@ -119,15 +119,15 @@ Each exists because a finding sign-flipped on 2026-07-30. A figure that omits it
 - [ ] **Step 1: Create the worktree**
 
 ```bash
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+cd ~/docs/NU/Freshman_Year/Summer_2026/surg
 git worktree add -b feature/subq1-figure-set ../surg-figures main
 ```
 
 - [ ] **Step 2: Link the panels and existing outputs**
 
 ```bash
-MAIN=/Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
-WT=/Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg-figures
+MAIN=~/docs/NU/Freshman_Year/Summer_2026/surg
+WT=~/docs/NU/Freshman_Year/Summer_2026/surg-figures
 ln -s "$MAIN/data/interim/analysis_panel.parquet"      "$WT/data/interim/"
 ln -s "$MAIN/data/interim/analysis_panel_5min.parquet" "$WT/data/interim/"
 for d in "$MAIN"/outputs/*/; do

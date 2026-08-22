@@ -122,7 +122,7 @@ This is the blocking gap. `run_5min.py:93` calls `run_gpd(..., cluster_col="nigh
 ```bash
 python3 -c "
 import json
-d=json.load(open('/Users/turdy/surg-recovery-2026-07-30/edit-chains/_worktree-surg-gridstatus-5min__src__surg__analysis__gpd.py.json'))
+d=json.load(open('~/surg-recovery-2026-07-30/edit-chains/_worktree-surg-gridstatus-5min__src__surg__analysis__gpd.py.json'))
 ops=d['ops']
 assert len(ops)==11, f'expected 11 ops, got {len(ops)}'
 assert 'INTENTIONAL BUG' in ops[8]['new_string'], 'op8 is not the labeled mutation'
@@ -141,12 +141,12 @@ Expected: `CONFIRMED: ops 8,9,10 are mutation scaffolding; replay ops 0-7 only`
 Use this snippet instead. It mirrors `replay.py`'s exact match/skip semantics (`count == 0` → skip; `count > 1` without `replace_all` → skip) while restricting to ops 0–7 and deduplicating by `(old_string, new_string)` first:
 
 ```bash
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
+cd ~/docs/NU/Freshman_Year/Summer_2026/surg
 python3 - <<'PY'
 import json
 from pathlib import Path
 
-CHAIN = Path("/Users/turdy/surg-recovery-2026-07-30/edit-chains/"
+CHAIN = Path("~/surg-recovery-2026-07-30/edit-chains/"
              "_worktree-surg-gridstatus-5min__src__surg__analysis__gpd.py.json")
 DEST = Path("src/surg/analysis/gpd.py")
 
@@ -206,8 +206,8 @@ Expected: each `def` count is exactly `1`; `GOOD: no intentional-bug line presen
 All 3 ops are `Edit`, so `--from-base` is required (positional args, no `--dedup` flag — dedup is manual):
 
 ```bash
-python3 /Users/turdy/surg-recovery-2026-07-30/replay.py \
-  /Users/turdy/surg-recovery-2026-07-30/edit-chains/_worktree-surg-gridstatus-5min__tests__analysis__test_gpd.py.json \
+python3 ~/surg-recovery-2026-07-30/replay.py \
+  ~/surg-recovery-2026-07-30/edit-chains/_worktree-surg-gridstatus-5min__tests__analysis__test_gpd.py.json \
   tests/analysis/test_gpd.py --from-base
 ```
 
@@ -333,8 +333,8 @@ Unskips tests/analysis/test_run_5min.py, which was gated on this chain."
 Both chains are all-`Edit` with no `Write` baseline, so `--from-base` is required. Arguments are positional; there is no `--dedup` flag.
 
 ```bash
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/surg
-R=/Users/turdy/surg-recovery-2026-07-30
+cd ~/docs/NU/Freshman_Year/Summer_2026/surg
+R=~/surg-recovery-2026-07-30
 python3 $R/replay.py \
   $R/edit-chains/_worktree-surg-gridstatus-5min__src__surg__analysis__tail_risk_curves.py.json \
   src/surg/analysis/tail_risk_curves.py --from-base
@@ -587,7 +587,7 @@ git commit -m "feat(acquisition): add --skip-lmp for the dedicated load account"
 
 ## Task 5: Rewrite the backfill launch script into the repo
 
-The surviving script at `~/surg-run-logs/surg-gridstatus-backfill-launch.sh` is the pre-loss 3-account version and **cannot run**: it `cd`s to `/Users/turdy/docs/NU/Freshman_Year/Summer_2026/SURG/surg`, the deleted path, under `set -euo pipefail`. Treat this as a rewrite against the spec's account table, not a restoration. It also moves **into the repo**, so it cannot be lost again.
+The surviving script at `~/surg-run-logs/surg-gridstatus-backfill-launch.sh` is the pre-loss 3-account version and **cannot run**: it `cd`s to `~/docs/NU/Freshman_Year/Summer_2026/SURG/surg`, the deleted path, under `set -euo pipefail`. Treat this as a rewrite against the spec's account table, not a restoration. It also moves **into the repo**, so it cannot be lost again.
 
 **Files:**
 - Create: `scripts/gridstatus_backfill_launch.sh`

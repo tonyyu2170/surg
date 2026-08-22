@@ -21,7 +21,7 @@ from pathlib import Path
 import httpx
 from dotenv import load_dotenv
 
-BASE = "https://jupyterhub.pecanstreet.org/user/tonyyu2029unorthwesternedu"
+HUB = "https://jupyterhub.pecanstreet.org"  # per-user base is HUB/user/<JUPYTER_USER>
 ROOT = "shared/Dataport-Data"
 DEST = Path(__file__).resolve().parent.parent / "data" / "raw" / "pecanstreet"
 
@@ -71,7 +71,7 @@ MANIFEST = [
 ]
 
 
-def pull(rel: str, expected: int, client: httpx.Client, headers: dict) -> str:
+def pull(rel: str, expected: int, client: httpx.Client, headers: dict, base: str) -> str:
     dest = DEST / rel
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists() and dest.stat().st_size == expected:
@@ -81,7 +81,7 @@ def pull(rel: str, expected: int, client: httpx.Client, headers: dict) -> str:
     req_headers = dict(headers)
     if offset:
         req_headers["Range"] = f"bytes={offset}-"
-    url = f"{BASE}/files/{ROOT}/{rel}"
+    url = f"{base}/files/{ROOT}/{rel}"
     mode = "ab" if offset else "wb"
     with client.stream("GET", url, headers=req_headers) as r:
         if offset and r.status_code != 206:
@@ -103,6 +103,10 @@ def main() -> int:
     key = os.environ.get("JUPYTER_API_KEY")
     if not key:
         sys.exit("JUPYTER_API_KEY not set -- add it to .env first")
+    user = os.environ.get("JUPYTER_USER")
+    if not user:
+        sys.exit("JUPYTER_USER not set -- the Dataport login email with punctuation stripped")
+    base = f"{HUB}/user/{user}"
     headers = {"Authorization": f"token {key}"}
     total = len(MANIFEST)
     failures = 0
@@ -111,7 +115,7 @@ def main() -> int:
             t0 = time.time()
             for attempt in (1, 2, 3):
                 try:
-                    status = pull(rel, expected, client, headers)
+                    status = pull(rel, expected, client, headers, base)
                     break
                 except Exception as e:  # noqa: BLE001 - one-off script, log and retry
                     status = f"ERROR attempt {attempt}: {e!r}"

@@ -338,7 +338,7 @@ verifies pre-conditions before doing any other work.
 
 - [ ] **Step 1:** Verify clean main + on main:
   ```bash
-  cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/SURG/surg
+  cd ~/docs/NU/Freshman_Year/Summer_2026/SURG/surg
   git status
   ```
   Expected: `On branch main` + `nothing to commit, working tree clean`.

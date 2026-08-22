@@ -44,8 +44,8 @@ Tests: one `tests/...` file per created module; existing test files extended for
 - [ ] **Step 1: Create worktree + branch**
 
 ```bash
-git -C /Users/turdy/docs/NU/Freshman_Year/Summer_2026/SURG/surg worktree add ../surg-gridstatus-5min -b feature/gridstatus-5min-companion
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/SURG/surg-gridstatus-5min
+git -C ~/docs/NU/Freshman_Year/Summer_2026/SURG/surg worktree add ../surg-gridstatus-5min -b feature/gridstatus-5min-companion
+cd ~/docs/NU/Freshman_Year/Summer_2026/SURG/surg-gridstatus-5min
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]" -q 2>/dev/null || .venv/bin/pip install -e . -q
 .venv/bin/python -m pytest -q 2>&1 | tail -2
 ```
@@ -1985,7 +1985,7 @@ Expected: all pass (255 pre-existing + ~25 new), zero failures. Fix anything bro
 Present the branch summary (`git log --oneline main..HEAD`) and test count. On yes:
 
 ```bash
-cd /Users/turdy/docs/NU/Freshman_Year/Summer_2026/SURG/surg
+cd ~/docs/NU/Freshman_Year/Summer_2026/SURG/surg
 git merge --ff-only feature/gridstatus-5min-companion
 git worktree remove ../surg-gridstatus-5min
 git branch -d feature/gridstatus-5min-companion

@@ -12,7 +12,7 @@
 
 I grew up in Northern Virginia, close enough to Data Center Alley that I watched new facilities being built throughout high school. Once I started college and learned more about artificial intelligence and modern software architectures, I noticed how directly large language models and cloud services trace back to the same hyperscale data centers I had been watching get built. At the same time, Virginia policymakers and taxpayers were debating how to balance that growth against the interests of the people living next to it, and I wanted to understand the technical side of that debate rather than only hear about it secondhand.
 
-That became the basis of my project: analyzing how much volatile hyperscale data center electricity demand actually fluctuates, and its overall effect on the electrical grid. I originally only started in the Dominion region, but due to data constraints, eventually expanded my analysis across the U.S. and even into European electricity markets as well. The central finding thus far, with limited data in mind, is that volatility largely evens out at the hourly timescale, keeping the grid relatively stable in data center dense areas. Although AI training, model fine-tuning, and inference workloads do differ meaningfully from traditional data center workloads, technological progress in hardware, software, and policy has been proven to mitigate these impacts on the grid reasonably well so far. However, as these technologies and grid infrastructure continue to develop, different types of load signatures could emerge, and it is of the utmost importance that energy and policy developments remain in sync with technological advancements.
+That became the basis of my project: analyzing how much hyperscale data center load demand actually fluctuates, and its overall effect on the electrical grid. I originally only started in the Dominion region, but due to data constraints, eventually expanded my analysis across the U.S. and even into European electricity markets as well. The central finding thus far, with limited data in mind, is that volatility largely evens out at the hourly timescale, keeping the grid relatively stable in data center-dense areas. Although AI training, model fine-tuning, and inference workloads do differ meaningfully from traditional data center workloads, technological progress in hardware, software, and policy has been proven to mitigate these impacts on the grid reasonably well so far. However, as these technologies and grid infrastructure continue to develop, different types of load signatures could emerge, and it is of the utmost importance that energy and policy developments remain in sync with technological advancements.
 
 # 
 
@@ -29,7 +29,7 @@ That became the basis of my project: analyzing how much volatile hyperscale data
 
 The direction and strength of this project changed substantially over time, primarily because of data availability. I was never able to find a dataset with the granularity, the specific values, or the facility-level detail I actually needed. Most of what is publicly available is aggregated load figures for an entire utility territory or grid region rather than anything I could tie to a specific data center; that constraint shaped nearly every decision I made.
 
-Working within it sometimes felt like moving in circles. What helped was broadening the scope: rather than treating this as a pure data analysis problem, I began incorporating policy developments, recent technological advances, and current events alongside the numbers. My advisor, Professor Wei, was central to that shift as well. Having been immersed in the field for a much longer time than I, she knew the data constraints I would face and helped me work through them step by step. Moreover, she consistently pushed me to ask what story the data could actually support rather than the one I had originally set out to tell. 
+Working within these restrictions sometimes felt like moving in circles. What helped was broadening the scope: rather than treating this as a pure data analysis problem, I began incorporating policy developments, recent technological advances, scientific research papers, and current events alongside the numbers. My advisor, Professor Wei, was central to that shift as well. Having been immersed in the field for a much longer time than I, she knew the data constraints I would face and helped me work through them step by step. Moreover, she consistently pushed me to ask what story the data could actually support rather than the one I had originally set out to tell. 
 
 My content knowledge grew considerably. I learned how hyperscalers operate, how LLM training and inference differ at the hardware level, and how electricity markets function, not only in Dominion's territory in Virginia but across ISOs throughout the U.S. and through ENTSO-E in Europe. I also developed genuine data analysis skills working with very large datasets.
 
@@ -53,7 +53,7 @@ This remains very much an ongoing topic. Energy is increasingly recognized as a 
 
 The project also outgrew its original scope. I began focused on Northern Virginia and Dominion's territory, but data centers are now being built well outside that region, so the analysis had to expand accordingly. One direction I would like to pursue in the future is a comparison between the U.S. and China: less available compute, different architectures, generally stronger grid infrastructure, and a data center build-out now underway there as well. The similarities and differences seem worth examining further.
 
-If there is one takeaway I would want a general audience to draw from this work, it is that energy underlies every part of where AI development goes next, and it deserves close attention.
+If there is one takeaway I would want a general audience to draw from this work, it is that energy underlies every part of where AI development goes next, and it deserves close and immediate attention.
 
 # 
 
@@ -72,7 +72,7 @@ One of the greatest benefits of undergraduate research, in my experience, is the
 
 Technically, I gained a much deeper understanding of how large language models actually function, to the point that I am now seriously considering an AI major or a PhD in AI research. I also developed new statistical methods and, more specifically, substantial Python skills. I had done research in R previously but had limited experience with Python, and this project required me to build real fluency in it for data analysis.
 
-The communication side of the project stretched me as well. I documented my process and thinking throughout in a GitHub repository, which required constantly balancing two things: keeping the writing concise and readable while remaining technically rigorous and accessible to non-specialist readers. Maintaining that balance consistently over several months was more difficult than I expected, but it is likely the skill I will continue to rely on most.
+The communication side of the project stretched me as well. I documented my process and thinking throughout, which required constantly balancing two things: keeping the writing concise and readable while remaining technically rigorous and accessible to non-specialist readers. Maintaining that balance consistently over several months was more difficult than I expected, but it is likely the skill I will continue to rely on most.
 
 # 
 
@@ -109,8 +109,10 @@ That is probably the most important personal lesson from this project: reaching 
 
 **Undergraduate Research Grant Recipient** — Northwestern University Office of Undergraduate Research *Evanston, IL | July 2026 – August 2026*
 
-* Awarded a competitive Undergraduate Research Grant to independently design and lead a research project on electricity demand volatility from hyperscale AI data centers, from initial proposal through final report  
-* Acquired and cleaned load and price data from 8+ U.S. and European electricity markets, including PJM, ERCOT, MISO, and ENTSO-E, using Python (pandas, statsmodels)  
-* Applied statistical methods, including quantile regression and extreme value analysis, to quantify how AI training and inference workloads affect grid-level load volatility across multiple timescales  
-* Adjusted research scope and methodology in response to data availability constraints, working with a faculty advisor through recurring progress meetings  
-* Documented the full research process and findings in a structured technical repository, balancing technical rigor with accessibility for non-specialist readers
+* Awarded a competitive Undergraduate Research Grant to independently design and lead a research project on electricity demand volatility from hyperscale AI data centers, from initial proposal through a 100+ source final report of 37 original figures  
+* Acquired, validated and cleaned \~28 GB across 37 datasets from 15 independent sources — grid operators, national statistics agencies and utilities — using Python (pandas, statsmodels) while working within strict API quotas and rate limits  
+* Built reproducible load and price panels spanning 8 North American electricity markets (PJM, ERCOT, MISO, SPP, NYISO, ISO-NE, CAISO, IESO) and 19 European bidding zones via ENTSO-E, anchored on a 3.6-year hourly panel of 11 Dominion pricing nodes  
+* Applied quantile regression, threshold regression and extreme value (generalized Pareto) tail models to quantify how AI training and inference workloads affect grid-level load volatility across hourly, 5-minute and sub-second timescales  
+* Analyzed 5,442,348 half-hourly utilization records from 96 anonymized UK data centers, finding facility-level demand far flatter than industry projections assume (median daily peak-to-trough ratio 1.05)  
+* Wrote \~27,000 lines of Python backed by 585 automated tests across 351 commits, released as a public, fully reproducible research repository  
+* Adjusted research scope and methodology in response to data availability constraints, presenting progress and revised designs to a faculty advisor across six documented meetings

@@ -3,7 +3,7 @@
 
 Usage: .venv/bin/python scripts/ukpn_flatness.py
 
-Answers agenda item 7 of docs/plans/2026-08-19-advisor-meeting-agenda.md
+Answers agenda item 7 of docs/plans/advisor/2026-08-19-advisor-meeting-agenda.md
 against the 96-site, half-hourly UKPN corpus in data/raw/ukpn/. The
 proposal assumes data-centre load is spiky and cites two papers; EPRI's
 metered facilities say the opposite (load factor 94% hyperscale / 88%

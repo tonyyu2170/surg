@@ -80,4 +80,5 @@ Diving deeper into the sub second fluctuations, trying to chase down where these
 
 ## Notes from meeting
 
-* 
+* Scheduling could be software solution: [https://dl.acm.org/doi/pdf/10.1145/2382553.2382556](https://dl.acm.org/doi/pdf/10.1145/2382553.2382556)  
+* Separate report for prof wei, less of a report more of a running cumulative process of everything weve looked at, things weve done, datasets weve looked into and what they showed, papers weve read.

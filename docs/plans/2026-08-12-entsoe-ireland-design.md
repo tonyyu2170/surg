@@ -385,7 +385,7 @@ No regression pins — new thread.
 - `docs/research-notes/K-ireland-dc-shape.md`, in the mould of
   `J-ukpn-flatness.md`
 - the "European energy markets" section of
-  `docs/plans/2026-08-19-advisor-meeting-agenda.md`, currently empty
+  `docs/plans/advisor/2026-08-19-advisor-meeting-agenda.md`, currently empty
 - a `docs/decisions.md` entry (append-only)
 
 Six to seven files, so per `CLAUDE.md` this goes through writing-plans →

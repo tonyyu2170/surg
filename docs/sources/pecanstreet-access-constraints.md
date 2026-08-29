@@ -68,8 +68,9 @@ discipline does not apply.
 
 ## The headline trap: metadata describes 2,072 homes; the tier delivers ~75
 
-`metadata.csv` (both the vendored copy and the fresher one at
-`/shared/Dataport-Data/metadata.csv`) inventories the **full research
+`metadata.csv` (both the downloaded copy and the fresher one at
+`/shared/Dataport-Data/metadata.csv`; neither is tracked in git, since Dataport
+prohibits redistribution) inventories the **full research
 DB**: 2,072 dataids, 1,198 with 1-min data, 406 current into 2026, 25+
 cities. **None of that is reachable on the free tier.** What is
 reachable is the static release below: **25 Austin + 25 New York + 23

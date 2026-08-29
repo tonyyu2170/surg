@@ -11,7 +11,7 @@
 > window they are computed over is the problem.
 
 Analysis date: 2026-08-12. Fills the empty "European energy markets" section of
-`docs/plans/2026-08-19-advisor-meeting-agenda.md`.
+`docs/plans/advisor/2026-08-19-advisor-meeting-agenda.md`.
 
 Scripts: `scripts/entsoe_fetch.py`, `scripts/cso_fetch.py`,
 `scripts/entsoe_ireland.py`. Outputs: `outputs/entsoe/`

@@ -1,7 +1,7 @@
 # Is Data-Centre Load Actually Spiky? — The UKPN Flatness Cut
 
 Analysis date: 2026-08-11. Answers agenda TODO item 7 of
-`docs/plans/2026-08-19-advisor-meeting-agenda.md`: *"characterize the ~100 site
+`docs/plans/advisor/2026-08-19-advisor-meeting-agenda.md`: *"characterize the ~100 site
 profiles. Is data-center load actually spiky? Your proposal assumes it and cites two
 papers; nobody has checked it against data."*
 

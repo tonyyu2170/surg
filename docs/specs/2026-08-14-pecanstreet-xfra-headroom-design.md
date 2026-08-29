@@ -9,7 +9,7 @@ bundles: Austin 25 homes (15-min/1-min/1-sec, calendar 2018), New York 25 homes
 
 ## Motivation
 
-Prioritization doc (`docs/plans/2026-08-11-post-meeting-prioritization.md` §3)
+Prioritization doc (`docs/plans/advisor/2026-08-11-post-meeting-prioritization.md` §3)
 assigns Pecan Street one job: the advisor's XFRA question. XFRA/SPAN propose
 hosting AI compute nodes in homes on the theory that residential panels have
 idle "electrical headroom." The obvious tension, already written down there: a

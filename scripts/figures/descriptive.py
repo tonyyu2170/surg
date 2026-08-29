@@ -111,7 +111,7 @@ def plot_f1(d: dict, out_path: Path) -> None:
     step = max(1, d["n_months"] // 12)
     axes[2].set_xticks(x[::step])
     axes[2].set_xticklabels(d["months"][::step], rotation=45, ha="right")
-    fig.suptitle("F1 — The premise: load grew, volatility did not", y=0.98)
+    fig.suptitle(f"{S.label('F1')} — The premise: load grew, volatility did not", y=0.98)
 
     footer = S.provenance(source=PANEL_5MIN, n=d["n_obs"], window=d["window"],
                            spec="descriptive, monthly", resolution="5-min")
@@ -196,7 +196,7 @@ def plot_f2(d: dict, out_path: Path) -> None:
     axes[1][1].set_xlabel("Ramp decile")
     axes[1][1].legend()
 
-    fig.suptitle("F2 — Congestion tracks load level, not ramp volatility", y=0.99)
+    fig.suptitle(f"{S.label('F2')} — Congestion tracks load level, not ramp volatility", y=0.99)
     footer = S.provenance(source=PANEL_5MIN, n=d["n"], window=d["window"],
                           spec="decile descriptive", resolution="5-min")
     caption = (
@@ -255,7 +255,7 @@ def plot_f3(d: dict, out_path: Path) -> None:
     axes[2].set_title("(c) System energy — smooth, seasonal (system-wide)")
     axes[2].set_xlabel("Date")
 
-    fig.suptitle("F3 — Total LMP decomposed: locational vs system-wide", y=0.98)
+    fig.suptitle(f"{S.label('F3')} — Total LMP decomposed: locational vs system-wide", y=0.98)
     footer = S.provenance(source=PANEL_5MIN, n=d["n"], window=d["window"],
                           spec="daily medians, symlog axis", resolution="5-min")
     caption = (
@@ -353,7 +353,7 @@ def plot_f4(d: dict, out_path: Path) -> None:
                      fontsize=7, color=S.MUTED)
     _month_ticks(axes[1], d["months"])
 
-    fig.suptitle("F4 — Large congestion events per month", y=0.98)
+    fig.suptitle(f"{S.label('F4')} — Large congestion events per month", y=0.98)
     footer = S.provenance(source=PANEL_5MIN, n=d["n"], window=d["window"],
                           spec="monthly exceedance counts", resolution="5-min")
     caption = (
@@ -427,7 +427,7 @@ def plot_f4b(d: dict, out_path: Path) -> None:
         ax.set_ylim(0, top * 1.15)
     _month_ticks(axes[-1], d["months"])
 
-    fig.suptitle("F4b — Severity escalation, by month", y=0.98)
+    fig.suptitle(f"{S.label('F4b')} — Severity escalation, by month", y=0.98)
     footer = S.provenance(source=PANEL_5MIN, n=d["n"], window=d["window"],
                           spec="monthly exceedance counts, observed",
                           resolution="5-min")

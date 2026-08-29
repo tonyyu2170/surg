@@ -25,7 +25,7 @@ matplotlib (Agg). No new dependencies.
 - **No AI attribution in commits.** Plain human-style messages only.
 - **Never `git add .`** — stage the explicit paths listed in each commit step.
 - **Never touch `data/` or `outputs/` destructively.**
-- `docs/plans/2026-08-19-advisor-meeting-agenda.md` has uncommitted user edits. Task 8 edits
+- `docs/plans/advisor/2026-08-19-advisor-meeting-agenda.md` has uncommitted user edits. Task 8 edits
   ONE section of it and leaves it uncommitted.
 
 ## Verified data facts (probed 2026-08-14 — trust these, they override any doc)
@@ -1296,7 +1296,7 @@ git commit -m "test(pecanstreet): pin headroom numbers from the production run"
 - Create: `docs/research-notes/M-pecanstreet-xfra-headroom.md`
 - Modify: `docs/research-notes/INDEX.md` (add one line, following the existing letter rows)
 - Modify: `docs/sources/data-catalog.md` (mark the pecanstreet analysis as existing, one line)
-- Modify: `docs/plans/2026-08-19-advisor-meeting-agenda.md` — fill the empty
+- Modify: `docs/plans/advisor/2026-08-19-advisor-meeting-agenda.md` — fill the empty
   `### Pecan street texas dataset` section with 3–5 result bullets. **Leave this file
   uncommitted** (it carries Tony's own uncommitted edits).
 

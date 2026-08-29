@@ -6107,3 +6107,92 @@ and the `*-api-constraints.md` / `*-data-availability-research.md` globs still
 work within their new directories. Every cross-reference in every editable file
 (52 of them) was repaired and verified: a re-grep for the old paths returns
 `docs/decisions.md` and nothing else.
+
+## 2026-08-26 — advisor-meeting documents grouped under `docs/plans/advisor/`
+
+Supersedes the "`docs/plans/` keeps its path and stays flat" clause of the
+2026-08-12 entry *"`docs/` reorganised; path map for citations frozen in this
+log"*. The weekly agendas, the 2026-05-15 framing briefs, the 2026-08-11
+post-meeting prioritization and the agenda image assets now sit in one
+subdirectory; the rest of `docs/plans/` stays flat.
+
+| Cited as (entries above) | Now at |
+|---|---|
+| `docs/plans/<date>-advisor-meeting-agenda.md` | `docs/plans/advisor/<same>` |
+| `docs/plans/2026-05-15-advisor-meeting-framings/` | `docs/plans/advisor/<same>` |
+| `docs/plans/2026-08-11-post-meeting-prioritization.md` | `docs/plans/advisor/<same>` |
+| `docs/plans/assets/` | `docs/plans/advisor/assets/` |
+
+All moves were `git mv`, so history follows the files. Every cross-reference
+outside this log was rewritten; a re-grep for the old paths returns this file
+and nothing else. The newest `docs/plans/advisor/*-advisor-meeting-agenda.md`
+remains the micro status.
+
+## 2026-08-28 — GPU telemetry: the cycle is slow but its edges are fast (report §3.12 reoriented)
+
+Prompted by the final-report review of 2026-08-28: the 60-second windows in
+the node-power figure (`scripts/plot_aidc_timeseries.py`, report Figure 40)
+show the drop and the recovery inside each 8 to 16 s cycle completing in about
+a second, which the report's "nothing repeats several times a second" framing
+understated. `scripts/aidc_edges.py` measures it on the four baseline
+rs-7943457 sessions (node power = sum of the eight per-GPU channels; middle
+80% of each session; high/low levels = 90th/10th percentiles of node power;
+edge time = 10% to 90% of the swing; ramp rate = 80% of the swing / edge time;
+self-test on a synthetic square wave with known ramps):
+
+| Session | low to high (kW) | cycles | fall median / p90 (s) | rise median / p90 (s) | ramp fall / rise (kW/s) |
+|---|---|---|---|---|---|
+| B200 diffusion | 1.6 to 4.6 | 63 | 0.84 / 0.86 | 1.56 / 2.48 | 2.9 / 1.5 |
+| H100 diffusion | 1.0 to 3.2 | 44 | 0.82 / 0.87 | 0.92 / 1.36 | 2.2 / 1.9 |
+| B200 LLM (batch 16) | 2.4 to 6.9 | 85 | 1.79 / 1.90 | 0.74 / 0.78 | 2.0 / 4.8 |
+| H100 LLM (batch 16) | 2.0 to 5.0 | 54 | 0.70 / 2.41 | 0.68 / 1.10 | 3.5 / 3.6 |
+
+The sensor refreshes every ~103 ms, so these are well above the instrument
+floor; the B200 LLM fall is longer because its descent is a two-stage
+staircase (Figure 40, third row).
+
+**Ruling.** The telemetry partially supports the operator claim rather than
+contradicting it: every session shows abrupt second-scale steps of 2 to 4.5 kW
+(2 to 5 kW/s for one node), coherent across the node's GPUs, which is EPRI's
+"coordinated computing tasks stopping and starting" at the scale of one
+server; what it does not show is a sustained 0.2 to 3 Hz oscillation. The
+0.2 to 3 Hz variance shares in note N §7.7 already carried this (the sharp
+edges are where that in-band energy comes from). Report wording changed in
+§3.12 (Table 10 row #3, the Figure 40 lead-in, caption and baked-in footer,
+Table 11 gains three columns, the paragraph after it), §4 Table 16 row [98]
+and §5 (paragraph 3, bullets 4 and 5). The §0 working conclusion is unchanged:
+the node data sits upstream of any mitigation. Extends note N §7.7; supersedes
+nothing.
+
+## 2026-08-28 — GPU telemetry: the node's step scaled to a synchronized training job (report §3.12, Table 12)
+
+Prompted by the final-report review of 2026-08-28: does the per-node step
+measured by `scripts/aidc_edges.py`, scaled to a hyperscale training job,
+reproduce the 10 to 20 MW the operators claim? `scripts/aidc_scale.py`
+divides each session's swing and ramp rate by the node's eight GPUs (per-GPU
+step 0.28 to 0.56 kW, 61 to 69% of the node's high level; per-GPU ramp 0.19
+to 0.61 kW/s) and multiplies by the GPU count of real jobs, assuming perfect
+coherence (measured 0.994 to 0.995 within the node; across nodes assumed, not
+measured):
+
+| GPUs | What | Step (MW) | Ramp (MW/s) |
+|---|---|---|---|
+| 16,384 | Llama 3 405B pre-training (arXiv 2407.21783) | 4.5 to 9.2 | 3.2 to 9.9 |
+| 24,576 | one Meta 2024 H100 cluster (Meta Engineering, 2024-03-12) | 6.8 to 13.8 | 4.7 to 14.9 |
+| 50,000 | round number | 13.8 to 28.0 | 9.7 to 30.3 |
+| 100,000 | xAI Colossus phase 1 (NVIDIA news, 2024-10-28) | 27.6 to 56.0 | 19.3 to 60.6 |
+
+A 10 MW step needs 17,800 to 36,200 synchronized GPUs and a 20 MW step
+35,700 to 72,400: the "tens of thousands of GPUs" jobs of arXiv 2508.14318,
+so the claim is consistent in magnitude with the node telemetry; the paper's
+upper figure of over 100 MW corresponds to roughly 180,000 to 360,000 GPUs.
+At 36,000 GPUs the ramp is 7 to 22 MW/s, so one step would exceed ERCOT's
+proposed 10 MW per 5-second limit by itself.
+
+**Ruling.** Reported in §3.12 as a scale-up with three stated caveats (the
+sessions are small models below rated power, 0.4 to 0.86 kW per GPU at the
+high level against 0.7 kW H100 / 1 kW B200 TDP, so a frontier job's per-GPU
+step could be larger; cross-node coherence assumed; the number is
+pre-mitigation load) and in §5 as one sentence. New Table 12 (later tables
+renumbered 13 to 19), references [108] to [110]. Extends the 2026-08-28
+edge-speed entry above; supersedes nothing. Output: `outputs/aidc_scale.json`.

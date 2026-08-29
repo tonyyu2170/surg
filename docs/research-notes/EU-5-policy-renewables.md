@@ -3,7 +3,7 @@
 Research date: 2026-08-11. Desk research only — no data pulled, no acquisition module written.
 
 Scope: the six questions in the EU-5 brief. Gated item #4 in
-`docs/plans/2026-08-11-post-meeting-prioritization.md`, run after the ISO-NE
+`docs/plans/advisor/2026-08-11-post-meeting-prioritization.md`, run after the ISO-NE
 diurnal fingerprint test (`docs/plans/2026-08-11-isone-der-fingerprint-prereg.md`)
 returned **UNINFORMATIVE**.
 
@@ -620,7 +620,7 @@ netting that makes US co-location a measurement and cost-allocation problem.
 section:** Ireland's design means Irish data-centre load should stay *observable*
 in metered data even as co-location becomes universal there — whereas the US
 trajectory points the other way. The "shelf life of the data" limitation that
-`docs/plans/2026-08-11-post-meeting-prioritization.md` §2 identifies for the US is
+`docs/plans/advisor/2026-08-11-post-meeting-prioritization.md` §2 identifies for the US is
 **not** symmetric across jurisdictions, and Ireland is a live example of a
 regulator choosing to preserve observability. That is a genuinely publishable
 observation and it costs nothing further to make.

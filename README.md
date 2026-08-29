@@ -19,6 +19,8 @@ Street), and the provenance of the sub-second oscillation claim (NERC LLTF,
 arXiv 2508.14318, real GPU telemetry).
 
 Initial proposal: [`docs/Yu_Tony_SURG_Grant_Proposal.md`](docs/Yu_Tony_SURG_Grant_Proposal.md).
+Final report: [`docs/final_report.md`](docs/final_report.md) ([PDF](docs/final_report.pdf)),
+with its figures in `docs/assets/final_report/`.
 Methodology and scope decisions are logged in [`docs/decisions.md`](docs/decisions.md);
 findings are indexed in [`docs/research-notes/INDEX.md`](docs/research-notes/INDEX.md).
 
@@ -177,6 +179,11 @@ data from [Pecan Street Dataport](https://dataport.pecanstreet.org)
 (requires an approved account); GPU power traces from the rs-7943457
 dataset (CC BY 4.0). No raw data is tracked in git; every panel is
 reproducible from the acquisition commands above.
+
+## License
+
+MIT (see `LICENSE`). Vendored third-party material under `docs/reference/`
+(PJM manuals, papers, Pecan Street's data dictionary) keeps its own terms.
 
 Per-source constraints and gotchas live in `docs/sources/*-api-constraints.md`
 (PJM, gridstatus, UKPN, ENTSO-E), `docs/sources/pecanstreet-access-constraints.md`,

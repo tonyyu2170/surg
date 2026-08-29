@@ -37,6 +37,19 @@ NICE = {
     "ashburn_tx2": "Ashburn TX2",
 }
 
+# Labels the final report gives the figures it includes (docs/final_report.md,
+# review of 2026-08-28). Figures the report leaves out keep their F-number.
+REPORT_LABEL = {
+    "F1": "Figure 6", "F2": "Figure 7", "F6": "Figure 8", "F8": "Figure 9",
+    "F4": "Figure 11", "F4b": "Figure 12", "F11": "Figure 13", "F3": "Figure 14",
+    "F7": "Figure 15", "F10": "Figure 16",
+}
+
+
+def label(name: str) -> str:
+    return REPORT_LABEL.get(name, name)
+
+
 GRID = "#d8d7d2"
 MUTED = "#52514e"
 INK = "#0b0b0b"

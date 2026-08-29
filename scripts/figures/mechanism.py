@@ -123,7 +123,7 @@ def plot_f11(d: dict, out_path: Path) -> None:
     axes[1].set_title("(b) How much does load growth explain?")
     axes[1].legend(fontsize=8)
 
-    fig.suptitle("F11 — What actually changed in 2026", y=0.99)
+    fig.suptitle(f"{S.label('F11')} — What actually changed in 2026", y=0.99)
     footer = S.provenance(source=PANEL_5MIN, n=d["n"], window=d["window"],
                           spec=f"{BIN_WIDTH} MW load bins, "
                                f"{d['baseline_year']} baseline response",
@@ -203,7 +203,7 @@ def plot_f8(d: dict, out_path: Path) -> None:
                     color=S.COLOR["primary"], alpha=0.18)
     ax.set_xlabel("Ramp (Z) decile")
     ax.set_ylabel(f"P({d['response']} > ${float(d['threshold']):,.0f}) (%)")
-    ax.set_title("F8 — Tail-risk by volatility decile, no proposal filter")
+    ax.set_title(f"{S.label('F8')} — Tail-risk by volatility decile, no proposal filter")
 
     footer = S.provenance(source="outputs/fivemin_nofilter/pooled",
                           n=d["n"], window="full 3.4-year panel",

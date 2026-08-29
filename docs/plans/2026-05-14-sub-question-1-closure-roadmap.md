@@ -302,7 +302,7 @@ done pre-launch on `main`.
 ### 5. Advisor meeting (Prof Wei / Lihui)
 
 **Status:** Agenda at
-`docs/plans/2026-05-14-advisor-meeting-agenda.md`. 8 items;
+`docs/plans/advisor/2026-05-14-advisor-meeting-agenda.md`. 8 items;
 critical for sub-q1 closure are items 1 (framing), 2 (bootstrap
 p-value semantics), 5 (τ=0.99 sign flip), 6 (Ashburn TX1).
 

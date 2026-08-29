@@ -5,6 +5,9 @@ Grouped by what a document *is*, not by when it was written.
 ```
 decisions.md                 log of record — APPEND-ONLY
 Yu_Tony_SURG_Grant_Proposal.md
+final_report.md              cumulative project record for the advisor (figures in assets/final_report/)
+final_report.pdf             the same, exported from Google Docs; the copy that is turned in
+final_reflection.md          Office of Undergraduate Research reflection
 
 sources/                     how to get the data, and what it will not give you
   <pjm|gridstatus|ukpn|entsoe>-api-constraints.md
@@ -21,14 +24,17 @@ research-notes/              findings — see INDEX.md
   EU-0-…  …  EU-5-…          European scoping batch
   external-context-research-2026-08.md
 
-plans/                       designs, implementation plans, pre-regs, agendas
-                             flat and date-prefixed; the newest
-                             *-advisor-meeting-agenda.md is the micro status
+plans/                       designs, implementation plans, pre-regs
+                             flat and date-prefixed
+  advisor/                   meeting agendas, framing briefs, post-meeting
+                             notes; the newest *-advisor-meeting-agenda.md
+                             is the micro status
 specs/                       design docs from the superpowers workflow
 
 reference/                   vendored source material, not written here
   pjm-manuals/               M03/M11/M12, Data Miner 2 guide, pjm-lmp-formation.md
-  pecan-street/              Dataport catalog, metadata dictionary, metadata.csv
+  pecan-street/              Dataport catalog and metadata dictionary (metadata.csv
+                             itself is not tracked: Dataport prohibits redistribution)
   papers/
 ```
 
@@ -38,7 +44,7 @@ reference/                   vendored source material, not written here
 |---|---|
 | What has been decided, and why | `decisions.md` — check before re-deriving anything |
 | What has been found | `research-notes/INDEX.md` |
-| What is being worked on right now | newest `plans/*-advisor-meeting-agenda.md` |
+| What is being worked on right now | newest `plans/advisor/*-advisor-meeting-agenda.md` |
 | Can I pull X from market Y | `sources/availability/` |
 | Why did that API reject my request | `sources/*-api-constraints.md` |
 

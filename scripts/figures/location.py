@@ -148,7 +148,7 @@ def plot_f7(d: dict, out_path: Path) -> None:
     fig.colorbar(im, ax=axes[1], shrink=0.8)
     axes[1].set_title("(b) Congestion correlation\n(common window)")
 
-    fig.suptitle("F7 — Location matters even where volatility does not", y=0.99)
+    fig.suptitle(f"{S.label('F7')} — Location matters even where volatility does not", y=0.99)
     footer = S.provenance(
         source=PANEL_HOURLY, n=d["n_common"],
         window=f"{d['common_window_start']} to {d['common_window_end']}",
@@ -290,7 +290,7 @@ def plot_f10(d: dict, out_path: Path) -> None:
     axes[1].set_title(
         f"(b) System energy ${d['energy_before']:.2f} → ${d['energy_after']:.2f}")
 
-    fig.suptitle(f"F10 — The {d['event_date']} data-center trip", y=0.98)
+    fig.suptitle(f"{S.label('F10')} — The {d['event_date']} data-center trip", y=0.98)
     footer = S.provenance(source=PANEL_5MIN, n=d["n"],
                           window=f"{d['window_start']} to {d['window_end']}",
                           spec="event study", resolution="5-min")

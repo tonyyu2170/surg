@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-11
 **Status:** LOCKED before any result was computed.
-**Motivation:** `docs/plans/2026-08-11-post-meeting-prioritization.md` §1, and the
+**Motivation:** `docs/plans/advisor/2026-08-11-post-meeting-prioritization.md` §1, and the
 advisor's 2026-08-10 question "is New England's fluctuation caused by the
 Canadian tie?"
 

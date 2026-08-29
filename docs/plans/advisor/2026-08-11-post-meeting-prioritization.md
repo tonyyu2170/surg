@@ -1,6 +1,6 @@
 # Post-Meeting Prioritization — week of 2026-08-11
 
-Source: `docs/plans/2026-08-10-advisor-meeting-agenda.md`, "Notes from meeting"
+Source: `docs/plans/advisor/2026-08-10-advisor-meeting-agenda.md`, "Notes from meeting"
 plus "Things I Need Advice On" and "Future Direction".
 
 All six items are due this week. What follows is an ordering, and the ordering

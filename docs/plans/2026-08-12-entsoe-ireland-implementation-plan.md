@@ -46,7 +46,7 @@ used — see design §3.1.
 | `tests/preprocessing/test_entsoe_expand.py` | **Create.** Expander tests — the correctness-critical suite. |
 | `tests/preprocessing/test_entsoe_panel.py` | **Create.** Panel localization and DST tests. |
 | `docs/research-notes/K-ireland-dc-shape.md` | **Create.** The deliverable note. |
-| `docs/plans/2026-08-19-advisor-meeting-agenda.md` | **Modify.** Fill the empty "European energy markets" section. |
+| `docs/plans/advisor/2026-08-19-advisor-meeting-agenda.md` | **Modify.** Fill the empty "European energy markets" section. |
 | `docs/decisions.md` | **Modify — APPEND ONLY.** New entry at end. Never edit an existing one. |
 
 **Real response schema, captured 2026-08-12** (both document types, so the
@@ -1955,7 +1955,7 @@ Expected: `All checks passed!`
 
 **Files:**
 - Create: `docs/research-notes/K-ireland-dc-shape.md`
-- Modify: `docs/plans/2026-08-19-advisor-meeting-agenda.md` — the empty
+- Modify: `docs/plans/advisor/2026-08-19-advisor-meeting-agenda.md` — the empty
   "European energy markets" section (currently line ~20)
 - Modify: `docs/decisions.md` — **APPEND ONLY**, new entry at the end
 
@@ -1990,7 +1990,7 @@ Required content, in this order:
 
 - [ ] **Step 3: Fill the agenda's "European energy markets" section**
 
-Edit `docs/plans/2026-08-19-advisor-meeting-agenda.md`, replacing the empty
+Edit `docs/plans/advisor/2026-08-19-advisor-meeting-agenda.md`, replacing the empty
 bullet under `### European energy markets` with 4–6 bullets in the style of the
 existing "UK Data centers" section: what the data is, what was found, and what
 it cannot say.
@@ -2014,7 +2014,7 @@ result, and the explicit non-causal framing.
 
 ```bash
 git add docs/research-notes/K-ireland-dc-shape.md \
-        docs/plans/2026-08-19-advisor-meeting-agenda.md \
+        docs/plans/advisor/2026-08-19-advisor-meeting-agenda.md \
         docs/decisions.md
 ```
 Proposed message: `docs(entsoe): Irish DC dose vs load shape findings`

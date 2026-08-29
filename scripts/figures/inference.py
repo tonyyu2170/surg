@@ -153,7 +153,7 @@ def plot_f6(d: dict, out_path: Path) -> None:
     # (a)'s lower left is empty until the extreme tail.
     axes[0].legend(fontsize=7, ncol=2, loc="lower left", framealpha=0.9)
 
-    fig.suptitle("F6 — Effect size across quantiles, both specifications", y=0.99)
+    fig.suptitle(f"{S.label('F6')} — Effect size across quantiles, both specifications", y=0.99)
     pooled_n = [s["n"] for (period, _), s in d["series"].items()
                 if period == "pooled"]
     footer = S.provenance(source=PANEL_5MIN,

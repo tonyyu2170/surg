@@ -1,7 +1,7 @@
 # Why Hourly Load Is Flat — Provenance of the Sub-Second Claim and the Four Filters
 
 Research date: 2026-08-20. Answers the five action items in the "Notes from meeting"
-section of `docs/plans/2026-08-19-advisor-meeting-agenda.md` plus the closing question
+section of `docs/plans/advisor/2026-08-19-advisor-meeting-agenda.md` plus the closing question
 ("hourly load barely fluctuates — but why?").
 
 Primary documents read in full: NERC White Paper 2 (March 2026), NERC Reliability
@@ -661,3 +661,27 @@ does not match what executed. seq1024 and seq4096 were dropped. Anyone reusing t
   dominant periods have no equivalent sweep behind them — unknown whether the same
   idle-time-dependent mechanism applies, or something else drives the (much larger) fraction
   of diffusion's variance sitting below 0.1 Hz.
+
+## 10. Follow-up (2026-08-28) — the cycle is slow, its edges are not
+
+The §7.7 spectrum says the node cycles every 8.5–15.9 s. What that number hides is the
+speed of each transition inside the cycle: `scripts/aidc_edges.py` (10%→90% of the
+swing, middle 80% of each baseline session) finds falls of 0.70–1.79 s and rises of
+0.68–1.56 s across steps of 2.2–4.5 kW, i.e. 2–5 kW/s for one 8-GPU node, well above the
+sensor's ~103 ms floor. So the telemetry does reproduce the *abruptness* the operators and
+EPRI's footnote describe (repeated slowly, not oscillating at 0.2–3 Hz); the in-band
+variance shares in §7.7 are those edges. Numbers, method and the report wording changes
+are in `decisions.md` § 2026-08-28.
+
+## 11. Follow-up (2026-08-28) — the node's step at training-job scale
+
+`scripts/aidc_scale.py` divides the §10 step by the node's eight GPUs (0.28–0.56 kW per
+GPU, 61–69% of the high level; ramp 0.19–0.61 kW/s per GPU) and multiplies by the GPU
+count of real jobs under perfect coherence: 16,384 GPUs (Llama 3 405B) → 4.5–9.2 MW,
+24,576 (a Meta 2024 cluster) → 6.8–13.8 MW, 100,000 (Colossus phase 1) → 28–56 MW. A
+10 MW step takes ~18k–36k synchronized GPUs and a 20 MW step ~36k–72k — the "tens of
+thousands of GPUs" jobs of arXiv 2508.14318 — so the operators' 10–20 MW is consistent in
+magnitude with the node telemetry (their >100 MW needs ~180k–360k). Caveats: the sessions
+run below rated power (0.4–0.86 kW/GPU at the high level vs. 0.7 kW H100 / 1 kW B200),
+cross-node coherence is assumed, and the figure is pre-mitigation load. Numbers and report
+placement in `decisions.md` § 2026-08-28 (second entry).

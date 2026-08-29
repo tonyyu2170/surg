@@ -4,7 +4,7 @@ Research date: 2026-08-11. Primary documents read in full where retrievable; sec
 coverage used only where noted and labelled as such.
 
 Covers the five links parked under "Links i need to look into" in
-`docs/plans/2026-08-19-advisor-meeting-agenda.md` (agenda TODO item 5).
+`docs/plans/advisor/2026-08-19-advisor-meeting-agenda.md` (agenda TODO item 5).
 
 **Link/title pairing correction.** The agenda's five bullets pair two titles with the
 wrong URLs if read as consecutive pairs. Actual mapping:

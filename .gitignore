@@ -76,3 +76,11 @@ outputs_*/
 
 # Run logs from long pulls/analyses (backfill launcher writes here)
 logs/
+
+# Word copy of the final report (the markdown is the source, the PDF is tracked;
+# scripts/build_report_docx.py rebuilds the upload for Google Docs)
+docs/final_report.docx
+
+# Pecan Street Dataport data may not be redistributed (its user agreement); the
+# vendored copy stays local
+docs/reference/pecan-street/metadata.csv
